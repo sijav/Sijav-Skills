@@ -195,7 +195,7 @@ nav.toc a.on { color: var(--accent); border-bottom-color: var(--accent); }
   nav.toc { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   nav.toc::-webkit-scrollbar { display: none; }
 }
-section { padding-block: 44px 6px; scroll-margin-top: 90px; }
+section { padding-block: 44px 6px; scroll-margin-top: 64px; }
 pre.code { font-family: var(--mono); font-size: .86rem; line-height: 1.5; background: var(--panel); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 12px 0 0; max-width: 68ch; }
 h2 { font-family: var(--display); font-weight: 650; font-size: 1.62rem; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; }
 h3 { font-family: var(--display); font-weight: 600; font-size: 1.14rem; margin: 30px 0 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
@@ -258,9 +258,9 @@ a { color: var(--accent); }
   <p class="lede">Six skills that work in any project. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up.</p>
 </header>
 <nav class="toc" aria-label="Sections">
-  <a href="#skills">The six skills</a><a href="#loading">How rules load</a><a href="#rules">The rule sets</a>
-  <a href="#loop">The loop</a><a href="#roast">The roast</a><a href="#codex">Codex</a><a href="#todo">The board</a>
-  <a href="#project">What a project adds</a><a href="#setup">Set up codex and jev</a><a href="#install">Install</a><a href="#change">Changing a rule</a>
+  <a href="#skills">Skills</a><a href="#loading">Rule loading</a><a href="#rules">Rule sets</a>
+  <a href="#loop">Loop</a><a href="#roast">Roast</a><a href="#codex">Codex</a><a href="#todo">Board</a>
+  <a href="#project">Your project</a><a href="#setup">Setup</a><a href="#install">Install</a><a href="#change">Changing a rule</a>
 </nav>
 
 <section id="skills">
