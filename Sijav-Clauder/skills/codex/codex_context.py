@@ -15,8 +15,9 @@ including the turns a compaction later replaced, put into a fresh session
 with the app-server's thread/inject_items ("persisted to the rollout and
 included in subsequent model requests").
 
-Only the account id is read from the login file (auth.json tokens.account_id);
-no token is read out, copied or printed.
+The login file (auth.json) is never read: the owner's rule is never to read,
+copy or touch it or any login token. The account is named in the log only
+when the caller gives it in CODEX_ACCOUNT_ID.
 """
 
 from __future__ import annotations
@@ -37,19 +38,12 @@ def codex_home() -> Path:
 
 
 def current_account_id() -> str:
-    """The account the codex login belongs to. CODEX_ACCOUNT_ID overrides it,
-    so the switch can be tested on one login."""
-    forced = os.environ.get("CODEX_ACCOUNT_ID")
-    if forced:
-        return forced
-    auth = codex_home() / "auth.json"
-    try:
-        account = (json.loads(auth.read_text(encoding="utf-8")).get("tokens") or {}).get("account_id")
-    except (OSError, ValueError) as e:
-        raise ContextError(f"cannot read the account id from {auth}: {type(e).__name__}: {e}") from e
-    if not account:
-        raise ContextError(f"{auth} has no tokens.account_id: is codex logged in with a ChatGPT account?")
-    return str(account)
+    """The account codex is logged in with, for the copy's log line only.
+
+    Never read from the login file (auth.json): the owner's rule is never to
+    read, copy or touch it. CODEX_ACCOUNT_ID names the account when the caller
+    knows it; otherwise the log says only "the logged-in account"."""
+    return os.environ.get("CODEX_ACCOUNT_ID") or "the logged-in account"
 
 
 def rollout_path(thread_id: str) -> Path:

@@ -113,6 +113,15 @@ def jev_key() -> str:
     raise RoastError("no jev key: set SIJAV_JEV_KEY_FILE to the key's file, or TYPESAFE_API_KEY")
 
 
+def scrub(text: str) -> str:
+    """An error message with the jev key blanked, should a service ever echo it back."""
+    try:
+        key = jev_key()
+    except RoastError:
+        return text
+    return text.replace(key, "[the jev key]")
+
+
 def switched_off(name: str) -> bool:
     return os.environ.get(name, "on").strip().lower() in {"off", "0", "false", "no"}
 
@@ -187,9 +196,9 @@ def jev(state, questions: dict) -> dict:
             return client.system_one(state=state, questions=typed, model=JEV_MODEL).model_dump(mode="json")
     except ts.TypeSafeAPIError as e:
         kind = TooLong if "max_tokens_exceeded" in str(e.body) else JevError
-        raise kind(f"jev answered HTTP {e.status}: {str(e.body)[:800]}") from e
+        raise kind(scrub(f"jev answered HTTP {e.status}: {str(e.body)[:800]}")) from e
     except ts.TypeSafeError as e:
-        raise JevError(f"jev call failed: {type(e).__name__}: {e}") from e
+        raise JevError(scrub(f"jev call failed: {type(e).__name__}: {e}")) from e
 
 
 def extract_json(text: str) -> dict:

@@ -6,8 +6,8 @@ __pycache__/
 *.db
 *.log
 
-# Keys. The roast reads the TypeSafe key for jev from a file named `ts` beside
-# roast.py (or from the environment); it never goes into git.
+# Keys. The roast reads the TypeSafe key for jev from the file SIJAV_JEV_KEY_FILE
+# names, kept outside the plugin's folder. A key file never goes into git.
 **/roast/ts
 *.key
 

@@ -35,7 +35,9 @@ Plugin skills are called with the plugin's name first.
 Most of the skills need nothing more than Claude Code. Two need a service you
 set up once: **codex**, which reviews work (the codex and roast skills), and
 **jev** (TypeSafe), which judges it (the roast). Either can be switched off,
-and the skills then work without it.
+and the skills then work without it. The switches cover these skills only: a
+project's own tools that call jev or codex directly, such as a project's loop,
+follow that project's rules.
 
 | You need | For |
 |---|---|

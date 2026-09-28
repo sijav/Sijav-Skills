@@ -27,17 +27,39 @@ DESCRIPTION = (
 FORBIDDEN = {
     "a path": r"(?<![A-Za-z])[A-Za-z]:[\\/]|[\\/]Users[\\/]|~[\\/]",  # a drive letter, not https:/
     "a status flag": r"\bFixed\b|waiting on you|owner needed|Changed today|\bKeep, watch\b",
-    "an item number": r"\bitem \d{3,4}\b",
+    "an item number": r"\bitem \d{3,4}\b|\b(?:KN|SB)-\d+\b",
 }
 # Names that must never reach the public page (people, private projects) stay
 # out of this public file too: one "label: regex" per line in
 # site/private-words.txt, which git ignores. Lines starting with # are notes.
 PRIVATE = REPO / "site" / "private-words.txt"
+PRIVATE_RULES: dict[str, str] = {}
 if PRIVATE.is_file():
     for _line in PRIVATE.read_text(encoding="utf-8").splitlines():
         _label, _sep, _rx = _line.partition(":")
         if _sep and _rx.strip() and not _line.lstrip().startswith("#"):
-            FORBIDDEN[_label.strip()] = _rx.strip()
+            PRIVATE_RULES[_label.strip()] = _rx.strip()
+FORBIDDEN.update(PRIVATE_RULES)
+
+
+def private_in_repo() -> list[str]:
+    """Every tracked file, checked against the private words: the page is not the
+    only thing the public repository publishes."""
+    import subprocess
+
+    tracked = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True,
+                             check=True).stdout.split("\n")
+    found = []
+    for name in filter(None, tracked):
+        try:
+            text = (REPO / name).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for no, line in enumerate(text.splitlines(), 1):
+            for what, rx in PRIVATE_RULES.items():
+                if re.search(rx, line):
+                    found.append(f"{what} in {name}:{no}")
+    return found
 
 
 def inline(text: str) -> str:
@@ -577,12 +599,17 @@ def main(argv: list[str]) -> int:
     left = re.findall(r"\{\{[A-Z_]+\}\}", page)
     hits = [(what, m.group(0), page[max(0, m.start() - 50):m.end() + 30].replace("\n", " "))
             for what, rx in FORBIDDEN.items() for m in re.finditer(rx, page)]
-    if left or hits:
+    in_repo = private_in_repo() if PRIVATE_RULES else []
+    if left or hits or in_repo:
         for what, found, ctx in hits:
             print(f"REFUSED: {what} {found!r} in: ...{ctx}...")
         if left:
             print(f"REFUSED: unfilled placeholders {left}")
+        for where in in_repo:
+            print(f"REFUSED: {where} (a tracked file; the repository is public)")
         return 1
+    if not PRIVATE_RULES:
+        print("note: no site/private-words.txt here, so private words were not checked")
     head, sep, body = page.partition("</style>\n")
     document = (
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
