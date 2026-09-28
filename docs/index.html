@@ -365,8 +365,9 @@ a { color: var(--accent); }
       <ol>
         <li>Get an API key from TypeSafe (docs.typesafe.ai).</li>
         <li>Save it in a file of its own, <strong>outside the plugin's folder</strong>: Claude Code copies an installed plugin into its own cache, files and all.</li>
-        <li>Install the library for the Python that runs the skills: <code>pip install typesafe-sdk</code>.</li>
+        <li>Install the library into the Python that runs the skills, the <code>python</code> on your PATH: <code>python -m pip install typesafe-sdk</code>. Check it with <code>python -c "import typesafe_sdk"</code>, which prints nothing when it works.</li>
         <li>Point the skills at the key: set <code>SIJAV_JEV_KEY_FILE</code> to the key file's full path. Without it, the roast reads <code>TYPESAFE_API_KEY</code>.</li>
+        <li>Check it end to end: run one roast (<code>/sijav-clauder:roast</code>). The record's jev line names the jev model that answered, or says why jev was not used.</li>
       </ol>
       <p><strong>Switch it off</strong> with <code>SIJAV_JEV=off</code>: the roast runs with codex alone, and its record says why. It does the same by itself when there is no key, the library is missing, or jev fails during a run. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
     </div>

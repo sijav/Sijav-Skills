@@ -64,11 +64,14 @@ it to `on`.
 2. Save the key in a file of its own, **outside the plugin's folder**: Claude
    Code copies an installed plugin into its own cache, files and all. In a
    clone of this repository, `keys/typesafe.key` works, because git ignores it.
-3. Install the TypeSafe library for the Python that runs the skills:
-   `pip install typesafe-sdk`.
+3. Install the TypeSafe library into the Python that runs the skills, the
+   `python` on your PATH: `python -m pip install typesafe-sdk`. Check it with
+   `python -c "import typesafe_sdk"`, which prints nothing when it works.
 4. Tell the skills where the key is: set `SIJAV_JEV_KEY_FILE` to the key
    file's full path. Without it, the roast reads the key from
    `TYPESAFE_API_KEY`.
+5. Check it end to end: run one roast (`/sijav-clauder:roast`). The record's
+   jev line names the jev model that answered, or says why jev was not used.
 
 **Switch jev off** with `SIJAV_JEV=off`. The roast then runs with codex alone,
 and its record says why. It does the same by itself when there is no key, the
