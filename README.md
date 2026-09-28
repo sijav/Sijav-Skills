@@ -30,6 +30,70 @@ Plugin skills are called with the plugin's name first.
 | loop | Engages a project's own Stop-hook loop and follows its law: start, turns, pause, finish. | When the owner calls it | `/sijav-clauder:loop` |
 | todo | A project board in a SQLite database, for projects that have `.claude/todo.db`. | In those projects | `/sijav-clauder:todo` |
 
+## Before you install
+
+Most of the skills need nothing more than Claude Code. Two need a service you
+set up once: **codex**, which reviews work (the codex and roast skills), and
+**jev** (TypeSafe), which judges it (the roast). Either can be switched off,
+and the skills then work without it.
+
+| You need | For |
+|---|---|
+| Python 3.13 | the roast, the codex runner, the loop's compaction step, `todo.py` |
+| Node 22.13 or newer | the codex command line, and `todo.mjs` |
+| codex, signed in | the codex and roast skills |
+| a TypeSafe key, and the `typesafe-sdk` package | jev, in the roast |
+| `uv` | running the tests |
+
+### Set up codex
+
+1. Install the codex command line: `npm install -g @openai/codex`.
+2. Sign in once, yourself: run `codex` in a terminal and follow its sign-in.
+   The skills never sign in for you and hold no codex token.
+3. Check it: `codex --version` prints a version. The skills find `codex` on
+   your PATH.
+
+**Switch codex off** with `SIJAV_CODEX=off` (see "Where the settings go"). The
+codex runner and the roast then start nothing and exit with code 3, and Claude
+does the work itself. **Switch it back on** by removing the setting, or setting
+it to `on`.
+
+### Set up jev (TypeSafe)
+
+1. Get an API key from TypeSafe (docs.typesafe.ai).
+2. Save the key in a file of its own, **outside the plugin's folder**: Claude
+   Code copies an installed plugin into its own cache, files and all. In a
+   clone of this repository, `keys/typesafe.key` works, because git ignores it.
+3. Install the TypeSafe library for the Python that runs the skills:
+   `pip install typesafe-sdk`.
+4. Tell the skills where the key is: set `SIJAV_JEV_KEY_FILE` to the key
+   file's full path. Without it, the roast reads the key from
+   `TYPESAFE_API_KEY`.
+
+**Switch jev off** with `SIJAV_JEV=off`. The roast then runs with codex alone,
+and its record says why. It does the same by itself when there is no key, the
+library is missing, or jev fails during a run. **Switch it back on** by
+removing the setting, or setting it to `on`.
+
+### Where the settings go
+
+In Claude Code's settings, under `env`: your user settings
+(`~/.claude/settings.json`) for every project, or a project's
+`.claude/settings.json` for that project only. For example, with the key set
+and codex switched off:
+
+```json
+{
+  "env": {
+    "SIJAV_JEV_KEY_FILE": "/full/path/to/typesafe.key",
+    "SIJAV_CODEX": "off"
+  }
+}
+```
+
+`off`, `0`, `false` or `no` switches a service off; any other value, or no
+setting at all, leaves it on. Start a new session after changing a setting.
+
 ## Install
 
 Once, from any terminal:
@@ -58,19 +122,6 @@ every file in `Sijav-Clauder`, ignored ones included). So keep keys outside
 `Sijav-Clauder/.claude-plugin/plugin.json` and run
 `claude plugin update sijav-clauder@sijav-skills`.
 
-## Switches and fallbacks
-
-Set these per user or per project in Claude Code's settings, under `env`.
-
-| Setting | What it does |
-|---|---|
-| `SIJAV_JEV=off` | The roast runs without jev: codex reviews alone, and the record says why. The same happens by itself when there is no key, the TypeSafe SDK is missing, or jev fails during a run. |
-| `SIJAV_JEV_KEY_FILE` | The file holding the TypeSafe key, outside the plugin folder: `keys/typesafe.key` in this repository, which git ignores. Without it: `TYPESAFE_API_KEY`. |
-| `SIJAV_CODEX=off` | codex starts nothing: the runner and the roast exit with code 3, and Claude does the work itself. |
-
-codex signs in with its own login, which the owner manages; nothing here holds a
-codex token.
-
 ## What a project adds
 
 The plugin holds none of this; each project keeps its own:
@@ -85,14 +136,6 @@ The plugin holds none of this; each project keeps its own:
 - **Its board:** `.claude/todo.db`, for the todo skill.
 - **Its records:** codex sessions (`.claude/codex-sessions/`) and roast records
   (`.claude/roasts/`) are written into the project, never into this folder.
-
-## What it needs
-
-- Python 3.13; the roast also needs the `typesafe-sdk` package and a TypeSafe key
-  in the file `SIJAV_JEV_KEY_FILE` names (without one it runs with codex alone).
-- The codex command-line tool, signed in by the owner (or `SIJAV_CODEX=off`).
-- Node 22.13 or newer, for `todo.mjs` (or Python for `todo.py`).
-- `uv`, to run the tests.
 
 ## Tests
 

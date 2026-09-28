@@ -32,14 +32,30 @@
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6;
   padding-inline: 20px; padding-block: 0 72px; }
 .wrap { max-width: 1000px; margin: 0 auto; }
-header { padding-block: 52px 26px; border-bottom: 1px solid var(--line); }
+header { padding-block: 52px 22px; }
 .eyebrow { font-family: var(--mono); font-size: .74rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
 h1 { font-family: var(--display); font-weight: 700; font-size: clamp(2.1rem, 5.5vw, 3.2rem); line-height: 1.05; letter-spacing: -0.015em; margin: 0; text-wrap: balance; }
 .lede { max-width: 60ch; color: var(--muted); font-size: 1.12rem; margin: 14px 0 0; }
-nav.toc { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--display); font-size: .93rem; margin-top: 22px; }
-nav.toc a { color: var(--accent); text-decoration: none; }
-nav.toc a:hover { text-decoration: underline; }
-section { padding-block: 44px 6px; }
+nav.toc {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  display: flex; flex-wrap: wrap; gap: 4px 20px;
+  margin-inline: -20px; padding: 11px 20px;
+  background: var(--paper);
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-block: 1px solid var(--line);
+  font-family: var(--display); font-size: .93rem;
+}
+nav.toc a { color: var(--muted); text-decoration: none; white-space: nowrap; padding-block: 3px; border-bottom: 2px solid transparent; }
+nav.toc a:hover { color: var(--ink); }
+nav.toc a.on { color: var(--accent); border-bottom-color: var(--accent); }
+@media (max-width: 700px) {
+  nav.toc { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  nav.toc::-webkit-scrollbar { display: none; }
+}
+section { padding-block: 44px 6px; scroll-margin-top: 90px; }
+pre.code { font-family: var(--mono); font-size: .86rem; line-height: 1.5; background: var(--panel); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 12px 0 0; max-width: 68ch; }
 h2 { font-family: var(--display); font-weight: 650; font-size: 1.62rem; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; }
 h3 { font-family: var(--display); font-weight: 600; font-size: 1.14rem; margin: 30px 0 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
 h3 .tag { font-family: var(--mono); font-weight: 400; font-size: .8rem; color: var(--muted); }
@@ -101,12 +117,12 @@ a { color: var(--accent); }
   <p class="eyebrow">Claude Code plugin · sijav-clauder · any project</p>
   <h1>Skills on Call</h1>
   <p class="lede">Six skills that work in any project. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up.</p>
-  <nav class="toc" aria-label="Sections">
-    <a href="#skills">The six skills</a><a href="#loading">How rules load</a><a href="#rules">The rule sets</a>
-    <a href="#loop">The loop</a><a href="#roast">The roast</a><a href="#codex">Codex</a><a href="#todo">The board</a>
-    <a href="#switches">Switches</a><a href="#project">What a project adds</a><a href="#install">Install</a><a href="#change">Changing a rule</a>
-  </nav>
 </header>
+<nav class="toc" aria-label="Sections">
+  <a href="#skills">The six skills</a><a href="#loading">How rules load</a><a href="#rules">The rule sets</a>
+  <a href="#loop">The loop</a><a href="#roast">The roast</a><a href="#codex">Codex</a><a href="#todo">The board</a>
+  <a href="#project">What a project adds</a><a href="#setup">Set up codex and jev</a><a href="#install">Install</a><a href="#change">Changing a rule</a>
+</nav>
 
 <section id="skills">
   <h2>The six skills</h2>
@@ -320,21 +336,6 @@ a { color: var(--accent); }
   </ul>
 </section>
 
-<section id="switches">
-  <h2>Switches and fallbacks</h2>
-  <p>Set these in Claude Code's settings under <code>env</code>, for every project or for one.</p>
-  <div class="tablewrap">
-    <table>
-      <thead><tr><th>Setting</th><th>What happens</th></tr></thead>
-      <tbody>
-        <tr><td class="skill">SIJAV_JEV=off</td><td>The roast runs without jev: codex reviews alone, and the record says why. The same happens by itself when there is no key, the TypeSafe library is missing, or jev fails during a run.</td></tr>
-        <tr><td class="skill">SIJAV_JEV_KEY_FILE</td><td>The file holding the TypeSafe key. Keep it outside the plugin's folder: Claude Code copies an installed plugin into its own cache, files and all. Without it, the key is read from <code>TYPESAFE_API_KEY</code>.</td></tr>
-        <tr><td class="skill">SIJAV_CODEX=off</td><td>codex starts nothing: the codex runner and the roast stop at once, and Claude does the work itself.</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
 <section id="project">
   <h2>What a project adds</h2>
   <p>The bundle holds none of these; each project keeps its own, inside its <code>.claude</code> folder.</p>
@@ -344,6 +345,41 @@ a { color: var(--accent); }
     <li><strong>Its board:</strong> <code>todo.db</code>, for the todo skill.</li>
     <li><strong>Its records:</strong> codex sessions and roast records are written into the project, never into the skills folder.</li>
   </ul>
+</section>
+
+<section id="setup">
+  <h2>Set up codex and jev</h2>
+  <p>Most of the skills need nothing more than Claude Code. Two need a service you set up once: <strong>codex</strong>, which reviews work (the codex and roast skills), and <strong>jev</strong>, TypeSafe's judge (the roast). Either can be switched off, and the skills then work without it. Also needed: Python 3.13, Node 22.13 or newer, and <code>uv</code> for the tests.</p>
+  <div class="cols">
+    <div>
+      <h3>codex</h3>
+      <ol>
+        <li>Install the codex command line: <code>npm install -g @openai/codex</code>.</li>
+        <li>Sign in once, yourself: run <code>codex</code> in a terminal and follow its sign-in. The skills never sign in for you and hold no codex token.</li>
+        <li>Check it: <code>codex --version</code> prints a version. The skills find <code>codex</code> on your PATH.</li>
+      </ol>
+      <p><strong>Switch it off</strong> with <code>SIJAV_CODEX=off</code>: the codex runner and the roast start nothing, and Claude does the work itself. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
+    </div>
+    <div>
+      <h3>jev (TypeSafe)</h3>
+      <ol>
+        <li>Get an API key from TypeSafe (docs.typesafe.ai).</li>
+        <li>Save it in a file of its own, <strong>outside the plugin's folder</strong>: Claude Code copies an installed plugin into its own cache, files and all.</li>
+        <li>Install the library for the Python that runs the skills: <code>pip install typesafe-sdk</code>.</li>
+        <li>Point the skills at the key: set <code>SIJAV_JEV_KEY_FILE</code> to the key file's full path. Without it, the roast reads <code>TYPESAFE_API_KEY</code>.</li>
+      </ol>
+      <p><strong>Switch it off</strong> with <code>SIJAV_JEV=off</code>: the roast runs with codex alone, and its record says why. It does the same by itself when there is no key, the library is missing, or jev fails during a run. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
+    </div>
+  </div>
+  <h3>Where the settings go</h3>
+  <p>In Claude Code's settings, under <code>env</code>: your user settings file for every project, or a project's <code>.claude/settings.json</code> for that project only. For example, with the key set and codex switched off:</p>
+  <pre class="code">{
+  "env": {
+    "SIJAV_JEV_KEY_FILE": "/full/path/to/typesafe.key",
+    "SIJAV_CODEX": "off"
+  }
+}</pre>
+  <p><code>off</code>, <code>0</code>, <code>false</code> or <code>no</code> switches a service off; any other value, or no setting at all, leaves it on. Start a new session after changing a setting.</p>
 </section>
 
 <section id="install">
@@ -362,5 +398,30 @@ a { color: var(--accent); }
   <p>Every rule set has a <code>log.md</code> next to it: the history of each rule, with the old text, why it existed, the owner's words and the evidence. The log is the guard; nobody else has to approve a rule.</p><ol><li>Find the rule by its ID (G1, D2, or a project rule's ID) and its file.</li><li>Read its entries in that folder's <code>log.md</code>.</li><li>If the change would bring back a problem recorded there, or goes against the owner's words, ask the owner first. Otherwise go ahead.</li><li>Back up the file first: copy it into a dated backup folder with a <code>.bak</code> ending, outside any <code>.claude</code> folder, so the copy can never load as a rule.</li><li>Edit it, and delete the old rule in the same edit. A rule lives in one place only.</li><li>Add a log entry: date, rule ID, old text, new text, the owner's words and the evidence.</li></ol><p>Rules do not go into CLAUDE.md or memory files: those load into every session.</p>
 </section>
 </div>
+<script>
+/* The menu marks the section you are reading, and on a narrow screen keeps
+   that link in view. */
+(() => {
+  const links = [...document.querySelectorAll('nav.toc a[href^="#"]')];
+  const sections = links.map(a => document.getElementById(a.hash.slice(1))).filter(Boolean);
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let current = null, queued = false;
+  const mark = () => {
+    queued = false;
+    let active = sections[0];
+    for (const s of sections) if (s.getBoundingClientRect().top <= 110) active = s;
+    if (!active || active === current) return;
+    current = active;
+    for (const a of links) a.classList.toggle('on', a.hash === '#' + active.id);
+    const on = links.find(a => a.classList.contains('on'));
+    const bar = on && on.parentElement;
+    if (bar && bar.scrollWidth > bar.clientWidth) {
+      bar.scrollTo({left: on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2, behavior: calm ? 'auto' : 'smooth'});
+    }
+  };
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(mark); } }, {passive: true});
+  mark();
+})();
+</script>
 </body>
 </html>
