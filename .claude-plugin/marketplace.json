@@ -1,0 +1,12 @@
+{
+  "name": "sijav-skills",
+  "owner": { "name": "Sijav" },
+  "description": "Sijav's Claude Code plugins.",
+  "plugins": [
+    {
+      "name": "sijav-clauder",
+      "source": "./Sijav-Clauder",
+      "description": "Six project-independent skills: rules, dev-round, codex, roast, loop and todo."
+    }
+  ]
+}

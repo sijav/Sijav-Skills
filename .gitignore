@@ -1,0 +1,15 @@
+# State, not source: every skill writes its state into the project it runs for,
+# so anything of these shapes appearing in this folder is an accident.
+__pycache__/
+*.pyc
+.claude/
+*.db
+*.log
+
+# Keys. The roast reads the TypeSafe key for jev from a file named `ts` beside
+# roast.py (or from the environment); it never goes into git.
+**/roast/ts
+*.key
+
+# Words the site build must refuse; they must not be published either
+site/private-words.txt
