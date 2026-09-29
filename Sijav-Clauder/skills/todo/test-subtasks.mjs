@@ -7,10 +7,11 @@
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const SKILL = join(homedir(), '.claude', 'skills', 'todo', 'todo.mjs')
+// The todo.mjs beside this test: the skill ships in the plugin, not under ~/.claude/skills.
+const SKILL = join(dirname(fileURLToPath(import.meta.url)), 'todo.mjs')
 const dir = mkdtempSync(join(tmpdir(), 'todo-subtask-'))
 writeFileSync(join(dir, 'package.json'), '{"name":"sandbox"}\n')
 mkdirSync(join(dir, '.claude'), { recursive: true })
