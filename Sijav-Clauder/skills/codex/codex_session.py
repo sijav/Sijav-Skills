@@ -39,6 +39,7 @@ skills say how). Set it per user or per project in Claude Code's settings "env".
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import json
 import os
@@ -46,6 +47,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 for _s in (sys.stdout, sys.stderr):
@@ -174,23 +176,70 @@ def _stamp() -> str:
 
 
 def _call(argv: list[str], prompt: str, root: Path, log: Path, timeout: int):
+    """Run codex once. Its output goes straight into the log while it runs (dev rule D1:
+    captured from the moment it starts), so a hang or a kill still leaves all it said;
+    it is read back from the log afterwards."""
     started = dt.datetime.now(dt.timezone.utc).isoformat()
     with log.open("a", encoding="utf-8") as fh:
-        fh.write(f"=== {started}\ncommand: {subprocess.list2cmdline(argv)}\ncwd: {root}\n")
-    try:
-        r = subprocess.run(argv, input=prompt, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=timeout, cwd=root)
-        code, out, err = r.returncode, r.stdout, r.stderr
-    except subprocess.TimeoutExpired as e:
-        code, out, err = "timeout", (e.stdout or ""), (e.stderr or "")
-        out = out.decode("utf-8", "replace") if isinstance(out, bytes) else out
-        err = err.decode("utf-8", "replace") if isinstance(err, bytes) else err
-    except OSError as e:
-        code, out, err = "oserror", "", f"{type(e).__name__}: {e}"
+        fh.write(f"=== {started}\ncommand: {subprocess.list2cmdline(argv)}\ncwd: {root}\n"
+                 "--- stdout (and stderr, as they arrive)\n")
+    start = log.stat().st_size
+    with log.open("a", encoding="utf-8", errors="replace") as fh:
+        try:
+            r = subprocess.run(argv, input=prompt, stdout=fh, stderr=subprocess.STDOUT,
+                               text=True, encoding="utf-8", errors="replace",
+                               timeout=timeout, cwd=root)
+            code, out, err = r.returncode, r.stdout, r.stderr
+        except subprocess.TimeoutExpired:
+            code, out, err = "timeout", None, None
+        except OSError as e:
+            code, out, err = "oserror", None, f"{type(e).__name__}: {e}"
+    if out is None:  # a real run wrote everything it said into the log
+        with log.open("rb") as fh:
+            fh.seek(start)
+            out = fh.read().decode("utf-8", "replace")
+    else:  # a stand-in that handed its output back instead of writing it
+        with log.open("a", encoding="utf-8") as fh:
+            fh.write(f"{out}\n--- stderr\n{err or ''}\n")
+    err = err or ""
     with log.open("a", encoding="utf-8") as fh:
-        fh.write(f"--- stdout\n{out}\n--- stderr\n{err}\n--- exit: {code}  ended: "
-                 f"{dt.datetime.now(dt.timezone.utc).isoformat()}\n")
+        if code == "oserror":
+            fh.write(f"{err}\n")
+        fh.write(f"--- exit: {code}  ended: {dt.datetime.now(dt.timezone.utc).isoformat()}\n")
     return code, out, err
+
+
+@contextlib.contextmanager
+def purpose_lock(d: Path, purpose: str, timeout: int):
+    """One run at a time per purpose. Without it, two new runs of one purpose could each
+    start a thread and each save it, and the last save would lose the other's thread (the
+    roast of 2026-09-29). A second run gets CodexBusy at once, and its caller can use another
+    purpose; a lock older than any run could last is left by a run that died, and is cleared."""
+    lock = d / f"{purpose}.lock"
+    for _ in range(2):
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            try:
+                age = time.time() - lock.stat().st_mtime
+            except FileNotFoundError:
+                continue  # the other run just finished
+            if age > timeout + 300:
+                lock.unlink(missing_ok=True)
+                continue
+            raise CodexBusy(
+                f"the {purpose!r} codex session is in use by another run (for {age:.0f} s); "
+                "nothing was sent. Wait for that run, or use another purpose."
+            ) from None
+    else:
+        raise CodexBusy(f"the {purpose!r} codex session could not be locked; nothing was sent.")
+    try:
+        os.write(fd, f"pid {os.getpid()} since {dt.datetime.now(dt.timezone.utc).isoformat()}\n".encode())
+        os.close(fd)
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
 
 
 def run(prompt: str, purpose: str, *, search: bool = False, model: str | None = None,
@@ -206,6 +255,13 @@ def run(prompt: str, purpose: str, *, search: bool = False, model: str | None = 
         )
     root = project_root(project)
     d = sessions_dir(root)
+    with purpose_lock(d, purpose, timeout):
+        return _run_locked(prompt, purpose, d, root, search=search, model=model,
+                           effort=effort, fresh=fresh, timeout=timeout)
+
+
+def _run_locked(prompt: str, purpose: str, d: Path, root: Path, *, search: bool,
+                model: str | None, effort: str, fresh: bool, timeout: int) -> str:
     live = d / f"{purpose}.json"
     log = d / "logs" / f"{purpose}-{_stamp()}.log"
     session = None if fresh else read_session(live)

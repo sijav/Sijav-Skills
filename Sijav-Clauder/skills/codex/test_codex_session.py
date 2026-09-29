@@ -2,7 +2,9 @@
 folder; every failure names its exact cause and keeps the full log."""
 
 import json
+import os
 import subprocess
+import time
 
 import pytest
 
@@ -50,6 +52,51 @@ def test_a_busy_thread_is_named_and_no_other_binary_is_tried(project, monkeypatc
     with pytest.raises(cs.CodexBusy, match="busy: another run is writing to its thread T-1"):
         cs.run("y", "roast-plan")
     assert len(calls) == 2  # the first call, then one busy attempt; the second binary was not tried
+
+
+def test_a_second_run_of_a_purpose_is_busy_at_once(project, monkeypatch):
+    """Two runs of one purpose could each start a thread and the last save would lose the other
+    (the roast of 2026-09-29): a held lock refuses the second run before codex is called."""
+    calls = []
+    monkeypatch.setattr(cs.subprocess, "run", fake_codex([(0, "never", "")], calls))
+    sessions = project / ".claude" / "codex-sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    (sessions / "research.lock").write_text("pid 1\n")
+    with pytest.raises(cs.CodexBusy, match="in use by another run"):
+        cs.run("x", "research")
+    assert calls == []
+
+
+def test_a_lock_left_by_a_dead_run_is_cleared(project, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cs.subprocess, "run", fake_codex([(0, "fresh", "")], calls))
+    sessions = project / ".claude" / "codex-sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    lock = sessions / "research.lock"
+    lock.write_text("pid 1\n")
+    old = time.time() - 3 * 3600
+    os.utime(lock, (old, old))
+    assert cs.run("x", "research") == "fresh"
+    assert len(calls) == 1 and not lock.exists()
+
+
+def test_output_goes_into_the_log_while_codex_runs(project, monkeypatch):
+    """Dev rule D1: output is captured from the moment a long command starts, so a real run
+    writes into the log itself, and the thread id is still read back from there."""
+    def writes_as_it_runs(argv, **k):
+        k["stdout"].write(json.dumps({"type": "thread.started", "thread_id": "T-9"}) + "\n")
+        k["stdout"].flush()
+        out = argv[argv.index("-o") + 1]
+        with open(out, "w", encoding="utf-8") as fh:
+            fh.write("answer")
+        return subprocess.CompletedProcess(argv, 0, None, None)
+
+    monkeypatch.setattr(cs.subprocess, "run", writes_as_it_runs)
+    assert cs.run("x", "research") == "answer"
+    saved = json.loads((project / ".claude/codex-sessions/research.json").read_text())
+    assert saved["thread_id"] == "T-9"
+    log = next((project / ".claude/codex-sessions/logs").glob("research-*.log")).read_text(encoding="utf-8")
+    assert '"thread_id": "T-9"' in log and "--- exit: 0" in log
 
 
 def test_the_codex_on_the_path_is_not_tried_twice():
