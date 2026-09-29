@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Six Claude Code skills that work in any project: rule sets that load only when called, a dev round, codex sessions, roasts judged by jev, a loop and a to-do board.">
+<meta name="description" content="Eight Claude Code skills that work in any project: rule sets that load only when called, a dev round, codex sessions, web search and deep research with checked citations, roasts judged by jev, a loop and a to-do board.">
 <link rel="canonical" href="https://sijav.github.io/Sijav-Skills/">
 <title>Skills on Call</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -116,18 +116,18 @@ a { color: var(--accent); }
 <header>
   <p class="eyebrow">Claude Code plugin · sijav-clauder · any project</p>
   <h1>Skills on Call</h1>
-  <p class="lede">Six skills that work in any project. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up.</p>
+  <p class="lede">Eight skills that work in any project. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up.</p>
 </header>
 <nav class="toc" aria-label="Sections">
   <a href="#skills">Skills</a><a href="#loading">Rule loading</a><a href="#rules">Rule sets</a>
-  <a href="#loop">Loop</a><a href="#roast">Roast</a><a href="#codex">Codex</a><a href="#todo">Board</a>
+  <a href="#loop">Loop</a><a href="#roast">Roast</a><a href="#codex">Codex</a><a href="#research">Research</a><a href="#todo">Board</a>
   <a href="#project">Your project</a><a href="#setup">Setup</a><a href="#install">Install</a><a href="#change">Changing a rule</a>
 </nav>
 
 <section id="skills">
-  <h2>The six skills</h2>
+  <h2>The eight skills</h2>
   <p>They ship as one Claude Code plugin, <code>sijav-clauder</code>, from a folder that is its own git repository. Plugin skills are called with the plugin's name first. None of them holds a project's rules, names or paths; each project keeps those itself.</p>
-  <div class="tablewrap"><table><thead><tr><th>Skill</th><th>What it does</th><th>When it loads</th><th>How you call it</th></tr></thead><tbody><tr><td class="skill">rules</td><td>Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule.</td><td>Only when you call it</td><td class="cmd"><code>/sijav-clauder:rules</code><br><code>/sijav-clauder:rules dev</code><br><code>/sijav-clauder:rules design</code></td></tr><tr><td class="skill">dev-round</td><td>How to work through a round of code to-dos: only the changed tests during a to-do, the full suite when the round is done, root-cause fixes.</td><td>When you call it or load the dev rules</td><td class="cmd"><code>/sijav-clauder:dev-round</code></td></tr><tr><td class="skill">codex</td><td>Calls codex (GPT-6) through one session per kind of work, sol at medium effort unless told otherwise.</td><td>When a task needs codex</td><td class="cmd"><code>/sijav-clauder:codex</code></td></tr><tr><td class="skill">roast</td><td>Codex checks a plan or finished work and writes typed questions; jev judges them; codex writes its reading. One record per run.</td><td>When a check is wanted</td><td class="cmd"><code>/sijav-clauder:roast</code></td></tr><tr><td class="skill">loop</td><td>Engages a project's own loop and follows its law: start, turns, pause, finish.</td><td>When you call it</td><td class="cmd"><code>/sijav-clauder:loop</code></td></tr><tr><td class="skill">todo</td><td>A project board in a small database, for projects that have opted in.</td><td>In those projects</td><td class="cmd"><code>/sijav-clauder:todo</code></td></tr></tbody></table></div>
+  <div class="tablewrap"><table><thead><tr><th>Skill</th><th>What it does</th><th>When it loads</th><th>How you call it</th></tr></thead><tbody><tr><td class="skill">rules</td><td>Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule.</td><td>Only when you call it</td><td class="cmd"><code>/sijav-clauder:rules</code><br><code>/sijav-clauder:rules dev</code><br><code>/sijav-clauder:rules design</code></td></tr><tr><td class="skill">dev-round</td><td>How to work through a round of code to-dos: only the changed tests during a to-do, the full suite when the round is done, root-cause fixes.</td><td>When you call it or load the dev rules</td><td class="cmd"><code>/sijav-clauder:dev-round</code></td></tr><tr><td class="skill">codex</td><td>Calls codex (GPT-6) through one session per kind of work, sol at medium effort unless told otherwise.</td><td>When a task needs codex</td><td class="cmd"><code>/sijav-clauder:codex</code></td></tr><tr><td class="skill">search</td><td>Codex looks one question up on the web and answers with its sources: link, date and an exact quote for each claim.</td><td>When a fact, a version or a doc page is needed</td><td class="cmd"><code>/sijav-clauder:search</code></td></tr><tr><td class="skill">research</td><td>Deep research, like ChatGPT's or Gemini's: a plan of sub-questions, web searches side by side, a gap round, one cited report, and every citation checked against what was read and by jev.</td><td>When a question needs many sources</td><td class="cmd"><code>/sijav-clauder:research</code></td></tr><tr><td class="skill">roast</td><td>Codex checks a plan or finished work and writes typed questions; jev judges them; codex writes its reading. One record per run.</td><td>When a check is wanted</td><td class="cmd"><code>/sijav-clauder:roast</code></td></tr><tr><td class="skill">loop</td><td>Engages a project's own loop and follows its law: start, turns, pause, finish.</td><td>When you call it</td><td class="cmd"><code>/sijav-clauder:loop</code></td></tr><tr><td class="skill">todo</td><td>A project board in a small database, for projects that have opted in.</td><td>In those projects</td><td class="cmd"><code>/sijav-clauder:todo</code></td></tr></tbody></table></div>
 </section>
 
 <section id="loading">
@@ -319,10 +319,68 @@ a { color: var(--accent); }
   <h2>Codex</h2>
   <ul>
     <li>One codex session per kind of work, such as research or a roast mode. A call with the same purpose resumes that session, so codex keeps the context of that line of work.</li>
-    <li>Models: <code>gpt-6-sol</code> at medium effort by default, <code>gpt-6-astra</code> only when you ask for it, <code>gpt-6-luna</code> for fast, cheap tasks. A session keeps its thread when the model changes.</li>
+    <li>Models: <code>gpt-6-sol</code> at medium effort by default, <code>gpt-6-astra</code> for research (the roast's search mode and the research skill, at high effort) or when you ask for it, <code>gpt-6-luna</code> for fast, cheap tasks. A session keeps its thread when the model changes.</li>
     <li>All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No reserve model, no pause.</li>
     <li>Every call keeps its full log in the project it ran for.</li>
     <li>This skill holds no codex token: codex signs in with its own login, which you manage.</li>
+  </ul>
+</section>
+
+<section id="research">
+  <h2>Search and research</h2>
+  <p>Two ways to ask the web, both through codex. <strong>Search</strong> answers one question with its sources: every claim with its link, its date and an exact quote. <strong>Research</strong> works like ChatGPT's and Gemini's deep research for a question that needs many sources, then checks every citation before you read the report.</p>
+  <figure>
+    <div class="figwrap">
+      <svg viewBox="0 0 960 608" role="img" aria-label="A research run in nine steps across four lanes: Claude asks the question; codex plans the sub-questions; codex searches the web for each, side by side; codex finds the gaps; codex searches the follow-ups; codex writes the report once; the check finds each quote in what the searches read; jev judges whether each quote supports its claim; Claude reads the check.">
+        <defs>
+          <marker id="f4-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <rect x="8" y="8" width="224" height="592" rx="10" class="lane"/>
+        <rect x="248" y="8" width="224" height="592" rx="10" class="lane"/>
+        <rect x="488" y="8" width="224" height="592" rx="10" class="lane"/>
+        <rect x="728" y="8" width="224" height="592" rx="10" class="lane"/>
+        <text x="120" y="34" text-anchor="middle" class="lane-h c-claude">CLAUDE</text>
+        <text x="360" y="34" text-anchor="middle" class="lane-h c-codex">CODEX, THINKING</text>
+        <text x="600" y="34" text-anchor="middle" class="lane-h c-codex">CODEX ON THE WEB</text>
+        <text x="840" y="34" text-anchor="middle" class="lane-h c-judge">THE CHECK</text>
+        <rect x="16" y="52" width="208" height="46" rx="6" class="bx-accent"/>
+        <text x="120" y="71" text-anchor="middle" class="t2">Asks the question</text><text x="120" y="88" text-anchor="middle" class="ts">with why, and its limits</text>
+        <path d="M120,98 V106 H360 V111" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="256" y="112" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="360" y="131" text-anchor="middle" class="t2">Plans the sub-questions</text><text x="360" y="148" text-anchor="middle" class="ts">3, 5 or 7; you may edit it</text>
+        <path d="M360,158 V166 H600 V171" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="496" y="172" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="600" y="191" text-anchor="middle" class="t2">Searches each, side by side</text><text x="600" y="208" text-anchor="middle" class="ts">link, date, exact quote</text>
+        <path d="M600,218 V226 H360 V231" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="256" y="232" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="360" y="251" text-anchor="middle" class="t2">Finds the gaps</text><text x="360" y="268" text-anchor="middle" class="ts">what is missing or disputed</text>
+        <path d="M360,278 V286 H600 V291" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="496" y="292" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="600" y="311" text-anchor="middle" class="t2">Searches the follow-ups</text><text x="600" y="328" text-anchor="middle" class="ts">up to 3 a round</text>
+        <text x="600" y="358" text-anchor="middle" class="ts">deep: gaps and follow-ups again</text>
+        <path d="M600,338 V346 H360 V351" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="256" y="352" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="360" y="371" text-anchor="middle" class="t2">Writes the report once</text><text x="360" y="388" text-anchor="middle" class="ts">every claim cites a quote</text>
+        <path d="M360,398 V406 H840 V411" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="736" y="412" width="208" height="46" rx="6" class="bx-tool"/>
+        <text x="840" y="431" text-anchor="middle" class="t2">Finds each quote</text><text x="840" y="448" text-anchor="middle" class="ts">in what the searches read</text>
+        <path d="M840,458 V471" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="736" y="472" width="208" height="46" rx="6" class="bx-judge"/>
+        <text x="840" y="491" text-anchor="middle" class="t2">jev judges each quote</text><text x="840" y="508" text-anchor="middle" class="ts">does it support its claim?</text>
+        <path d="M840,518 V526 H120 V531" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="16" y="532" width="208" height="46" rx="6" class="bx-accent"/>
+        <text x="120" y="551" text-anchor="middle" class="t2">Reads the check</text><text x="120" y="568" text-anchor="middle" class="ts">unconfirmed stays unconfirmed</text>
+      </svg>
+    </div>
+    <figcaption>One research run at standard depth: about ten codex calls and one jev call. Each search is its own fresh codex conversation, so they run side by side. The record keeps the brief, the plan, every search, the gaps, the report and the check, inside the project.</figcaption>
+  </figure>
+  <ul>
+    <li><strong>Search</strong> (<code>/sijav-clauder:search</code>): one question, one fresh codex conversation with its web search on, <code>gpt-6-luna</code> at high effort. For a fact, a current version or a doc page.</li>
+    <li><strong>The plan first:</strong> <code>--plan-only</code> stops after the plan so you can edit it, as Gemini lets you, and <code>--plan</code> runs the edited plan.</li>
+    <li><strong>One pass:</strong> the report is written once, from the findings only, so it reads as one piece. It says where sources disagree and what stays uncertain.</li>
+    <li><strong>The check:</strong> a quote that is not in what the searches read, or that jev does not find supports its claim, is marked unconfirmed. Jev's number is a probability: 0.65 or more is supported, 0.35 or less is not, and between is unclear.</li>
+    <li><strong>Pages are data:</strong> an instruction found on a web page is never followed; it is reported instead.</li>
+    <li>Without jev the quotes are still looked for. With codex switched off nothing is sent, and Claude researches with its own tools and says so.</li>
   </ul>
 </section>
 
@@ -349,7 +407,7 @@ a { color: var(--accent); }
 
 <section id="setup">
   <h2>Set up codex and jev</h2>
-  <p>Most of the skills need nothing more than Claude Code. Two need a service you set up once: <strong>codex</strong>, which reviews work (the codex and roast skills), and <strong>jev</strong>, TypeSafe's judge (the roast). Either can be switched off, and the skills then work without it. Also needed: Python 3.13, Node 22.13 or newer, and <code>uv</code> for the tests.</p>
+  <p>Most of the skills need nothing more than Claude Code. Two need a service you set up once: <strong>codex</strong>, which reviews work and searches the web (the codex, search, research and roast skills), and <strong>jev</strong>, TypeSafe's judge (the roast, and the research's citation check). Either can be switched off, and the skills then work without it. Also needed: Python 3.13, Node 22.13 or newer, and <code>uv</code> for the tests.</p>
   <div class="cols">
     <div>
       <h3>codex</h3>
@@ -358,7 +416,7 @@ a { color: var(--accent); }
         <li>Sign in once, yourself: run <code>codex</code> in a terminal and follow its sign-in. The skills never sign in for you and hold no codex token.</li>
         <li>Check it: <code>codex --version</code> prints a version. The skills find <code>codex</code> on your PATH.</li>
       </ol>
-      <p><strong>Switch it off</strong> with <code>SIJAV_CODEX=off</code>: the codex runner and the roast start nothing, and Claude does the work itself. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
+      <p><strong>Switch it off</strong> with <code>SIJAV_CODEX=off</code>: the codex runner, search, research and the roast start nothing, and Claude does the work itself with its own tools. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
     </div>
     <div>
       <h3>jev (TypeSafe)</h3>
@@ -369,7 +427,7 @@ a { color: var(--accent); }
         <li>Point the skills at the key: set <code>SIJAV_JEV_KEY_FILE</code> to the key file's full path. Without it, the roast reads <code>TYPESAFE_API_KEY</code>.</li>
         <li>Check it end to end: run one roast (<code>/sijav-clauder:roast</code>). The record's jev line names the jev model that answered, or says why jev was not used.</li>
       </ol>
-      <p><strong>Switch it off</strong> with <code>SIJAV_JEV=off</code>: the roast runs with codex alone, and its record says why. It does the same by itself when there is no key, the library is missing, or jev fails during a run. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
+      <p><strong>Switch it off</strong> with <code>SIJAV_JEV=off</code>: the roast runs with codex alone, and its record says why; research still looks for every cited quote in what it read, and its check says jev did not judge them. It does the same by itself when there is no key, the library is missing, or jev fails during a run. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
     </div>
   </div>
   <h3>Where the settings go</h3>

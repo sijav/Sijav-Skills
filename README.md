@@ -1,10 +1,10 @@
 # Sijav Skills
 
-A Claude Code plugin marketplace with one plugin, **sijav-clauder**: six skills
+A Claude Code plugin marketplace with one plugin, **sijav-clauder**: eight skills
 that work in any project. None of them holds a project's rules, names or paths;
 those live in each project (see "What a project adds").
 
-**Website: https://sijav.github.io/Sijav-Skills/**, a guide to the six skills,
+**Website: https://sijav.github.io/Sijav-Skills/**, a guide to the eight skills,
 the rule sets, and how the loop and the roast work, with flowcharts.
 
 ```
@@ -12,7 +12,7 @@ Sijav-Skills/                     the marketplace (this git repository)
   .claude-plugin/marketplace.json
   Sijav-Clauder/                  the sijav-clauder plugin
     .claude-plugin/plugin.json
-    skills/rules, dev-round, codex, roast, loop, todo
+    skills/rules, dev-round, codex, search, research, roast, loop, todo
   site/build_site.py              builds the website from the skills' own files
   docs/index.html                 the website, served by GitHub Pages
 ```
@@ -26,6 +26,8 @@ Plugin skills are called with the plugin's name first.
 | rules | The owner's rule sets: general (G1 to G6), dev (D1 to D5), design (empty for now), plus the current project's own set. Also how to change a rule. | Only when the owner calls it | `/sijav-clauder:rules`, `/sijav-clauder:rules dev`, `/sijav-clauder:rules design` |
 | dev-round | How to work through a round of code to-dos: only the changed tests during a to-do, the area's full suite at the end, root-cause fixes. | When the owner calls it or loads the dev rules | `/sijav-clauder:dev-round` |
 | codex | Calls codex (GPT-6) through one session per kind of work; sol at medium effort unless told otherwise. | When a task needs codex | `/sijav-clauder:codex` |
+| search | codex looks one question up on the web and answers with its sources: link, date and an exact quote for each claim. | When a fact, a version or a doc page is needed | `/sijav-clauder:search` |
+| research | Deep research, like ChatGPT's or Gemini's: a plan of sub-questions, codex web searches side by side, a gap round, one cited report, and a check of every citation (the quote must be in what was read, and jev judges it). | When a question needs many sources | `/sijav-clauder:research` |
 | roast | codex checks a plan or finished work and frames typed questions, jev (TypeSafe) judges the logic, codex writes its reading. One record per run. | When a check is wanted | `/sijav-clauder:roast` |
 | loop | Engages a project's own Stop-hook loop and follows its law: start, turns, pause, finish. | When the owner calls it | `/sijav-clauder:loop` |
 | todo | A project board in a SQLite database, for projects that have `.claude/todo.db`. | In those projects | `/sijav-clauder:todo` |
@@ -33,18 +35,19 @@ Plugin skills are called with the plugin's name first.
 ## Before you install
 
 Most of the skills need nothing more than Claude Code. Two need a service you
-set up once: **codex**, which reviews work (the codex and roast skills), and
-**jev** (TypeSafe), which judges it (the roast). Either can be switched off,
+set up once: **codex**, which reviews work and searches the web (the codex,
+search, research and roast skills), and **jev** (TypeSafe), which judges
+(the roast, and the research's citation check). Either can be switched off,
 and the skills then work without it. The switches cover these skills only: a
 project's own tools that call jev or codex directly, such as a project's loop,
 follow that project's rules.
 
 | You need | For |
 |---|---|
-| Python 3.13 | the roast, the codex runner, the loop's compaction step, `todo.py` |
+| Python 3.13 | the roast, search, research, the codex runner, the loop's compaction step, `todo.py` |
 | Node 22.13 or newer | the codex command line, and `todo.mjs` |
-| codex, signed in | the codex and roast skills |
-| a TypeSafe key, and the `typesafe-sdk` package | jev, in the roast |
+| codex, signed in | the codex, search, research and roast skills |
+| a TypeSafe key, and the `typesafe-sdk` package | jev, in the roast and the research's citation check |
 | `uv` | running the tests |
 
 ### Set up codex
@@ -56,8 +59,8 @@ follow that project's rules.
    your PATH.
 
 **Switch codex off** with `SIJAV_CODEX=off` (see "Where the settings go"). The
-codex runner and the roast then start nothing and exit with code 3, and Claude
-does the work itself. **Switch it back on** by removing the setting, or setting
+codex runner, search, research and the roast then start nothing and exit with
+code 3, and Claude does the work itself with its own tools. **Switch it back on** by removing the setting, or setting
 it to `on`.
 
 ### Set up jev (TypeSafe)
@@ -76,7 +79,8 @@ it to `on`.
    jev line names the jev model that answered, or says why jev was not used.
 
 **Switch jev off** with `SIJAV_JEV=off`. The roast then runs with codex alone,
-and its record says why. It does the same by itself when there is no key, the
+and its record says why; research still looks for every cited quote in what it
+read, and its check says jev did not judge them. It does the same by itself when there is no key, the
 library is missing, or jev fails during a run. **Switch it back on** by
 removing the setting, or setting it to `on`.
 
@@ -146,7 +150,7 @@ The plugin holds none of this; each project keeps its own:
 
 From `Sijav-Clauder/skills`:
 
-- `uv run --no-project --with pytest --with typesafe-sdk python -m pytest roast/test_roast.py codex/test_codex_session.py loop/test_compact.py -q`
+- `uv run --no-project --with pytest --with typesafe-sdk python -m pytest roast/test_roast.py codex/test_codex_session.py search/test_search.py research/test_research.py loop/test_compact.py -q`
 - `python todo/test-parity.py`
 - `node todo/test-subtasks.mjs`
 
