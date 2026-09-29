@@ -24,8 +24,8 @@ def test_a_search_asks_codex_once_with_its_web_search_on(project, monkeypatch, c
     assert s.main(["What", "version", "is", "X?"]) == 0
     prompt, purpose, k = calls[0]
     assert purpose == "search" and k["search"] is True and k["fresh"] is True
-    assert k["model"] == "gpt-6-luna" and k["effort"] == "high"
-    assert "Question: What version is X?" in prompt and "exact quote" in prompt
+    assert k["model"] == "gpt-6-luna" and k["effort"] == "low"
+    assert "Question: What version is X?" in prompt and "link" in prompt
     saved = list((project / ".claude" / "searches").glob("*-what-version-is-x.md"))
     assert len(saved) == 1 and "It is 3.2." in saved[0].read_text(encoding="utf-8")
     assert "It is 3.2." in capsys.readouterr().out

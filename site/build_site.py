@@ -5,7 +5,7 @@ with no owner-needed or fixed flags, no paths and no project-specific names. The
 from the bundle's own files, so the page matches them; the build refuses to write a page that
 names a project, a person or a path, or carries a status flag.
 
-  python site/build_site.py                      # writes docs/index.html
+  python site/build_site.py                      # writes docs/index.html and README.md
   python site/build_site.py --fragment page.html # also a copy for the Claude page viewer
 """
 
@@ -149,10 +149,10 @@ SKILLS = [
                   "when the round is done, root-cause fixes.", "When you call it or load the dev rules", "/sijav-clauder:dev-round"),
     ("codex", "Calls codex (GPT-6) through one session per kind of work, sol at medium effort unless told otherwise.",
      "When a task needs codex", "/sijav-clauder:codex"),
-    ("search", "Codex looks one question up on the web and answers with its sources: link, date and an exact "
-               "quote for each claim.", "When a fact, a version or a doc page is needed", "/sijav-clauder:search"),
-    ("research", "Deep research, like ChatGPT's or Gemini's: a plan of sub-questions, web searches side by side, a gap "
-                 "round, one cited report, and every citation checked against what was read and by jev.",
+    ("search", "A plain web search: codex on luna at low effort answers one question in a few sentences, with the "
+               "links it used.", "When a fact, a version or a doc page is needed", "/sijav-clauder:search"),
+    ("research", "Deep research on astra, like ChatGPT's or Gemini's: questions and a plan you approve, web searches side "
+                 "by side, gap rounds, one cited report, and every quote checked on the page it cites, then judged by jev.",
      "When a question needs many sources", "/sijav-clauder:research"),
     ("roast", "Codex checks a plan or finished work and writes typed questions; jev judges them; codex writes its "
               "reading. One record per run.", "When a check is wanted", "/sijav-clauder:roast"),
@@ -486,7 +486,7 @@ a { color: var(--accent); }
   <h2>Codex</h2>
   <ul>
     <li>One codex session per kind of work, such as research or a roast mode. A call with the same purpose resumes that session, so codex keeps the context of that line of work.</li>
-    <li>Models: <code>gpt-6-sol</code> at medium effort by default, <code>gpt-6-astra</code> for research (the roast's search mode and the research skill, at high effort) or when you ask for it, <code>gpt-6-luna</code> for fast, cheap tasks. A session keeps its thread when the model changes.</li>
+    <li>Models: <code>gpt-6-sol</code> at medium effort by default, <code>gpt-6-astra</code> for research (the roast's search mode and the research skill, at high effort) or when you ask for it, <code>gpt-6-luna</code> for fast, cheap tasks, such as a plain web search at low effort. A session keeps its thread when the model changes.</li>
     <li>All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No reserve model, no pause.</li>
     <li>Every call keeps its full log in the project it ran for.</li>
     <li>This skill holds no codex token: codex signs in with its own login, which you manage.</li>
@@ -495,18 +495,18 @@ a { color: var(--accent); }
 
 <section id="research">
   <h2>Search and research</h2>
-  <p>Two ways to ask the web, both through codex. <strong>Search</strong> answers one question with its sources: every claim with its link, its date and an exact quote. <strong>Research</strong> works like ChatGPT's and Gemini's deep research for a question that needs many sources, then checks every citation before you read the report.</p>
+  <p><strong>Search</strong> and <strong>research</strong> are separate skills. Search is a plain web lookup: one question to codex on <code>gpt-6-luna</code> at low effort, answered in a few sentences with the links it used. Research is deep research on <code>gpt-6-astra</code>, like ChatGPT's and Gemini's, for a question that needs many sources and judgement; it checks every citation on the page it cites before you read the report.</p>
   <figure>
     <div class="figwrap">
-      <svg viewBox="0 0 960 608" role="img" aria-label="A research run in nine steps across four lanes: Claude asks the question; codex plans the sub-questions; codex searches the web for each, side by side; codex finds the gaps; codex searches the follow-ups; codex writes the report once; the check finds each quote in what the searches read; jev judges whether each quote supports its claim; Claude reads the check.">
+      <svg viewBox="0 0 960 656" role="img" aria-label="A research run in ten steps across four lanes: Claude asks the question; codex plans the sub-questions and asks what is unclear; you answer and approve the plan; codex searches the web for each sub-question side by side; codex finds the gaps; codex searches the follow-ups; codex writes the report once; the check finds each quote on the page it cites; jev judges whether each quote supports its claim; Claude reads the check.">
         <defs>
           <marker id="f4-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
         </defs>
-        <rect x="8" y="8" width="224" height="592" rx="10" class="lane"/>
-        <rect x="248" y="8" width="224" height="592" rx="10" class="lane"/>
-        <rect x="488" y="8" width="224" height="592" rx="10" class="lane"/>
-        <rect x="728" y="8" width="224" height="592" rx="10" class="lane"/>
-        <text x="120" y="34" text-anchor="middle" class="lane-h c-claude">CLAUDE</text>
+        <rect x="8" y="8" width="224" height="640" rx="10" class="lane"/>
+        <rect x="248" y="8" width="224" height="640" rx="10" class="lane"/>
+        <rect x="488" y="8" width="224" height="640" rx="10" class="lane"/>
+        <rect x="728" y="8" width="224" height="640" rx="10" class="lane"/>
+        <text x="120" y="34" text-anchor="middle" class="lane-h c-claude">CLAUDE AND YOU</text>
         <text x="360" y="34" text-anchor="middle" class="lane-h c-codex">CODEX, THINKING</text>
         <text x="600" y="34" text-anchor="middle" class="lane-h c-codex">CODEX ON THE WEB</text>
         <text x="840" y="34" text-anchor="middle" class="lane-h c-judge">THE CHECK</text>
@@ -514,40 +514,43 @@ a { color: var(--accent); }
         <text x="120" y="71" text-anchor="middle" class="t2">Asks the question</text><text x="120" y="88" text-anchor="middle" class="ts">with why, and its limits</text>
         <path d="M120,98 V106 H360 V111" class="ln" marker-end="url(#f4-ah)"/>
         <rect x="256" y="112" width="208" height="46" rx="6" class="bx-codex"/>
-        <text x="360" y="131" text-anchor="middle" class="t2">Plans the sub-questions</text><text x="360" y="148" text-anchor="middle" class="ts">3, 5 or 7; you may edit it</text>
-        <path d="M360,158 V166 H600 V171" class="ln" marker-end="url(#f4-ah)"/>
-        <rect x="496" y="172" width="208" height="46" rx="6" class="bx-codex"/>
-        <text x="600" y="191" text-anchor="middle" class="t2">Searches each, side by side</text><text x="600" y="208" text-anchor="middle" class="ts">link, date, exact quote</text>
-        <path d="M600,218 V226 H360 V231" class="ln" marker-end="url(#f4-ah)"/>
-        <rect x="256" y="232" width="208" height="46" rx="6" class="bx-codex"/>
-        <text x="360" y="251" text-anchor="middle" class="t2">Finds the gaps</text><text x="360" y="268" text-anchor="middle" class="ts">what is missing or disputed</text>
-        <path d="M360,278 V286 H600 V291" class="ln" marker-end="url(#f4-ah)"/>
-        <rect x="496" y="292" width="208" height="46" rx="6" class="bx-codex"/>
-        <text x="600" y="311" text-anchor="middle" class="t2">Searches the follow-ups</text><text x="600" y="328" text-anchor="middle" class="ts">up to 3 a round</text>
-        <text x="600" y="358" text-anchor="middle" class="ts">deep: gaps and follow-ups again</text>
-        <path d="M600,338 V346 H360 V351" class="ln" marker-end="url(#f4-ah)"/>
-        <rect x="256" y="352" width="208" height="46" rx="6" class="bx-codex"/>
-        <text x="360" y="371" text-anchor="middle" class="t2">Writes the report once</text><text x="360" y="388" text-anchor="middle" class="ts">every claim cites a quote</text>
-        <path d="M360,398 V406 H840 V411" class="ln" marker-end="url(#f4-ah)"/>
-        <rect x="736" y="412" width="208" height="46" rx="6" class="bx-tool"/>
-        <text x="840" y="431" text-anchor="middle" class="t2">Finds each quote</text><text x="840" y="448" text-anchor="middle" class="ts">in what the searches read</text>
-        <path d="M840,458 V471" class="ln" marker-end="url(#f4-ah)"/>
-        <rect x="736" y="472" width="208" height="46" rx="6" class="bx-judge"/>
-        <text x="840" y="491" text-anchor="middle" class="t2">jev judges each quote</text><text x="840" y="508" text-anchor="middle" class="ts">does it support its claim?</text>
-        <path d="M840,518 V526 H120 V531" class="ln" marker-end="url(#f4-ah)"/>
-        <rect x="16" y="532" width="208" height="46" rx="6" class="bx-accent"/>
-        <text x="120" y="551" text-anchor="middle" class="t2">Reads the check</text><text x="120" y="568" text-anchor="middle" class="ts">unconfirmed stays unconfirmed</text>
+        <text x="360" y="131" text-anchor="middle" class="t2">Plans, asks what is unclear</text><text x="360" y="148" text-anchor="middle" class="ts">3, 5 or 7 sub-questions</text>
+        <path d="M360,158 V166 H120 V171" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="16" y="172" width="208" height="46" rx="6" class="bx-accent"/>
+        <text x="120" y="191" text-anchor="middle" class="t2">You answer and approve</text><text x="120" y="208" text-anchor="middle" class="ts">edit the plan if you like</text>
+        <path d="M120,218 V226 H600 V231" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="496" y="232" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="600" y="251" text-anchor="middle" class="t2">Searches each, side by side</text><text x="600" y="268" text-anchor="middle" class="ts">link, date, exact quote</text>
+        <path d="M600,278 V286 H360 V291" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="256" y="292" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="360" y="311" text-anchor="middle" class="t2">Finds the gaps</text><text x="360" y="328" text-anchor="middle" class="ts">what is missing or disputed</text>
+        <path d="M360,338 V346 H600 V351" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="496" y="352" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="600" y="371" text-anchor="middle" class="t2">Searches the follow-ups</text><text x="600" y="388" text-anchor="middle" class="ts">up to 3 a round</text>
+        <text x="600" y="428" text-anchor="middle" class="ts">deep: gaps and follow-ups again</text>
+        <path d="M600,398 V406 H360 V411" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="256" y="412" width="208" height="46" rx="6" class="bx-codex"/>
+        <text x="360" y="431" text-anchor="middle" class="t2">Writes the report once</text><text x="360" y="448" text-anchor="middle" class="ts">every claim cites a quote</text>
+        <path d="M360,458 V466 H840 V471" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="736" y="472" width="208" height="46" rx="6" class="bx-tool"/>
+        <text x="840" y="491" text-anchor="middle" class="t2">Finds each quote on its page</text><text x="840" y="508" text-anchor="middle" class="ts">the page, fetched afresh</text>
+        <path d="M840,518 V531" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="736" y="532" width="208" height="46" rx="6" class="bx-judge"/>
+        <text x="840" y="551" text-anchor="middle" class="t2">jev judges each quote</text><text x="840" y="568" text-anchor="middle" class="ts">does it support its claim?</text>
+        <path d="M840,578 V586 H120 V591" class="ln" marker-end="url(#f4-ah)"/>
+        <rect x="16" y="592" width="208" height="46" rx="6" class="bx-accent"/>
+        <text x="120" y="611" text-anchor="middle" class="t2">Reads the check</text><text x="120" y="628" text-anchor="middle" class="ts">unconfirmed stays unconfirmed</text>
       </svg>
     </div>
-    <figcaption>One research run at standard depth: about ten codex calls and one jev call. Each search is its own fresh codex conversation, so they run side by side. The record keeps the brief, the plan, every search, the gaps, the report and the check, inside the project.</figcaption>
+    <figcaption>One research run at standard depth. It stops after the plan so you can answer codex's questions and approve the plan. Each search is its own fresh codex conversation, so they run side by side, and every step is saved, so a run that stops resumes where it stopped.</figcaption>
   </figure>
   <ul>
-    <li><strong>Search</strong> (<code>/sijav-clauder:search</code>): one question, one fresh codex conversation with its web search on, <code>gpt-6-luna</code> at high effort. For a fact, a current version or a doc page.</li>
-    <li><strong>The plan first:</strong> <code>--plan-only</code> stops after the plan so you can edit it, as Gemini lets you, and <code>--plan</code> runs the edited plan.</li>
+    <li><strong>Questions and the plan first:</strong> codex lists what is unclear and writes the plan, and the run stops there, as ChatGPT asks first and Gemini shows its plan. Your answers make a new plan; an approved plan, edited if you like, goes on with <code>--resume</code>. <code>--go</code> skips the stop.</li>
     <li><strong>One pass:</strong> the report is written once, from the findings only, so it reads as one piece. It says where sources disagree and what stays uncertain.</li>
-    <li><strong>The check:</strong> a quote that is not in what the searches read, or that jev does not find supports its claim, is marked unconfirmed. Jev's number is a probability: 0.65 or more is supported, 0.35 or less is not, and between is unclear.</li>
-    <li><strong>Pages are data:</strong> an instruction found on a web page is never followed; it is reported instead.</li>
-    <li>Without jev the quotes are still looked for. With codex switched off nothing is sent, and Claude researches with its own tools and says so.</li>
+    <li><strong>The check:</strong> each cited page is fetched afresh and the quote is looked for on it; then jev judges whether the quote supports its claim. Jev's number is a probability: 0.65 or more is supported, 0.35 or less is not, and between is unclear. A quote that is not on its own page never counts, whatever jev says.</li>
+    <li><strong>Nothing is lost:</strong> every step is saved in the project. A run that stops, because codex fails or its allowance runs out, resumes from the last finished step without searching again.</li>
+    <li><strong>Pages are data:</strong> the findings reach the later steps fenced off as quoted material, and an instruction found on a web page is never followed.</li>
+    <li>Without jev the quotes are still checked on their pages. With codex switched off nothing is sent, and Claude researches with its own tools and says so.</li>
   </ul>
 </section>
 
@@ -565,7 +568,7 @@ a { color: var(--accent); }
   <h2>What a project adds</h2>
   <p>The bundle holds none of these; each project keeps its own, inside its <code>.claude</code> folder.</p>
   <ul>
-    <li><strong>Its rules:</strong> a file in <code>.claude/rulesets</code>, read by <code>/rules</code> in that project.</li>
+    <li><strong>Its rules:</strong> a file in <code>.claude/rulesets</code>, read by <code>/sijav-clauder:rules</code> in that project. A project rule wins over a general rule it clashes with.</li>
     <li><strong>Its loop:</strong> a law file named <code>&lt;name&gt;-loop.local.md</code>, the hooks that give it back after each reply and after a compaction, and the command that starts it.</li>
     <li><strong>Its board:</strong> <code>todo.db</code>, for the todo skill.</li>
     <li><strong>Its records:</strong> codex sessions and roast records are written into the project, never into the skills folder.</li>
@@ -594,7 +597,7 @@ a { color: var(--accent); }
         <li>Point the skills at the key: set <code>SIJAV_JEV_KEY_FILE</code> to the key file's full path. Without it, the roast reads <code>TYPESAFE_API_KEY</code>.</li>
         <li>Check it end to end: run one roast (<code>/sijav-clauder:roast</code>). The record's jev line names the jev model that answered, or says why jev was not used.</li>
       </ol>
-      <p><strong>Switch it off</strong> with <code>SIJAV_JEV=off</code>: the roast runs with codex alone, and its record says why; research still looks for every cited quote in what it read, and its check says jev did not judge them. It does the same by itself when there is no key, the library is missing, or jev fails during a run. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
+      <p><strong>Switch it off</strong> with <code>SIJAV_JEV=off</code>: the roast runs with codex alone, and its record says why; research still checks every quote on its page, and its check says jev did not judge them. It does the same by itself when there is no key, the library is missing, or jev fails during a run. <strong>Switch it back on</strong> by removing the setting, or setting it to <code>on</code>.</p>
     </div>
   </div>
   <h3>Where the settings go</h3>
@@ -616,7 +619,12 @@ a { color: var(--accent); }
     <tr><td class="cmd"><code>claude plugin install sijav-clauder@sijav-skills</code></td></tr>
   </tbody></table></div>
   <p>To work on the skills themselves, clone the repository and add the local folder instead: <code>claude plugin marketplace add &lt;your clone&gt;</code>. The source is at <a href="{{SOURCE}}">{{SOURCE}}</a>.</p>
-  <p>Claude Code keeps its own copy of an installed plugin. After changing the skills, raise the plugin's version and run <code>claude plugin update sijav-clauder@sijav-skills</code>.</p>
+  <p>To pick up a newer version later, run these, then start a new session or run <code>/reload-plugins</code>:</p>
+  <div class="tablewrap"><table><tbody>
+    <tr><td class="cmd"><code>claude plugin marketplace update sijav-skills</code></td></tr>
+    <tr><td class="cmd"><code>claude plugin update sijav-clauder@sijav-skills</code></td></tr>
+  </tbody></table></div>
+  <p>Claude Code keeps its own copy of an installed plugin, every file in the plugin's folder included, so keep keys outside it. After changing the skills in a clone, raise the plugin's version and run the update.</p>
 </section>
 
 <section id="change">
@@ -652,6 +660,128 @@ a { color: var(--accent); }
 """
 
 
+README = REPO / "README.md"
+# The page draws each flow as inline SVG; the README gets the same flow as a Mermaid chart,
+# which GitHub draws. One chart per section that has a figure; the build refuses a figure
+# without one.
+CHARTS = {
+    "loading": """
+flowchart LR
+  S["A session starts<br/>no rules loaded"] -->|you type one| R1["/sijav-clauder:rules"]
+  S --> R2["/sijav-clauder:rules dev"]
+  S --> R3["/sijav-clauder:rules design"]
+  R1 -->|reads| G["general: G1 to G6"]
+  R2 -->|reads| D["general + dev: D1 to D5, dev-round"]
+  R3 -->|reads| X["general + design, none yet"]
+  G -->|then| P["the project's own rule set, if any<br/>it wins a clash"]
+  D --> P
+  X --> P
+""",
+    "loop": """
+flowchart TD
+  A(["Claude finishes a reply"]) --> B{"Is there a .stop file?"}
+  B -->|yes| B1["Paused, for every session<br/>only when you ask for a pause"]
+  B -->|no| C{"Does the project have a law file?"}
+  C -->|no| C1["No loop in this project<br/>the hook does nothing"]
+  C -->|yes| D{"Is this the loop's own session?"}
+  D -->|no| D1["Any other session stops normally<br/>it never gets the law"]
+  D -->|yes| E{"Did the reply end with the finish promise?"}
+  E -->|yes| E1["The loop is finished<br/>only when all of its work is done"]
+  E -->|no| F{"Has the reply counter hit its cap?"}
+  F -->|yes| F1["The cap is reached<br/>set in the law, rarely reached"]
+  F -->|no| G["The stop is blocked<br/>the law comes back as the next prompt"]
+  G -->|Claude works on it, and this runs again| A
+""",
+    "roast": """
+sequenceDiagram
+  participant C as Claude
+  participant X as codex
+  participant T as The roast tool
+  participant J as jev
+  C->>X: runs the roast on the plan, before building
+  X->>T: reads the plan and the code, frames 2 to 5 questions
+  Note over T: keeps code away from jev and adds your critical question<br/>code found, back to codex once
+  T->>J: every question, in one batch
+  Note over J: too long, codex shortens it once<br/>limit 32k tokens for the state plus the longest question
+  J->>X: the answers, as numbers
+  X->>T: writes its reading, failing scenarios and findings
+  T->>C: keeps a record of the run, never overwritten
+  Note over C: decides each finding, the number is only an alarm
+""",
+    "research": """
+sequenceDiagram
+  participant C as Claude and you
+  participant X as codex, thinking
+  participant W as codex on the web
+  participant K as The check
+  C->>X: the question, why it is asked, and its limits
+  X->>C: questions for you, and a plan of 3, 5 or 7 sub-questions
+  Note over C: you answer, or approve the plan, edited if you like
+  C->>W: the approved plan
+  Note over W: one search per sub-question, side by side<br/>each claim with its link, date and exact quote
+  W->>X: the findings
+  X->>W: the gaps, as up to 3 follow-up questions
+  Note over X,W: at deep depth, gaps and follow-ups once more
+  W->>X: more findings
+  Note over X: writes the report once, every claim citing a quote
+  X->>K: every claim, with its link and quote
+  Note over K: fetches each cited page and looks for the quote on it<br/>then jev judges whether the quote supports the claim
+  K->>C: the report and its citation check
+""",
+}
+
+
+def readme(page: str) -> str:
+    """The README: the same guide as the website, plus what a clone of this repository needs."""
+    import readme_md
+
+    lede, _ = readme_md.page_parts(page)
+    tests = " ".join(p.relative_to(SK).as_posix() for p in sorted(SK.glob("*/test_*.py")))
+    names = ", ".join(s for s, *_ in SKILLS)
+    return f"""# Sijav Skills
+
+A Claude Code plugin marketplace with one plugin, **sijav-clauder**. {lede}
+
+This README and the website, {SITE}, are the same guide: `python site/build_site.py` writes
+both from the skills' own files. Change the skills or `site/build_site.py`, never this file by
+hand.
+
+```
+Sijav-Skills/                     the marketplace (this git repository)
+  .claude-plugin/marketplace.json
+  Sijav-Clauder/                  the sijav-clauder plugin
+    .claude-plugin/plugin.json
+    skills/{names}
+  site/build_site.py              writes the website and this README
+  docs/index.html                 the website, served by GitHub Pages
+```
+
+{readme_md.guide(page, CHARTS)}
+
+## Tests
+
+From `Sijav-Clauder/skills`:
+
+- `uv run --no-project --with pytest --with typesafe-sdk python -m pytest {tests} -q`
+- `python todo/test-parity.py`
+- `node todo/test-subtasks.mjs`
+
+## The website and this README
+
+`python site/build_site.py` writes `docs/index.html`, which GitHub Pages serves from the
+`docs` folder of `main`, and this README, both from the skills' own files. Rebuild and commit
+them after changing a rule or a skill. The build refuses to write either when it finds a
+project's name, a person's name or a local path, and checks every tracked file for private
+words.
+
+## Keeping it clean
+
+- No project names, paths or project rules go into the skills; they belong to the project.
+- Change a rule the way `rules/SKILL.md` says, and log it in `rules/log.md`. That log is the
+  history of each rule, so it keeps the evidence it was written from.
+"""
+
+
 def main(argv: list[str]) -> int:
     page = (TEMPLATE.replace("{{SOURCE}}", SOURCE)
             .replace("{{SKILLS_TABLE}}", skills_table())
@@ -661,8 +791,9 @@ def main(argv: list[str]) -> int:
             .replace("{{DESIGN}}", design_note())
             .replace("{{CHANGING}}", changing_a_rule()))
     left = re.findall(r"\{\{[A-Z_]+\}\}", page)
-    hits = [(what, m.group(0), page[max(0, m.start() - 50):m.end() + 30].replace("\n", " "))
-            for what, rx in FORBIDDEN.items() for m in re.finditer(rx, page)]
+    guide = readme(page)
+    hits = [(what, m.group(0), text[max(0, m.start() - 50):m.end() + 30].replace("\n", " "))
+            for text in (page, guide) for what, rx in FORBIDDEN.items() for m in re.finditer(rx, text)]
     in_repo = private_in_repo() if PRIVATE_RULES else []
     if left or hits or in_repo:
         for what, found, ctx in hits:
@@ -685,6 +816,9 @@ def main(argv: list[str]) -> int:
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(document, encoding="utf-8")
     print(f"wrote {OUT} ({len(document):,} characters)")
+    with open(README, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(guide)
+    print(f"wrote {README} ({len(guide):,} characters)")
     if "--fragment" in argv:
         frag = Path(argv[argv.index("--fragment") + 1])
         frag.write_text(page, encoding="utf-8")
