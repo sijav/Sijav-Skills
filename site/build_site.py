@@ -148,7 +148,8 @@ SKILLS = [
     ("dev-round", "How to work through a round of code to-dos: each to-do writes its tests, with an end-to-end test of its "
                   "story from the user's point of view, without running them; when "
                   "the area's to-dos are done, its full suite runs at 100% coverage with the end-to-end scenarios, the "
-                  "tests are checked, and failures are fixed at the root.", "When you call it or load the dev rules",
+                  "tests are checked, failures are fixed at the root, and only then is each to-do marked tested and e2e "
+                  "tested.", "When you call it or load the dev rules",
      "/sijav-clauder:dev-round"),
     ("codex", "Calls codex (GPT-6) through one session per kind of work, 6.1 sol at medium effort unless told otherwise.",
      "When a task needs codex", "/sijav-clauder:codex"),

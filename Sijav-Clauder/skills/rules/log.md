@@ -409,3 +409,15 @@ to "run no tests during the round" now names that command as the story's end-to-
 
 **Evidence.** The rule written earlier that day described writing the test but never tied it to
 the to-do, so a project's board went on filing to-dos whose checks were unit tests.
+
+## 2026-09-30 · dev-round (D4): done is not tested; tested and e2e tested statuses
+
+**Change.** "Each to-do" gained: "Done is not tested. When the project keeps its to-dos on a
+board, each to-do also has two statuses that start false: tested, once its tests pass, and e2e
+tested, once it has been tested as a real user, in a real user scenario, not just its exit
+condition." The round-end pass gained a step: mark each to-do tested and e2e tested. Undone:
+the earlier line that made the story's end-to-end test the to-do's exit check.
+
+**Owner's words.** "there should be a tested status, which at first would be false, the task can be done but not tested, and then there's e2e tested which is different and it means the task have been tested as a real user with real user scenario, not just exit condition!", then "with that fix the rules as well".
+
+**Evidence.** A board with only open, doing and closed cannot tell a done to-do from a tested one.
