@@ -26,7 +26,10 @@ model (default gpt-6.1-sol at medium effort; owner, 2026-09-30) and no other: wh
 used up, the call fails with codex's own words, and the caller asks the owner
 through the input tool to change the codex account (owner, 2026-09-26:
 "instead of gpt_reserved just ask for user input via input tool to change the
-account when finished"). A session continues directly on the new account.
+account when finished"). A session continues directly on the new account. The one
+exception is a plain web search: the search skill retries once on gpt-reserve, a luna that
+stays free when the allowance is used up (owner, 2026-09-30). A used-up allowance raises
+CodexExhausted, so a caller can tell it from any other failure.
 
 Every failure raises CodexError with the exact cause and the log path.
 
@@ -90,6 +93,11 @@ class CodexOff(CodexError):
 
 class CodexBusy(CodexError):
     """Another run is writing to this purpose's thread; nothing was changed."""
+
+
+class CodexExhausted(CodexError):
+    """The account's shared GPT-6 allowance is used up: ask the owner to switch the codex account.
+    Only a plain web search may retry on gpt-reserve instead (owner, 2026-09-30)."""
 
 
 def codex_off() -> bool:
@@ -314,7 +322,7 @@ def _run_locked(prompt: str, purpose: str, d: Path, root: Path, *, search: bool,
                     )
                 if any(w in said for w in EXHAUSTED):
                     # the account's allowance, not this binary: no point trying another
-                    raise CodexError(
+                    raise CodexExhausted(
                         f"codex's allowance looks used up for purpose {purpose!r} ({m}): {tail}\n"
                         "Ask the owner through the input tool to change the codex account, then run "
                         f"again; the session continues on the new account. Full log: {log}"

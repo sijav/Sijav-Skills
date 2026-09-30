@@ -53,3 +53,32 @@ def test_switched_off_codex_sends_nothing_and_says_so(project, monkeypatch, caps
     assert s.main(["q"]) == 3
     assert "your own web tools" in capsys.readouterr().err
     assert not (project / ".claude" / "searches").exists()
+
+
+def test_a_used_up_allowance_searches_again_on_gpt_reserve(project, monkeypatch, capsys):
+    """The owner, 2026-09-30: gpt-reserve is a luna and stays free when the allowance is used up,
+    so a search may run on it; the record names the model that answered."""
+    models = []
+
+    def fake_run(prompt, purpose, **k):
+        models.append(k["model"])
+        if k["model"] == "gpt-6-luna":
+            raise s.cs.CodexExhausted("codex's allowance looks used up for purpose 'search' (gpt-6-luna): usage limit")
+        return "It is 3.2. https://x.example"
+
+    monkeypatch.setattr(s.cs, "run", fake_run)
+    assert s.main(["What", "version?"]) == 0
+    assert models == ["gpt-6-luna", "gpt-reserve"]
+    saved = next((project / ".claude" / "searches").glob("*.md")).read_text(encoding="utf-8")
+    assert "codex: gpt-reserve at low effort" in saved and "It is 3.2." in saved
+    assert "searching on gpt-reserve instead" in capsys.readouterr().err
+
+
+def test_a_used_up_reserve_fails_with_codexs_words(project, monkeypatch, capsys):
+    def fake_run(prompt, purpose, **k):
+        raise s.cs.CodexExhausted(f"codex's allowance looks used up ({k['model']}): usage limit")
+
+    monkeypatch.setattr(s.cs, "run", fake_run)
+    assert s.main(["q"]) == 1
+    assert "used up (gpt-reserve)" in capsys.readouterr().err
+    assert not (project / ".claude" / "searches").exists()

@@ -51,7 +51,7 @@ Research the current documentation first, then change code based on it.
 Use `gpt-6.1-sol` at medium effort by default (owner, 2026-09-30: 6.1 sol replaces 6 sol; it needs codex 0.159 or newer). Use `gpt-6-astra` for research (the roast's search mode and the research skill use it at high effort) or when the owner asks for it, and `gpt-6-luna` for fast, cheap tasks, such as a plain web search at low effort (the search skill).
 A session keeps its thread when the model changes: each call uses the model it is given, else the default.
 Treat all GPT-6 models as sharing ONE allowance; there is no separate astra allowance to exhaust.
-When the shared GPT-6 allowance is used up, ask the owner through the question/input tool to change the codex account; do not switch to `gpt-reserve`. (owner, 2026-09-26)
+When the shared GPT-6 allowance is used up, ask the owner through the question/input tool to change the codex account; do not switch to `gpt-reserve`. (owner, 2026-09-26) The one exception is a plain web search: the search skill retries once on `gpt-reserve`, a luna that stays free when the allowance is used up (owner, 2026-09-30).
 Wait for the owner's answer confirming the account switch, then run again through the runner in the same session. If direct continuation fails with "Encrypted content organization_id did not match the target organization", use `copy_session.py` in this skill's folder as a manual tool, not a runner fallback, and point the job's record at the session id it prints. (owner, 2026-09-26)
 Do not create `.stop` or schedule resumption because of allowance exhaustion; leave login changes to the owner and never sign in or read or copy login tokens. (owner, 2026-09-26)
 

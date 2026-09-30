@@ -228,13 +228,13 @@ Each check saw only the plan as it was before its first check. Two blind scorers
 
 - One codex session per kind of work, such as research or a roast mode. A call with the same purpose resumes that session, so codex keeps the context of that line of work.
 - Models: `gpt-6.1-sol` at medium effort by default (it needs codex 0.159 or newer), `gpt-6-astra` for research (the roast's search mode and the research skill, at high effort) or when you ask for it, `gpt-6-luna` for fast, cheap tasks, such as a plain web search at low effort. A session keeps its thread when the model changes.
-- All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No reserve model, no pause.
+- All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No pause, and no reserve model, except for a plain web search: it runs once more on `gpt-reserve`, a luna that stays free when the allowance is used up.
 - Every call keeps its full log in the project it ran for.
 - This skill holds no codex token: codex signs in with its own login, which you manage.
 
 ## Search and research
 
-**Search** and **research** are separate skills. Search is a plain web lookup: one question to codex on `gpt-6-luna` at low effort, answered in a few sentences with the links it used. Research is deep research on `gpt-6-astra`, like ChatGPT's and Gemini's, for a question that needs many sources and judgement; it checks every citation on the page it cites before you read the report.
+**Search** and **research** are separate skills. Search is a plain web lookup: one question to codex on `gpt-6-luna` at low effort, answered in a few sentences with the links it used; when the allowance is used up, it runs on `gpt-reserve`, which stays free. Research is deep research on `gpt-6-astra`, like ChatGPT's and Gemini's, for a question that needs many sources and judgement; it checks every citation on the page it cites before you read the report.
 
 ```mermaid
 sequenceDiagram

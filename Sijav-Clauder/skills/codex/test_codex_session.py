@@ -150,7 +150,7 @@ def test_a_used_up_allowance_stops_and_says_to_ask_the_owner(project, monkeypatc
         cs.subprocess, "run",
         fake_codex([(1, "", "usage limit reached"), (0, "answer", "")], calls),
     )
-    with pytest.raises(cs.CodexError, match="(?s)usage limit reached.*change the codex account"):
+    with pytest.raises(cs.CodexExhausted, match="(?s)usage limit reached.*change the codex account"):
         cs.run("x", "research")
     assert [c[c.index("-m") + 1] for c in calls] == ["gpt-6.1-sol"]   # no gpt-reserve, no second try
 

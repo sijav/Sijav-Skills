@@ -7,6 +7,9 @@ gives the link of every page it used. For a quick fact, a current version or a d
 page. A question that needs many sources and judgement is research, a separate skill.
 The record goes to <project>/.claude/searches/<time>-<slug>.md and is printed.
 
+When codex says the allowance is used up, the search runs once more on gpt-reserve, a luna
+that stays free then (owner, 2026-09-30); the record names the model that answered.
+
 SIJAV_CODEX=off: nothing is sent and the command exits with code 3; search with your
 own web tools instead, and say that codex was off.
 """
@@ -35,6 +38,8 @@ for _s in (sys.stdout, sys.stderr):
 # on astra, is the research skill.
 MODEL = "gpt-6-luna"
 EFFORT = "low"
+# Free once the allowance is used up, and a luna: a search may fall back to it (owner, 2026-09-30).
+RESERVE = "gpt-reserve"
 
 PROMPT = """\
 Search the web and answer the question below in a few sentences. Give the link of every
@@ -49,13 +54,8 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "search"
 
 
-def search(question: str, *, model: str = MODEL, effort: str = EFFORT,
-           project: str | None = None, timeout: int = 900) -> tuple[str, str]:
-    """Ask codex once, with its web search on; return (the purpose used, the answer).
-
-    Each search is its own fresh conversation: a lookup needs no history, and a busy
-    `search` conversation (another search running) never blocks this one."""
-    prompt = PROMPT.format(question=question.strip())
+def ask(prompt: str, model: str, effort: str, project: str | None, timeout: int) -> tuple[str, str]:
+    """One fresh search conversation; (the purpose used, the answer)."""
     try:
         return "search", cs.run(prompt, "search", search=True, model=model, effort=effort,
                                 fresh=True, project=project, timeout=timeout)
@@ -63,6 +63,30 @@ def search(question: str, *, model: str = MODEL, effort: str = EFFORT,
         purpose = f"search-{uuid.uuid4().hex[:6]}"
         return purpose, cs.run(prompt, purpose, search=True, model=model, effort=effort,
                                fresh=True, project=project, timeout=timeout)
+
+
+def search(question: str, *, model: str = MODEL, effort: str = EFFORT,
+           project: str | None = None, timeout: int = 900) -> tuple[str, str, str]:
+    """Ask codex once, with its web search on; return (the purpose used, the model that
+    answered, the answer).
+
+    Each search is its own fresh conversation: a lookup needs no history, and a busy
+    `search` conversation (another search running) never blocks this one. When the
+    allowance is used up, the search runs once more on gpt-reserve."""
+    prompt = PROMPT.format(question=question.strip())
+    try:
+        return _answered(prompt, model, effort, project, timeout)
+    except cs.CodexExhausted as e:
+        if model == RESERVE:
+            raise
+        print(f"[search] {str(e).splitlines()[0]}\n[search] searching on {RESERVE} instead: it stays free "
+              "when the allowance is used up.", file=sys.stderr)
+        return _answered(prompt, RESERVE, "low", project, timeout)
+
+
+def _answered(prompt: str, model: str, effort: str, project: str | None, timeout: int) -> tuple[str, str, str]:
+    purpose, answer = ask(prompt, model, effort, project, timeout)
+    return purpose, model, answer
 
 
 def record(root: Path, question: str, model: str, effort: str, purpose: str, answer: str) -> Path:
@@ -91,8 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     question = " ".join(a.question)
     try:
         root = cs.project_root(a.project)
-        purpose, answer = search(question, model=a.model, effort=a.effort,
-                                 project=a.project, timeout=a.timeout)
+        purpose, model, answer = search(question, model=a.model, effort=a.effort,
+                                        project=a.project, timeout=a.timeout)
     except cs.CodexOff as e:
         print(f"CODEX OFF: {e} Search with your own web tools instead, and say codex was off.",
               file=sys.stderr)
@@ -100,7 +124,8 @@ def main(argv: list[str] | None = None) -> int:
     except (cs.CodexError, OSError) as e:
         print(f"SEARCH FAILED: {e}", file=sys.stderr)
         return 1
-    path = record(root, question, a.model, a.effort, purpose, answer)
+    effort = a.effort if model == a.model else "low"
+    path = record(root, question, model, effort, purpose, answer)
     print(path.read_text(encoding="utf-8"))
     return 0
 

@@ -18,4 +18,5 @@ python "${CLAUDE_SKILL_DIR}/search.py" "What is the current stable version of X,
 ## Switches and fallbacks
 
 - `SIJAV_CODEX=off`: nothing is sent, and the command exits with code 3. Search with your own web tools instead, and say that codex was off.
-- codex fails (not installed, or its allowance is used up): the search fails with codex's own words. For a used-up allowance, ask the owner to switch the codex account.
+- codex's allowance is used up: the search runs once more on `gpt-reserve`, a luna that stays free then (owner, 2026-09-30), and the record names it. If that fails too, the search fails with codex's own words; ask the owner to switch the codex account.
+- codex fails otherwise (not installed, for example): the search fails with codex's own words.

@@ -489,7 +489,7 @@ a { color: var(--accent); }
   <ul>
     <li>One codex session per kind of work, such as research or a roast mode. A call with the same purpose resumes that session, so codex keeps the context of that line of work.</li>
     <li>Models: <code>gpt-6.1-sol</code> at medium effort by default (it needs codex 0.159 or newer), <code>gpt-6-astra</code> for research (the roast's search mode and the research skill, at high effort) or when you ask for it, <code>gpt-6-luna</code> for fast, cheap tasks, such as a plain web search at low effort. A session keeps its thread when the model changes.</li>
-    <li>All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No reserve model, no pause.</li>
+    <li>All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No pause, and no reserve model, except for a plain web search: it runs once more on <code>gpt-reserve</code>, a luna that stays free when the allowance is used up.</li>
     <li>Every call keeps its full log in the project it ran for.</li>
     <li>This skill holds no codex token: codex signs in with its own login, which you manage.</li>
   </ul>
@@ -497,7 +497,7 @@ a { color: var(--accent); }
 
 <section id="research">
   <h2>Search and research</h2>
-  <p><strong>Search</strong> and <strong>research</strong> are separate skills. Search is a plain web lookup: one question to codex on <code>gpt-6-luna</code> at low effort, answered in a few sentences with the links it used. Research is deep research on <code>gpt-6-astra</code>, like ChatGPT's and Gemini's, for a question that needs many sources and judgement; it checks every citation on the page it cites before you read the report.</p>
+  <p><strong>Search</strong> and <strong>research</strong> are separate skills. Search is a plain web lookup: one question to codex on <code>gpt-6-luna</code> at low effort, answered in a few sentences with the links it used; when the allowance is used up, it runs on <code>gpt-reserve</code>, which stays free. Research is deep research on <code>gpt-6-astra</code>, like ChatGPT's and Gemini's, for a question that needs many sources and judgement; it checks every citation on the page it cites before you read the report.</p>
   <figure>
     <div class="figwrap">
       <svg viewBox="0 0 960 656" role="img" aria-label="A research run in ten steps across four lanes: Claude asks the question; codex plans the sub-questions and asks what is unclear; you answer and approve the plan; codex searches the web for each sub-question side by side; codex finds the gaps; codex searches the follow-ups; codex writes the report once; the check finds each quote on the page it cites; jev judges whether each quote supports its claim; Claude reads the check.">
