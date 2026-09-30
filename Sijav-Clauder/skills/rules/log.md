@@ -421,3 +421,17 @@ the earlier line that made the story's end-to-end test the to-do's exit check.
 **Owner's words.** "there should be a tested status, which at first would be false, the task can be done but not tested, and then there's e2e tested which is different and it means the task have been tested as a real user with real user scenario, not just exit condition!", then "with that fix the rules as well".
 
 **Evidence.** A board with only open, doing and closed cannot tell a done to-do from a tested one.
+
+## 2026-09-30 · dev-round (D4): three passes, build, test, test as a real user
+
+**Change.** The skill is now three passes per area: build every to-do and the findings that turn
+up, writing tests and running none, until none is left; test the area at 100% coverage, check the
+tests, fix failures at their root, mark what passed and was never tested as tested, and build and
+test again whatever turns up; when all are done and tested, test each to-do as a real user, one
+end-to-end test for the to-dos that share a story, and mark it e2e tested. Gone: rounds of the
+to-dos open at the start, with follow-ups waiting for the next round.
+
+**Owner's words.** "just make sure the laws ok. basically first you finish to-do (and if any findings happened starts those as well untill nothing is left) then start testing which then puts all the untested to tested if any of these tasks gets successfully tested and never have been tested before (then again if any to-do appear start finishing the to-do and test and then again if any to-do apear etc.) after all done then start e2e testing each and every task (many that have the same story can be merged into one e2e test that finishes multiple ones)".
+
+**Evidence.** The earlier text ran the tests and the real-user tests in one round-end pass and
+made findings wait for the next round.

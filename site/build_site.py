@@ -124,7 +124,7 @@ def dev_round() -> str:
     path = SK / "dev-round" / "SKILL.md"
     text = re.sub(r"\A---.*?\n---\s*\n", "", path.read_text(encoding="utf-8"), flags=re.S)
     intro = [line for line in text.split("\n## ")[0].splitlines() if not line.startswith("# ")]
-    labels = {"Each to-do": "each", "When the round is done": "end"}
+    labels = {"1. Build": "build", "2. Test": "test", "3. Test as a real user": "e2e"}
     rows = "".join(f'<div class="rule"><div class="id">{labels.get(head, "")}</div><div class="body">'
                    f"<h4>{inline(head)}</h4>{blocks(body)}</div></div>" for head, body in sections(path))
     return blocks(intro) + f'<div class="ledger">{rows}</div>'
@@ -145,10 +145,9 @@ def design_note() -> str:
 SKILLS = [
     ("rules", "Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule.",
      "Only when you call it", "/sijav-clauder:rules · /sijav-clauder:rules dev · /sijav-clauder:rules design"),
-    ("dev-round", "How to work through a round of code to-dos: each to-do writes its tests, with an end-to-end test of its "
-                  "story from the user's point of view, without running them; when "
-                  "the area's to-dos are done, its full suite runs at 100% coverage with the end-to-end scenarios, the "
-                  "tests are checked, failures are fixed at the root, and only then is each to-do marked tested and e2e "
+    ("dev-round", "How to work through an area's code to-dos in three passes: build them all, with the findings that "
+                  "turn up, writing their tests and running none; then test the area at 100% coverage and mark what "
+                  "passed as tested; then test each as a real user, one end-to-end test per story, and mark it e2e "
                   "tested.", "When you call it or load the dev rules",
      "/sijav-clauder:dev-round"),
     ("codex", "Calls codex (GPT-6) through one session per kind of work, 6.1 sol at medium effort unless told otherwise.",

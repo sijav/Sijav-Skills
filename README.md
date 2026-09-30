@@ -25,7 +25,7 @@ They ship as one Claude Code plugin, `sijav-clauder`, from a folder that is its 
 | Skill | What it does | When it loads | How you call it |
 |---|---|---|---|
 | rules | Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule. | Only when you call it | `/sijav-clauder:rules`<br>`/sijav-clauder:rules dev`<br>`/sijav-clauder:rules design` |
-| dev-round | How to work through a round of code to-dos: each to-do writes its tests, with an end-to-end test of its story from the user's point of view, without running them; when the area's to-dos are done, its full suite runs at 100% coverage with the end-to-end scenarios, the tests are checked, failures are fixed at the root, and only then is each to-do marked tested and e2e tested. | When you call it or load the dev rules | `/sijav-clauder:dev-round` |
+| dev-round | How to work through an area's code to-dos in three passes: build them all, with the findings that turn up, writing their tests and running none; then test the area at 100% coverage and mark what passed as tested; then test each as a real user, one end-to-end test per story, and mark it e2e tested. | When you call it or load the dev rules | `/sijav-clauder:dev-round` |
 | codex | Calls codex (GPT-6) through one session per kind of work, 6.1 sol at medium effort unless told otherwise. | When a task needs codex | `/sijav-clauder:codex` |
 | search | A plain web search: codex on luna at low effort answers one question in a few sentences, with the links it used. | When a fact, a version or a doc page is needed | `/sijav-clauder:search` |
 | research | Deep research on astra, like ChatGPT's or Gemini's: questions and a plan you approve, web searches side by side, gap rounds, one cited report, and every quote checked on the page it cites, then judged by jev. | When a question needs many sources | `/sijav-clauder:research` |
@@ -124,26 +124,35 @@ In the sijav-clauder:dev-round skill (moved there on 2026-09-28). Use it for eve
 
 ### dev-round (skill · /sijav-clauder:dev-round, or with the dev rules)
 
-A round is one area's to-dos that were open when it started: the front in general, or the back in general (a project may name its areas). Follow-ups found during it wait for the area's next round.
+Work area by area: the front in general, or the back in general (a project may name its areas). Each area goes through three passes in order, and goes back to the first whenever work turns up. Done is not tested: when the project keeps its to-dos on a board, each to-do has two statuses that start false, tested and e2e tested.
 
-#### Each to-do
+#### 1. Build
 
-- Build it, and write its tests with it. Test code only; don't write tests for rules, prompts or prose.
-- Tests follow written scenarios from the user's point of view: real-world, logical, and many of them. By the end of the round, together they cover 100% of the area's code, and the users' journeys end to end.
-- Each to-do's story gets its own end-to-end test, from the point of view of the person in the story: what they do, from where they start to what they see at the end. Write it with the to-do; it runs with the rest when the round is done.
-- Done is not tested. When the project keeps its to-dos on a board, each to-do also has two statuses that start false: tested, once its tests pass, and e2e tested, once it has been tested as a real user, in a real user scenario, not just its exit condition.
-- Run no tests during the round: not the tests you just wrote, not the ones near the code you changed, not coverage, not end-to-end runs, not planted faults, not the full suite. The worry that a change broke something else is what the round-end pass is for.
+- Take the area's to-dos, and every follow-up or finding that becomes a to-do on the way, until none is left.
+- Build each one and write its tests with it. Test code only; don't write tests for rules, prompts or prose.
+- Tests follow written scenarios from the user's point of view: real-world, logical, and many of them. Together they cover 100% of the area's code.
+- Run no tests while building: not the tests you just wrote, not the ones near the code you changed, not coverage, not end-to-end runs, not planted faults, not the full suite. The worry that a change broke something else is what the test pass is for.
 - The one exception: when the project closes a to-do by running its exit check (a loop's close command, for example), that one command runs, and nothing else.
 
-#### When the round is done
+#### 2. Test
 
-When every to-do of the area's round is done:
+When none of the area's to-dos is left:
 
-1. Run the area's full test suite, with coverage (it must reach 100%) and the end-to-end scenarios.
-2. Check the tests themselves: each to-do's story has its end-to-end test, and each test follows a real scenario, its steps and checks match what the user does and sees, and it fails when the behaviour it guards breaks (plant a fault to see it fail when in doubt). Fix a test that is wrong or illogical, and say which and why.
+1. Run the area's full test suite, with coverage (it must reach 100%).
+2. Check the tests themselves: each follows a real scenario, its steps and checks match what the user does and sees, and it fails when the behaviour it guards breaks (plant a fault to see it fail when in doubt). Fix a test that is wrong or illogical, and say which and why.
 3. When a scenario fails, find which one and why its logic fails, and fix the root cause in the code. Never change a test just to make it pass; change it only when its scenario was wrong, and say so.
-4. Mark each to-do on the board: tested once its tests pass, and e2e tested once it has been tested as a real user, in a real user scenario.
-5. Then start the area's next round with its follow-ups.
+4. Mark every done to-do whose tests passed and that was never tested: tested.
+5. Work the test pass turns up becomes to-dos: build them (1) and test again, until a test pass turns up nothing new.
+
+#### 3. Test as a real user
+
+When all the area's to-dos are done and tested:
+
+1. Test each to-do as a real user, in a real user scenario: what the person does, from where they start to what they see at the end; not just its exit check. To-dos with the same story share one end-to-end test.
+2. Mark every to-do that test covers: e2e tested.
+3. Whatever fails becomes a to-do: build it (1), test it (2) and test it as a real user again.
+
+A to-do that changes no code (a decision, a document, research) has no tests: mark it in each pass with how its result was checked.
 
 Branches and pushes follow the project's phase: the dev rules, D5 (/sijav-clauder:rules dev).
 
