@@ -1,6 +1,6 @@
 {
   "name": "sijav-clauder",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Eight project-independent skills: rules, dev-round, codex, search, research, roast, loop and todo. Rule sets load only when called; jev and codex can each be switched off, with fallbacks.",
   "author": {
     "name": "Sijav"

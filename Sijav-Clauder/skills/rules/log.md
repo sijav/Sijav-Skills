@@ -363,3 +363,23 @@ No checks, and don't ask."
 the fix was roasted, then checked again at the owner's request ("don't roast
 but check them again to make sure"). The roast
 records are kept in the project where the roasts ran.
+
+## 2026-09-30 · dev-round (D4): write the tests during the round, test when the area is done
+
+**Change.** The dev-round skill, which D4 points to. Old text: a round was "the to-dos that
+were open when it started"; each to-do said "Build it, then test it. ... Together they cover
+100% of the code. Run only the test files this to-do changed." New text: a round is one area's
+to-dos (the front in general, or the back in general); each to-do writes its code and its tests
+and runs none of them, the one exception being a to-do's own exit check when the project closes
+it with one; when every to-do of the area is done, the area's full suite runs with coverage
+(100%) and the end-to-end scenarios, and the tests themselves are checked for being correct and
+logical (a planted fault where in doubt) before root-cause fixes.
+
+**Owner's words.** "also one rule doesn't work, finish all to-dos before testing it"; then, after the loop's own account of running 451 tests mid-round: "and frankly it doesn't care how to fix that?"; "ok for that, there's a rule 100% code coverage + full user's pov scenario e2e tests, maybe that's what made this wrong! there should be something saying you just writing it in a matter that should then after all to-do for an area (section such as front in general or back in general) is finished then you start testing and make sure those are correct and logical"; "if it is not working like this please fix".
+
+**Evidence.** "Build it, then test it" and "cover 100% of the code" sat under "Each to-do", so a
+to-do looked unfinished until its tests had run and covered everything. A project's loop on
+2026-09-30 ran its new exit test, planted-fault runs, then 31 test files and 451
+tests "covering the code I changed", and answered the owner's question with a promise to do
+better rather than a fix. The same happened on 2026-09-29 with full suites per to-do. The old
+text is backed up outside any rules folder, dated 2026-09-30.
