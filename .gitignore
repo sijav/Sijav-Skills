@@ -13,3 +13,6 @@ __pycache__/
 
 # Words the site build must refuse; they must not be published either
 site/private-words.txt
+
+# coverage runs
+.coverage
