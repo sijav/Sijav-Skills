@@ -19,14 +19,15 @@ found during it wait for the area's next round.
 - Each to-do's story gets its own end-to-end test, from the point of view of
   the person in the story: what they do, from where they start to what they
   see at the end. Write it with the to-do; it runs with the rest when the
-  round is done.
+  round is done. When the project keeps its to-dos on a board, that test is
+  the to-do's exit check, so the board holds it.
 - Run no tests during the round: not the tests you just wrote, not the ones
   near the code you changed, not coverage, not end-to-end runs, not planted
   faults, not the full suite. The worry that a change broke something else is
   what the round-end pass is for.
 - The one exception: when the project closes a to-do by running its exit check
-  (a loop's close command, for example), that one command runs, and nothing
-  else.
+  (a loop's close command, for example), that one command, the story's
+  end-to-end test, runs, and nothing else.
 
 ## When the round is done
 

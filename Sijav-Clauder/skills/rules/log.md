@@ -398,3 +398,14 @@ of the tests now asks that each to-do's story has its end-to-end test.
 users' journeys end to end only as a whole. The owner took the rule to exist. Asking "want me to
 add?" after the owner had said it twice broke G4 (ask only when the owner's words don't settle
 it) and G5.
+
+## 2026-09-30 · dev-round (D4): on a board, the story's end-to-end test is the to-do's exit check
+
+**Change.** "Each to-do's story gets its own end-to-end test" gained: "When the project keeps its
+to-dos on a board, that test is the to-do's exit check, so the board holds it." The one exception
+to "run no tests during the round" now names that command as the story's end-to-end test.
+
+**Owner's words.** "then where is it in the db files? why the session didn't added it?", then "oh I get it, you put it as step 8 ... and it don't add it ... you came up with a strategy so that the skill don't work as I say, but you can say yes I added! ... see this is the exact behaviour that makes me mad".
+
+**Evidence.** The rule written earlier that day described writing the test but never tied it to
+the to-do, so a project's board went on filing to-dos whose checks were unit tests.
