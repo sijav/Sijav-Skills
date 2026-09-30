@@ -1,8 +1,10 @@
 # Sijav Skills
 
+**[Open the guide as a web page: sijav.github.io/Sijav-Skills](https://sijav.github.io/Sijav-Skills/)**
+
 A Claude Code plugin marketplace with one plugin, **sijav-clauder**. Eight skills that work in any project. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up.
 
-This README and the website, https://sijav.github.io/Sijav-Skills/, are the same guide: `python site/build_site.py` writes
+This README and [the web page](https://sijav.github.io/Sijav-Skills/) are the same guide: `python site/build_site.py` writes
 both from the skills' own files. Change the skills or `site/build_site.py`, never this file by
 hand.
 
@@ -23,7 +25,7 @@ They ship as one Claude Code plugin, `sijav-clauder`, from a folder that is its 
 | Skill | What it does | When it loads | How you call it |
 |---|---|---|---|
 | rules | Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule. | Only when you call it | `/sijav-clauder:rules`<br>`/sijav-clauder:rules dev`<br>`/sijav-clauder:rules design` |
-| dev-round | How to work through a round of code to-dos: only the changed tests during a to-do, the full suite when the round is done, root-cause fixes. | When you call it or load the dev rules | `/sijav-clauder:dev-round` |
+| dev-round | How to work through a round of code to-dos: each to-do writes its tests without running them; when the area's to-dos are done, its full suite runs at 100% coverage with the end-to-end scenarios, the tests are checked, and failures are fixed at the root. | When you call it or load the dev rules | `/sijav-clauder:dev-round` |
 | codex | Calls codex (GPT-6) through one session per kind of work, 6.1 sol at medium effort unless told otherwise. | When a task needs codex | `/sijav-clauder:codex` |
 | search | A plain web search: codex on luna at low effort answers one question in a few sentences, with the links it used. | When a fact, a version or a doc page is needed | `/sijav-clauder:search` |
 | research | Deep research on astra, like ChatGPT's or Gemini's: questions and a plan you approve, web searches side by side, gap rounds, one cited report, and every quote checked on the page it cites, then judged by jev. | When a question needs many sources | `/sijav-clauder:research` |

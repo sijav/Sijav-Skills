@@ -145,8 +145,10 @@ def design_note() -> str:
 SKILLS = [
     ("rules", "Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule.",
      "Only when you call it", "/sijav-clauder:rules · /sijav-clauder:rules dev · /sijav-clauder:rules design"),
-    ("dev-round", "How to work through a round of code to-dos: only the changed tests during a to-do, the full suite "
-                  "when the round is done, root-cause fixes.", "When you call it or load the dev rules", "/sijav-clauder:dev-round"),
+    ("dev-round", "How to work through a round of code to-dos: each to-do writes its tests without running them; when "
+                  "the area's to-dos are done, its full suite runs at 100% coverage with the end-to-end scenarios, the "
+                  "tests are checked, and failures are fixed at the root.", "When you call it or load the dev rules",
+     "/sijav-clauder:dev-round"),
     ("codex", "Calls codex (GPT-6) through one session per kind of work, 6.1 sol at medium effort unless told otherwise.",
      "When a task needs codex", "/sijav-clauder:codex"),
     ("search", "A plain web search: codex on luna at low effort answers one question in a few sentences, with the "
@@ -740,9 +742,11 @@ def readme(page: str) -> str:
     names = ", ".join(s for s, *_ in SKILLS)
     return f"""# Sijav Skills
 
+**[Open the guide as a web page: sijav.github.io/Sijav-Skills]({SITE})**
+
 A Claude Code plugin marketplace with one plugin, **sijav-clauder**. {lede}
 
-This README and the website, {SITE}, are the same guide: `python site/build_site.py` writes
+This README and [the web page]({SITE}) are the same guide: `python site/build_site.py` writes
 both from the skills' own files. Change the skills or `site/build_site.py`, never this file by
 hand.
 
