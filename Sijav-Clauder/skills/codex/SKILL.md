@@ -41,14 +41,14 @@ These session-aware implementations satisfy the session requirement. They do not
 Where a project's rules name callers that must make fresh calls, leave them unchanged and use them only for their intended work. Do not route unrelated prompts through them or extend their exception to other callers.
 For every other agent-initiated call, use the runner with an explicit purpose.
 
-Follow the project's model and reasoning settings. Otherwise use the runner's default: gpt-6-sol at medium effort.
+Follow the project's model and reasoning settings. Otherwise use the runner's default: gpt-6.1-sol at medium effort.
 
 Ask for official, current sources, cited URLs, and quoted lines.
 Ask codex to state where the documentation is silent.
 Never fix code on a guess.
 Research the current documentation first, then change code based on it.
 
-Use `gpt-6-sol` at medium effort by default (owner, 2026-09-28). Use `gpt-6-astra` for research (the roast's search mode and the research skill use it at high effort) or when the owner asks for it, and `gpt-6-luna` for fast, cheap tasks, such as a plain web search at low effort (the search skill).
+Use `gpt-6.1-sol` at medium effort by default (owner, 2026-09-30: 6.1 sol replaces 6 sol; it needs codex 0.159 or newer). Use `gpt-6-astra` for research (the roast's search mode and the research skill use it at high effort) or when the owner asks for it, and `gpt-6-luna` for fast, cheap tasks, such as a plain web search at low effort (the search skill).
 A session keeps its thread when the model changes: each call uses the model it is given, else the default.
 Treat all GPT-6 models as sharing ONE allowance; there is no separate astra allowance to exhaust.
 When the shared GPT-6 allowance is used up, ask the owner through the question/input tool to change the codex account; do not switch to `gpt-reserve`. (owner, 2026-09-26)

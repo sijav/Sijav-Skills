@@ -40,8 +40,9 @@ import codex_session  # noqa: E402  -- the shared runner: one codex session per 
 
 JEV_MODEL = "jev-latest"
 # Roasts run on sol at medium effort; a search roast is research, on astra at high effort
-# (owner, 2026-09-28). Passed on every call rather than left to the runner's default.
-ROAST_MODEL = ("gpt-6-sol", "medium")
+# (owner, 2026-09-28); sol is gpt-6.1-sol since 2026-09-30. Passed on every call rather than
+# left to the runner's default.
+ROAST_MODEL = ("gpt-6.1-sol", "medium")
 MODEL_OF = {"search": ("gpt-6-astra", "high")}
 MODES = ("plan", "task", "technical", "search")
 WEB = {

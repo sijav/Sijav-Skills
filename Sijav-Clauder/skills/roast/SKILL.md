@@ -38,7 +38,7 @@ Repeat `--ask` for more questions. `--item` is optional; it goes into the record
 4. codex writes its reading: each concern as a failing scenario with evidence, then findings. It is labelled as codex's interpretation; jev's answers are shown as numbers only (a noul is a probability with no confidence; a choice or score confidence only says how concentrated its probabilities are).
 5. The run's own record goes to `<repo>/.claude/roasts/<time>-<mode>[-<item>]-<tag>.md` and is never overwritten: what was asked, the checked facts with sources, jev's answers, the served model and usage, codex's reading, a section for what was done with each finding, and the exact request and reply. `<repo>/.claude/roast-result.md` is a copy of the latest record. The record is also printed.
 
-codex runs in the `roast-<mode>` session on gpt-6-sol at medium effort; search mode is research and runs on gpt-6-astra at high effort.
+codex runs in the `roast-<mode>` session on gpt-6.1-sol at medium effort; search mode is research and runs on gpt-6-astra at high effort.
 The repository is the nearest ancestor containing `.git` or a `.claude` folder, otherwise the current folder.
 Failures print their exact cause and exit non-zero. Nothing gates anything: the numbers are for the reader to judge.
 

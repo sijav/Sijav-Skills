@@ -152,7 +152,7 @@ def test_a_used_up_allowance_stops_and_says_to_ask_the_owner(project, monkeypatc
     )
     with pytest.raises(cs.CodexError, match="(?s)usage limit reached.*change the codex account"):
         cs.run("x", "research")
-    assert [c[c.index("-m") + 1] for c in calls] == ["gpt-6-sol"]   # no gpt-reserve, no second try
+    assert [c[c.index("-m") + 1] for c in calls] == ["gpt-6.1-sol"]   # no gpt-reserve, no second try
 
 
 def test_a_full_thread_is_retired_and_a_new_one_started(project, monkeypatch):

@@ -2,7 +2,7 @@
 """Run codex with ONE SESSION PER PURPOSE, kept in the project's .claude folder.
 
     python <this folder>/codex_session.py --purpose plan-1362 prompt.md [reply.md]
-        [--search] [--model gpt-6-sol] [--effort medium] [--fresh] [--project DIR]
+        [--search] [--model gpt-6.1-sol] [--effort medium] [--fresh] [--project DIR]
 
 The owner, 2026-09-23: every codex call runs in a session chosen by the nature
 of the work (plan, plan roast, task roast, jev question, research, ...), and the
@@ -22,7 +22,7 @@ above the current directory that holds a .claude folder (the home folder's
 .claude therefore share the project's sessions.
 
 Models: the GPT-6 models share one allowance. The runner uses the requested
-model (default gpt-6-sol at medium effort; owner, 2026-09-28) and no other: when codex says the allowance is
+model (default gpt-6.1-sol at medium effort; owner, 2026-09-30) and no other: when codex says the allowance is
 used up, the call fails with codex's own words, and the caller asks the owner
 through the input tool to change the codex account (owner, 2026-09-26:
 "instead of gpt_reserved just ask for user input via input tool to change the
@@ -71,7 +71,7 @@ def with_path_codex(binaries: list[str], found: str | None) -> list[str]:
 
 # On another PC codex may live elsewhere: whatever the PATH finds is tried after the known places.
 BINARIES = with_path_codex(BINARIES, shutil.which("codex"))
-DEFAULT_MODEL = "gpt-6-sol"
+DEFAULT_MODEL = "gpt-6.1-sol"  # owner, 2026-09-30: 6.1 sol replaces 6 sol
 EXHAUSTED = ("usage limit", "quota", "rate limit", "allowance", "exceeded your")
 OUT_OF_ROOM = "ran out of room"
 # Another run is writing to the purpose's thread (seen 2026-09-28: a loop session's plan roast and

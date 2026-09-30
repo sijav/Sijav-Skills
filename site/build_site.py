@@ -147,7 +147,7 @@ SKILLS = [
      "Only when you call it", "/sijav-clauder:rules · /sijav-clauder:rules dev · /sijav-clauder:rules design"),
     ("dev-round", "How to work through a round of code to-dos: only the changed tests during a to-do, the full suite "
                   "when the round is done, root-cause fixes.", "When you call it or load the dev rules", "/sijav-clauder:dev-round"),
-    ("codex", "Calls codex (GPT-6) through one session per kind of work, sol at medium effort unless told otherwise.",
+    ("codex", "Calls codex (GPT-6) through one session per kind of work, 6.1 sol at medium effort unless told otherwise.",
      "When a task needs codex", "/sijav-clauder:codex"),
     ("search", "A plain web search: codex on luna at low effort answers one question in a few sentences, with the "
                "links it used.", "When a fact, a version or a doc page is needed", "/sijav-clauder:search"),
@@ -486,7 +486,7 @@ a { color: var(--accent); }
   <h2>Codex</h2>
   <ul>
     <li>One codex session per kind of work, such as research or a roast mode. A call with the same purpose resumes that session, so codex keeps the context of that line of work.</li>
-    <li>Models: <code>gpt-6-sol</code> at medium effort by default, <code>gpt-6-astra</code> for research (the roast's search mode and the research skill, at high effort) or when you ask for it, <code>gpt-6-luna</code> for fast, cheap tasks, such as a plain web search at low effort. A session keeps its thread when the model changes.</li>
+    <li>Models: <code>gpt-6.1-sol</code> at medium effort by default (it needs codex 0.159 or newer), <code>gpt-6-astra</code> for research (the roast's search mode and the research skill, at high effort) or when you ask for it, <code>gpt-6-luna</code> for fast, cheap tasks, such as a plain web search at low effort. A session keeps its thread when the model changes.</li>
     <li>All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No reserve model, no pause.</li>
     <li>Every call keeps its full log in the project it ran for.</li>
     <li>This skill holds no codex token: codex signs in with its own login, which you manage.</li>

@@ -24,7 +24,7 @@ They ship as one Claude Code plugin, `sijav-clauder`, from a folder that is its 
 |---|---|---|---|
 | rules | Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule. | Only when you call it | `/sijav-clauder:rules`<br>`/sijav-clauder:rules dev`<br>`/sijav-clauder:rules design` |
 | dev-round | How to work through a round of code to-dos: only the changed tests during a to-do, the full suite when the round is done, root-cause fixes. | When you call it or load the dev rules | `/sijav-clauder:dev-round` |
-| codex | Calls codex (GPT-6) through one session per kind of work, sol at medium effort unless told otherwise. | When a task needs codex | `/sijav-clauder:codex` |
+| codex | Calls codex (GPT-6) through one session per kind of work, 6.1 sol at medium effort unless told otherwise. | When a task needs codex | `/sijav-clauder:codex` |
 | search | A plain web search: codex on luna at low effort answers one question in a few sentences, with the links it used. | When a fact, a version or a doc page is needed | `/sijav-clauder:search` |
 | research | Deep research on astra, like ChatGPT's or Gemini's: questions and a plan you approve, web searches side by side, gap rounds, one cited report, and every quote checked on the page it cites, then judged by jev. | When a question needs many sources | `/sijav-clauder:research` |
 | roast | Codex checks a plan or finished work and writes typed questions; jev judges them; codex writes its reading. One record per run. | When a check is wanted | `/sijav-clauder:roast` |
@@ -221,7 +221,7 @@ Each check saw only the plan as it was before its first check. Two blind scorers
 ## Codex
 
 - One codex session per kind of work, such as research or a roast mode. A call with the same purpose resumes that session, so codex keeps the context of that line of work.
-- Models: `gpt-6-sol` at medium effort by default, `gpt-6-astra` for research (the roast's search mode and the research skill, at high effort) or when you ask for it, `gpt-6-luna` for fast, cheap tasks, such as a plain web search at low effort. A session keeps its thread when the model changes.
+- Models: `gpt-6.1-sol` at medium effort by default (it needs codex 0.159 or newer), `gpt-6-astra` for research (the roast's search mode and the research skill, at high effort) or when you ask for it, `gpt-6-luna` for fast, cheap tasks, such as a plain web search at low effort. A session keeps its thread when the model changes.
 - All GPT-6 models share one allowance. When it runs out, Claude asks you to switch the codex account, then continues in the same session. No reserve model, no pause.
 - Every call keeps its full log in the project it ran for.
 - This skill holds no codex token: codex signs in with its own login, which you manage.

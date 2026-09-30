@@ -21,7 +21,7 @@ def test_codex_runs_in_the_purpose_session_and_names_failures(monkeypatch):
     monkeypatch.setattr(roast.codex_session, "run", run)
     with pytest.raises(roast.RoastError, match=r"no codex binary at Z:"):
         roast.codex("hi", search=True, purpose="roast-plan")
-    assert seen == {"purpose": "roast-plan", "search": True, "model": "gpt-6-sol", "effort": "medium"}
+    assert seen == {"purpose": "roast-plan", "search": True, "model": "gpt-6.1-sol", "effort": "medium"}
 
 
 def test_an_empty_key_file_is_named(monkeypatch, tmp_path):
@@ -152,7 +152,7 @@ def test_a_plan_roast_always_asks_the_owners_critical_question_about_the_real_as
     assert to_jev[0]["state"]["what_was_asked_for"] == {
         "title": "Resume a form", "why": "Nobody types an answer twice",
         "exit_condition": "a resumed form asks only for what is missing"}
-    assert all(c["model"] == "gpt-6-sol" and c["effort"] == "medium" for c in to_codex)
+    assert all(c["model"] == "gpt-6.1-sol" and c["effort"] == "medium" for c in to_codex)
     assert to_codex[0]["search"] is True and to_codex[1]["search"] is False
 
 
@@ -258,7 +258,7 @@ def test_jev_switched_off_means_codex_reviews_alone(run, monkeypatch, tmp_path):
     assert code == 0 and to_jev == [] and len(to_codex) == 1
     prompt = to_codex[0]["prompt"]
     assert "push back on it" in prompt and "Say whether anything is critical" in prompt
-    assert to_codex[0]["model"] == "gpt-6-sol" and to_codex[0]["effort"] == "medium"
+    assert to_codex[0]["model"] == "gpt-6.1-sol" and to_codex[0]["effort"] == "medium"
     record = next((tmp_path / ".claude" / "roasts").glob("*.md")).read_text(encoding="utf-8")
     assert "- jev: not used: switched off (SIJAV_JEV=off); codex reviewed alone" in record
 
