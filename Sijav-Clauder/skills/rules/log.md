@@ -383,3 +383,18 @@ to-do looked unfinished until its tests had run and covered everything. A projec
 tests "covering the code I changed", and answered the owner's question with a promise to do
 better rather than a fix. The same happened on 2026-09-29 with full suites per to-do. The old
 text is backed up outside any rules folder, dated 2026-09-30.
+
+## 2026-09-30 · dev-round (D4): each to-do's story gets its own end-to-end test
+
+**Change.** "Each to-do" gained: "Each to-do's story gets its own end-to-end test, from the point
+of view of the person in the story: what they do, from where they start to what they see at the
+end. Write it with the to-do; it runs with the rest when the round is done." The round-end check
+of the tests now asks that each to-do's story has its end-to-end test.
+
+**Owner's words.** "there's a rule 100% code coverage + full user's pov scenario e2e tests", then "and there's the full user's pov e2e tests rules on each story in to-dos right?", and, when asked whether to add it: "want me to add? weren't there a rule that when a user said to add something, user don't have to say it two times let alone three times?"
+
+**Evidence.** No version of D4 or dev-round asked for an end-to-end test per story: D4 had
+"written, real-world scenarios covering 100% of the code", and the round's text asked for the
+users' journeys end to end only as a whole. The owner took the rule to exist. Asking "want me to
+add?" after the owner had said it twice broke G4 (ask only when the owner's words don't settle
+it) and G5.

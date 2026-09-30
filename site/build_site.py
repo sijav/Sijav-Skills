@@ -145,7 +145,8 @@ def design_note() -> str:
 SKILLS = [
     ("rules", "Your rule sets: general, dev and design, plus the current project's own set, and how to change a rule.",
      "Only when you call it", "/sijav-clauder:rules · /sijav-clauder:rules dev · /sijav-clauder:rules design"),
-    ("dev-round", "How to work through a round of code to-dos: each to-do writes its tests without running them; when "
+    ("dev-round", "How to work through a round of code to-dos: each to-do writes its tests, with an end-to-end test of its "
+                  "story from the user's point of view, without running them; when "
                   "the area's to-dos are done, its full suite runs at 100% coverage with the end-to-end scenarios, the "
                   "tests are checked, and failures are fixed at the root.", "When you call it or load the dev rules",
      "/sijav-clauder:dev-round"),
