@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sijav Rules"
+  short_description: "Load the owner's rule sets when asked"
+
+policy:
+  allow_implicit_invocation: false

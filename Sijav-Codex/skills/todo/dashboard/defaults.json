@@ -1,0 +1,47 @@
+{
+  "ui": {
+    "changePageSize": 100,
+    "recordPageSize": 100,
+    "activityLimit": 10,
+    "diffContextLines": 3,
+    "diffMaxEdits": 600,
+    "toastMs": 3000,
+    "summaryFields": ["id", "status", "severity", "priority", "points", "area", "type", "phase", "parent_task", "created", "updated", "closed", "close_output"],
+    "compactFields": ["id", "severity", "priority", "status", "points", "area", "type", "work_area", "work_type", "category", "phase", "parent_task", "close_output", "tested", "e2e_tested", "round", "score", "criticals", "reviewer_score", "reviewer_criticals", "position", "task", "parent"],
+    "dateFields": ["created", "closed", "updated", "at", "since", "created_at", "closed_at", "updated_at"],
+    "longTextFields": ["title", "descr", "why", "exit_cond", "evidence", "reason", "story", "text", "goal", "file", "filed", "dismissed"],
+    "testingFlags": {
+      "tested": {
+        "label": "Tested",
+        "pendingLabel": "Not tested",
+        "unknownLabel": "Testing not recorded",
+        "evidence": "tested_how"
+      },
+      "e2e_tested": {
+        "label": "E2E tested",
+        "pendingLabel": "Not E2E tested",
+        "unknownLabel": "E2E testing not recorded",
+        "evidence": "e2e_how"
+      }
+    },
+    "relax": {
+      "clockTickMs": 1000,
+      "backgroundCycleMs": 45000
+    }
+  },
+  "read": {
+    "busyMs": 800
+  },
+  "watch": {
+    "debounceMs": 80
+  },
+  "transport": {
+    "reconnectMs": 1500,
+    "maxBufferedBytes": 67108864,
+    "maxMessageBytes": 1024
+  },
+  "picker": {
+    "timeoutMs": 60000,
+    "maxBufferBytes": 268435456
+  }
+}

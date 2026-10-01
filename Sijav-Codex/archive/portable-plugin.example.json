@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sijav-codex",
+  "version": "0.1.0",
+  "description": "Eight Sijav skills for Codex: rules, dev-round, native agents, search, research, roast, to-do board and an owner-started project loop. Native Codex agents do noncoding work; Claude Opus 5.5 alone codes and reviews code through a session helper. Jev judges code-free roast questions and research citations; the to-do skill includes a read-only board dashboard.",
+  "keywords": ["skills", "orchestration", "native-agents", "claude", "code-review", "roast", "jev", "research", "citations", "todo", "dashboard", "loop", "hooks"],
+  "extensions": {
+    "com.openai": {
+      "hooks": "./hooks/hooks.json",
+      "interface": {
+        "displayName": "Sijav-Codex",
+        "shortDescription": "Sijav skills: native agents, Claude coding, Jev roasts, research, board and loop.",
+        "longDescription": "Eight skills are discovered from the root skills/ directory; rules, dev-round and loop run only when invoked explicitly. Codex orchestrates and native agents do noncoding work. Claude Opus 5.5 is called through skills/claude/claude_session.py for code and technical review only. skills/roast/jev.py and skills/research/verify.py ask Jev code-free questions and check cited quotes on their pages. The to-do skill's dashboard is a read-only local view of a project's existing board. Installing starts nothing. The loop's Stop hook re-feeds the project's law to the one Codex session that started it, up to an explicit iteration cap, until the exact completion promise ends a final message; its SessionStart compact hook reloads the law after compaction for that session only.",
+        "category": "Productivity"
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "sijav-todo-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only live dashboard for a project's .claude/todo.db board.",
+  "engines": {
+    "node": "^22.16.0 || >=24.0.0"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test --test-concurrency=1 \"tests/*.test.mjs\""
+  },
+  "dependencies": {
+    "ws": "8.21.3"
+  }
+}

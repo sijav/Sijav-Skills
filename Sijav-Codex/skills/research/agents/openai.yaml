@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sijav Research"
+  short_description: "Deep research with page-checked citations"
+
+policy:
+  allow_implicit_invocation: true

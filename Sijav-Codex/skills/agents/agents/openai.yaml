@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sijav Agents"
+  short_description: "Native agents by purpose; Claude codes"
+
+policy:
+  allow_implicit_invocation: true

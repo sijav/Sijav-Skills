@@ -1,0 +1,7 @@
+{
+  "name": "sijav-codex",
+  "version": "0.1.0",
+  "description": "Eight Sijav skills for Codex: rules, dev-round, native agents, search, research, roast, to-do board and an owner-started project loop. Native Codex agents do noncoding work; Claude Opus 5.5 alone codes and reviews code through a session helper. Jev judges code-free roast questions and research citations; the to-do skill includes a read-only board dashboard.",
+  "skills": "./skills",
+  "hooks": "./hooks/hooks.json"
+}
