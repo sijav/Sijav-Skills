@@ -1,0 +1,49 @@
+Planted-fault runs by the coder after the final helper review (M-A, L-B, L-C, L-D, L-E fixes and the
+new permission-smoke fixture), 2026-10-01. Interpreter: python on PATH (3.13, typesafe-sdk 0.7.1).
+Outputs copied verbatim from the tool's captured stdout. The earlier background run of the second
+13 Claude faults was killed before printing anything; those 13 were rerun here in two batches.
+
+----- python -B validation/planted_faults.py --check-only -----
+57 of 57 faults can be planted   (every line "plantable")
+
+----- python -B validation/planted_faults.py --only "jev: an outcome" "jev: another" "setup:" "smoke:" -----
+caught       jev: an outcome recorded before the state cannot be adopted (stuck calling) (tests.test_jev: FAILED (failures=3))
+caught       jev: another request's recorded outcome is adopted (tests.test_jev: FAILED (failures=1))
+caught       setup: success claimed without plugin list showing it enabled (tests.test_setup: FAILED (failures=2))
+caught       setup: marketplace add's name falls back silently (tests.test_setup: FAILED (failures=1))
+caught       setup: a hung command's process tree is left running (tests.test_setup: FAILED (failures=1))
+caught       setup: a pipe held by an escaped descendant blocks the setup (tests.test_setup: FAILED (errors=1))
+caught       smoke: an allowed outside write or secret read passes the check (tests.test_permission_smoke: FAILED (failures=2))
+caught       smoke: a non-empty folder is prepared over (tests.test_permission_smoke: FAILED (failures=2, errors=1))
+caught       setup: parent folder accepted as source (tests.test_setup: FAILED (failures=1))
+caught       setup: rules skill may be invoked implicitly (tests.test_setup: FAILED (failures=17))
+10 of 10 planted faults caught
+
+----- python -B validation/planted_faults.py --only <Claude batch A> -----
+caught       claude: replying model not checked (tests.test_claude_session: FAILED (failures=1))
+caught       claude: SIJAV_CLAUDE=off ignored (tests.test_claude_session: FAILED (failures=1))
+caught       claude: no per-purpose lock (tests.test_claude_session: FAILED (failures=1))
+caught       claude: leftover descendants survive the call (tests.test_claude_session: FAILED (failures=1))
+caught       claude: a failed final state write loses the reply (tests.test_claude_session: FAILED (failures=1))
+caught       claude: settings files may widen approvals (no --restricted) (tests.test_claude_session: FAILED (failures=3))
+caught       claude: denied tool uses are not reported (tests.test_claude_session: FAILED (failures=1))
+7 of 7 planted faults caught
+
+----- python -B validation/planted_faults.py --only <Claude batch B> -----
+caught       claude: NODE_OPTIONS and TLS weakening inherited (tests.test_claude_session: FAILED (failures=1))
+caught       claude: a refused new purpose leaves a folder (tests.test_claude_session: FAILED (failures=1))
+caught       claude: a stray .claude folder moves the root (tests.test_claude_session: FAILED (failures=36, errors=1))
+caught       claude: session ids from state not validated (both guards) (tests.test_claude_session: FAILED (failures=3))
+caught       claude: a state copied from another purpose or project accepted (tests.test_claude_session: FAILED (failures=3))
+caught       claude: a CLI in the current folder is picked from PATH (tests.test_claude_session: FAILED (failures=1))
+6 of 6 planted faults caught
+
+Coverage of the 57 faults across this session's runs (see planted-faults-partial-runs.txt for the
+others): every fault was run once after the code it targets last changed, except the ten
+"jev:"/"verify:" faults from the partial run, whose target lines did not change afterwards
+(--check-only confirms they still plant). All 57 were caught; the one earlier survivor (truncation)
+was a test gap fixed before its rerun.
+
+----- final unit run: python -B -W error::ResourceWarning -m unittest tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke -----
+Ran 126 tests in 101.056s
+OK

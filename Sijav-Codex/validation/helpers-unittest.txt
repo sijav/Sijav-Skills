@@ -1,0 +1,107 @@
+suite: helpers-unittest
+command: C:\Users\<user>\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -B -W error::ResourceWarning -m unittest -v tests.test_claude_session tests.test_jev tests.test_verify tests.test_setup
+cwd: C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage
+python: 3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]
+started: 2026-10-01T05:02:05+00:00
+ended: 2026-10-01T05:02:49+00:00
+exit: 0
+----- stdout (complete) -----
+
+----- stderr (complete) -----
+test_a_final_state_write_failure_still_prints_the_reply (tests.test_claude_session.Concurrency.test_a_final_state_write_failure_still_prints_the_reply) ... ok
+test_a_killed_helper_leaves_running_until_recovered (tests.test_claude_session.Concurrency.test_a_killed_helper_leaves_running_until_recovered) ... ok
+test_a_second_caller_of_a_busy_purpose_sends_nothing (tests.test_claude_session.Concurrency.test_a_second_caller_of_a_busy_purpose_sends_nothing) ... ok
+test_a_descendant_holding_stdout_cannot_hang_the_call (tests.test_claude_session.Failures.test_a_descendant_holding_stdout_cannot_hang_the_call) ... ok
+test_missing_cli_is_reported (tests.test_claude_session.Failures.test_missing_cli_is_reported) ... ok
+test_output_that_is_not_json_fails_with_its_log (tests.test_claude_session.Failures.test_output_that_is_not_json_fails_with_its_log) ... ok
+test_resume_reporting_another_id_is_a_conflict (tests.test_claude_session.Failures.test_resume_reporting_another_id_is_a_conflict) ... ok
+test_switched_off_sends_nothing_and_creates_nothing (tests.test_claude_session.Failures.test_switched_off_sends_nothing_and_creates_nothing) ... ok
+test_tampered_copied_or_malformed_state_is_refused_untouched (tests.test_claude_session.Failures.test_tampered_copied_or_malformed_state_is_refused_untouched) ... ok
+test_timeout_stops_the_process_tree_and_keeps_its_output (tests.test_claude_session.Failures.test_timeout_stops_the_process_tree_and_keeps_its_output) ... ok
+test_a_resume_the_cli_cannot_find_keeps_the_session (tests.test_claude_session.FirstCallAndResume.test_a_resume_the_cli_cannot_find_keeps_the_session) ... ok
+test_an_authentication_failure_on_resume_keeps_the_session (tests.test_claude_session.FirstCallAndResume.test_an_authentication_failure_on_resume_keeps_the_session) ... ok
+test_first_call_needs_rules_or_an_explicit_no_and_a_scope (tests.test_claude_session.FirstCallAndResume.test_first_call_needs_rules_or_an_explicit_no_and_a_scope) ... ok
+test_first_call_sends_the_pinned_arguments_and_the_exact_prompt (tests.test_claude_session.FirstCallAndResume.test_first_call_sends_the_pinned_arguments_and_the_exact_prompt) ... ok
+test_follow_up_resumes_the_same_exact_id_without_rules (tests.test_claude_session.FirstCallAndResume.test_follow_up_resumes_the_same_exact_id_without_rules) ... ok
+test_prompt_on_stdin_is_kept_exactly (tests.test_claude_session.FirstCallAndResume.test_prompt_on_stdin_is_kept_exactly) ... ok
+test_an_interrupt_stops_the_cli_before_it_propagates (tests.test_claude_session.Interruptions.test_an_interrupt_stops_the_cli_before_it_propagates) ... ok
+test_an_output_error_stops_the_cli (tests.test_claude_session.Interruptions.test_an_output_error_stops_the_cli) ... ok
+test_a_cli_in_the_current_or_project_folder_is_never_picked_from_path (tests.test_claude_session.Locations.test_a_cli_in_the_current_or_project_folder_is_never_picked_from_path) ... ok
+test_a_stray_claude_folder_does_not_move_the_root (tests.test_claude_session.Locations.test_a_stray_claude_folder_does_not_move_the_root) ... ok
+test_bad_purpose_names_are_refused (tests.test_claude_session.Locations.test_bad_purpose_names_are_refused) ... ok
+test_explicit_project_and_a_cached_copy_of_the_helper (tests.test_claude_session.Locations.test_explicit_project_and_a_cached_copy_of_the_helper) ... ok
+test_home_claude_is_not_a_project (tests.test_claude_session.Locations.test_home_claude_is_not_a_project) ... ok
+test_project_from_subdirectory_with_spaces (tests.test_claude_session.Locations.test_project_from_subdirectory_with_spaces) ... ok
+test_the_nearest_board_wins_over_a_nested_repository (tests.test_claude_session.Locations.test_the_nearest_board_wins_over_a_nested_repository) ... ok
+test_a_non_uuid_session_id_from_the_cli_is_refused (tests.test_claude_session.Modes.test_a_non_uuid_session_id_from_the_cli_is_refused) ... ok
+test_a_purpose_keeps_its_mode (tests.test_claude_session.Modes.test_a_purpose_keeps_its_mode) ... ok
+test_an_unexpected_init_stops_the_cli_before_it_acts (tests.test_claude_session.Modes.test_an_unexpected_init_stops_the_cli_before_it_acts) ... ok
+test_code_mode_grants_only_scoped_commands (tests.test_claude_session.Modes.test_code_mode_grants_only_scoped_commands) ... ok
+test_every_argument_shape_parses_under_the_pinned_2_1_286_help (tests.test_claude_session.Modes.test_every_argument_shape_parses_under_the_pinned_2_1_286_help) ... ok
+test_provider_settings_are_not_inherited_but_oauth_is (tests.test_claude_session.Modes.test_provider_settings_are_not_inherited_but_oauth_is) ... ok
+test_reply_from_another_model_is_not_used (tests.test_claude_session.Modes.test_reply_from_another_model_is_not_used) ... ok
+test_technical_mode_offers_read_only_tools (tests.test_claude_session.Modes.test_technical_mode_offers_read_only_tools) ... ok
+test_technical_mode_refuses_command_rules_and_no_option_picks_a_model (tests.test_claude_session.Modes.test_technical_mode_refuses_command_rules_and_no_option_picks_a_model) ... ok
+test_the_pinned_parser_rejects_what_2_1_286_would (tests.test_claude_session.Modes.test_the_pinned_parser_rejects_what_2_1_286_would) ... ok
+test_list_status_and_context_never_launch (tests.test_claude_session.ResetAndContext.test_list_status_and_context_never_launch) ... ok
+test_reset_needs_the_owner_and_keeps_history (tests.test_claude_session.ResetAndContext.test_reset_needs_the_owner_and_keeps_history) ... ok
+test_a_first_call_without_an_id_stays_unconfirmed_through_a_failed_attempt (tests.test_claude_session.Unconfirmed.test_a_first_call_without_an_id_stays_unconfirmed_through_a_failed_attempt) ... ok
+test_an_existing_conversation_is_resumed_with_the_rules_and_never_recreated (tests.test_claude_session.Unconfirmed.test_an_existing_conversation_is_resumed_with_the_rules_and_never_recreated) ... ok
+test_an_id_reported_without_a_turn_needs_the_rules_again (tests.test_claude_session.Unconfirmed.test_an_id_reported_without_a_turn_needs_the_rules_again) ... ok
+test_resume_unconfirmed_on_another_status_is_refused (tests.test_claude_session.Unconfirmed.test_resume_unconfirmed_on_another_status_is_refused) ... ok
+test_batch_launchers_refuse_reinterpreted_characters (tests.test_claude_session.Units.test_batch_launchers_refuse_reinterpreted_characters) ... ok
+test_failure_kinds_need_whole_words (tests.test_claude_session.Units.test_failure_kinds_need_whole_words) ... ok
+test_a_corrected_framing_is_judged_and_observed_selects_brief_facts (tests.test_jev.Ask.test_a_corrected_framing_is_judged_and_observed_selects_brief_facts) ... ok
+test_check_validates_without_recording_or_sending (tests.test_jev.Ask.test_check_validates_without_recording_or_sending) ... ok
+test_every_field_is_checked_for_code_and_problems_go_back_once (tests.test_jev.Ask.test_every_field_is_checked_for_code_and_problems_go_back_once) ... ok
+test_framing_may_not_supply_what_the_helper_sets (tests.test_jev.Ask.test_framing_may_not_supply_what_the_helper_sets) ... ok
+test_judged_run_sends_exactly_what_the_contract_says (tests.test_jev.Ask.test_judged_run_sends_exactly_what_the_contract_says) ... ok
+test_plan_mode_adds_the_owners_critical_question_word_for_word (tests.test_jev.Ask.test_plan_mode_adds_the_owners_critical_question_word_for_word) ... ok
+test_available_reports_each_cause_without_the_key (tests.test_jev.Availability.test_available_reports_each_cause_without_the_key) ... ok
+test_a_stray_claude_folder_does_not_move_the_root (tests.test_jev.Brief.test_a_stray_claude_folder_does_not_move_the_root) ... ok
+test_incomplete_or_code_bearing_briefs_create_no_run (tests.test_jev.Brief.test_incomplete_or_code_bearing_briefs_create_no_run) ... ok
+test_no_project_outside_one (tests.test_jev.Brief.test_no_project_outside_one) ... ok
+test_open_from_a_subdirectory_records_the_brief_unchanged (tests.test_jev.Brief.test_open_from_a_subdirectory_records_the_brief_unchanged) ... ok
+test_finalize_without_jev_says_so (tests.test_jev.Records.test_finalize_without_jev_says_so) ... ok
+test_finalize_writes_one_record_and_notes_add_to_it (tests.test_jev.Records.test_finalize_writes_one_record_and_notes_add_to_it) ... ok
+test_answer_checks (tests.test_jev.Units.test_answer_checks) ... ok
+test_shown_follows_jevs_terms (tests.test_jev.Units.test_shown_follows_jevs_terms) ... ok
+test_answers_are_checked_one_by_one (tests.test_jev.Unjudged.test_answers_are_checked_one_by_one) ... ok
+test_service_failures_are_unjudged_with_their_cause_and_no_key (tests.test_jev.Unjudged.test_service_failures_are_unjudged_with_their_cause_and_no_key) ... ok
+test_switched_off_missing_key_and_missing_sdk_make_no_call (tests.test_jev.Unjudged.test_switched_off_missing_key_and_missing_sdk_make_no_call) ... ok
+test_too_long_needs_one_shortened_framing (tests.test_jev.Unjudged.test_too_long_needs_one_shortened_framing) ... ok
+test_too_long_twice_is_unjudged (tests.test_jev.Unjudged.test_too_long_twice_is_unjudged) ... ok
+test_a_reply_saved_before_a_crash_is_reused (tests.test_verify.Check.test_a_reply_saved_before_a_crash_is_reused) ... ok
+test_bad_answers_leave_those_claims_unconfirmed (tests.test_verify.Check.test_bad_answers_leave_those_claims_unconfirmed) ... ok
+test_batches_and_a_failed_later_batch (tests.test_verify.Check.test_batches_and_a_failed_later_batch) ... ok
+test_every_verdict_keeps_its_meaning (tests.test_verify.Check.test_every_verdict_keeps_its_meaning) ... ok
+test_jev_off_still_checks_pages_and_says_so (tests.test_verify.Check.test_jev_off_still_checks_pages_and_says_so) ... ok
+test_missing_sdk_or_key_is_unjudged (tests.test_verify.Check.test_missing_sdk_or_key_is_unjudged) ... ok
+test_report_with_its_claim_list (tests.test_verify.Check.test_report_with_its_claim_list) ... ok
+test_report_without_a_claim_list_is_unchecked (tests.test_verify.Check.test_report_without_a_claim_list_is_unchecked) ... ok
+test_rerun_resumes_without_asking_or_fetching_again (tests.test_verify.Check.test_rerun_resumes_without_asking_or_fetching_again) ... ok
+test_unread_page_without_findings_is_not_sent (tests.test_verify.Check.test_unread_page_without_findings_is_not_sent) ... ok
+test_init_records_depth_for_the_native_agents (tests.test_verify.Init.test_init_records_depth_for_the_native_agents) ... ok
+test_fetch_reads_visible_text_and_refuses_non_text (tests.test_verify.LoopbackFetch.test_fetch_reads_visible_text_and_refuses_non_text) ... ok
+test_board_then_git_then_claude_folder_decide_the_root (tests.test_verify.Units.test_board_then_git_then_claude_folder_decide_the_root) ... ok
+test_only_public_http_pages (tests.test_verify.Units.test_only_public_http_pages) ... ok
+test_quote_matching (tests.test_verify.Units.test_quote_matching) ... ok
+test_locked_dependencies_only_when_asked_and_present (tests.test_setup.Dashboard.test_locked_dependencies_only_when_asked_and_present) ... ok
+test_install_stops_on_problems_or_surprises (tests.test_setup.Install.test_install_stops_on_problems_or_surprises) ... ok
+test_install_uses_only_the_native_plugin_commands (tests.test_setup.Install.test_install_uses_only_the_native_plugin_commands) ... ok
+test_no_codex_means_no_install (tests.test_setup.Install.test_no_codex_means_no_install) ... ok
+test_example_agent_profiles_pin_the_requested_model_and_effort (tests.test_setup.Profiles.test_example_agent_profiles_pin_the_requested_model_and_effort) ... ok
+test_node_ranges (tests.test_setup.Profiles.test_node_ranges) ... ok
+test_catalog_must_be_this_package_only (tests.test_setup.Validation.test_catalog_must_be_this_package_only) ... ok
+test_dashboard_references_are_reported_until_it_is_copied_in (tests.test_setup.Validation.test_dashboard_references_are_reported_until_it_is_copied_in) ... ok
+test_private_state_and_keys_are_refused (tests.test_setup.Validation.test_private_state_and_keys_are_refused) ... ok
+test_skill_metadata_and_helper_references (tests.test_setup.Validation.test_skill_metadata_and_helper_references) ... ok
+test_skip_tools_runs_nothing (tests.test_setup.Validation.test_skip_tools_runs_nothing) ... ok
+test_the_package_validates (tests.test_setup.Validation.test_the_package_validates) ... ok
+
+----------------------------------------------------------------------
+Ran 90 tests in 43.849s
+
+OK
+
+----- end -----

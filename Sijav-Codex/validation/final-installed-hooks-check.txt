@@ -1,0 +1,3 @@
+Run record: C:\Users\<user>\AppData\Local\Temp\sijav-loop-native-plugin-proof-20261001\proof-runs\20261001T062928Z-check
+Codex: codex-cli 0.159.3 / Codex Desktop/0.159.3 (Windows 10.0.26200; x86_64) dumb (sijav-native-proof; 2) (requested 0.159.3)
+Both plugin-form hook handlers are listed with the commandWindows variant, trusted and enabled. --run may proceed.

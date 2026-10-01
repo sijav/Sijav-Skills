@@ -1,0 +1,62 @@
+Sijav-Codex current validation status, 2026-10-01
+
+Completed checks
+- Companion helper units: full 126/126 passed on Python 3.13.14, then all 46
+  focused checks passed after the final atomic publication and runner fixes.
+  Current inventory: 128 helper cases covered across runs; no single full
+  128-case execution is claimed. Seven SDK tests used real typesafe-sdk 0.7.1
+  through local mock transport; no live Jev call/key. Full outputs:
+  helpers-final-unittest.txt and final-focused-unittest.txt.
+- Final fault matrix: 58/58 cases plant (final-fault-plantability.txt). The
+  earlier 57 were caught across documented runs; three new/repointed outcome
+  publication mutants were caught after the final small fix. Coverage is
+  assembled across those runs, not a single full 58-case execution.
+- Loop/core offline checks: 111 passed, including native-manifest migration.
+- Read-only dashboard: 52/52 fixture tests passed after fixes for npm context
+  and mixed parent reasons. Dashboard is integrated; it is not missing.
+- Eight skill frontmatter validators passed.
+- Four source board files were byte-identical on 2026-10-01 at 06:09 UTC.
+  The earlier source-board parity and subtask runs passed; their raw logs stay
+  in todo-parity.txt and todo-subtasks.txt.
+- Package validation reports no missing helper references.
+
+Live checks, disposable TEMP fixtures only
+- Native project hooks and installed plugin A/B/C proofs passed on Codex
+  0.159.3. Installed run: 20261001T060506Z-run. Three continuations reached
+  the promise; identical answers counted toward cap two; the full law reached
+  the first reply after manual compaction. No tools were used; final state
+  complete. Hooks were approved/trusted/enabled through the normal TUI.
+  Public output: installed-native-loop-proof.txt.
+- Requested model/effort was gpt-6.1-sol/medium. Thread defaults matched;
+  effective per-turn model/effort was not reported.
+- Five real Claude technical calls used claude-opus-5-5 and one conversation.
+  The fifth exercised Read with safe/restricted/disable-slash settings.
+- Real Claude code-permission smoke: 18/18 assertions passed. Inside Write
+  succeeded; outside Write and reads of planted .env/dummy.key were denied.
+  No shell was offered; project provider/hook settings were ignored.
+  Public output: claude-code-permission-smoke.txt.
+- Integrated dashboard browser QA passed at 04:51 UTC: failed-read withdrawal
+  of current Next, restoration, WebSocket field changes, human dates, themes
+  and Relax. Only a synthetic board was opened/mutated.
+
+Release status
+- Review fixes and validation are complete.
+- Final source copy to <repo>\Sijav-Codex completed: 111 files,
+  zero hash mismatches; native manifest present, root portable manifest absent.
+- Actual source setup --install --dashboard-deps passed native CLI
+  postconditions: same plugin ID, D: source, cache refreshed through the normal
+  plugin CLI, version 0.1.0 installed and enabled.
+- Source dashboard npm ci installed ws with zero audit findings.
+- Final discovery, retained hook trust, cache dependency and hash verification
+  are a separate check; no additional model run is claimed.
+- Earlier raw failed fault runs remain preserved.
+
+Limits
+- Automatic mid-turn compaction has not been tested empirically.
+- Jev SDK validation is offline; no live key/report check is established.
+- Fixture checks do not establish every real project's schema/data.
+
+History
+The original 05:21:38 summary is preserved byte for byte as
+historical-summary-052138.txt. Its dashboard-missing expectation and earlier
+fault failure describe that historical run, not the current package status.

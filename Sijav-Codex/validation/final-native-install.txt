@@ -1,0 +1,55 @@
+Sijav-Codex package: <repo>\Sijav-Codex
+Problems: none
+--install would run:
+  codex plugin marketplace add "<repo>\Sijav-Codex" --json
+  codex plugin add sijav-codex@sijav-codex-local --json
+  codex plugin list --marketplace sijav-codex-local --available --json
+$ "C:\Program Files\nodejs\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe" plugin marketplace add <repo>\Sijav-Codex --json
+{
+  "marketplaceName": "sijav-codex-local",
+  "installedRoot": "D:\\Kar\\Sijav-Skills\\Sijav-Codex",
+  "alreadyAdded": true
+}
+--- exit 0
+$ "C:\Program Files\nodejs\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe" plugin add sijav-codex@sijav-codex-local --json
+{
+  "pluginId": "sijav-codex@sijav-codex-local",
+  "name": "sijav-codex",
+  "marketplaceName": "sijav-codex-local",
+  "version": "0.1.0",
+  "installedPath": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0",
+  "authPolicy": "ON_INSTALL"
+}
+--- exit 0
+$ "C:\Program Files\nodejs\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe" plugin list --marketplace sijav-codex-local --available --json
+{
+  "installed": [
+    {
+      "pluginId": "sijav-codex@sijav-codex-local",
+      "name": "sijav-codex",
+      "marketplaceName": "sijav-codex-local",
+      "version": "0.1.0",
+      "installed": true,
+      "enabled": true,
+      "source": {
+        "source": "local",
+        "path": "D:\\Kar\\Sijav-Skills\\Sijav-Codex"
+      },
+      "marketplaceSource": {
+        "sourceType": "local",
+        "source": "\\\\?\\D:\\Kar\\Sijav-Skills\\Sijav-Codex"
+      },
+      "installPolicy": "AVAILABLE",
+      "authPolicy": "ON_INSTALL"
+    }
+  ],
+  "available": []
+}
+--- exit 0
+Installed sijav-codex@sijav-codex-local 0.1.0 at C:\Users\<user>\.codex\plugins\cache\sijav-codex-local\sijav-codex\0.1.0; plugin list shows it installed and enabled. Hooks are NOT trusted or enabled by this script: review them in Codex's /hooks screen only when the owner starts a loop. No loop was started.
+$ "C:\Program Files\nodejs\npm.cmd" ci --omit=dev --prefix <repo>\Sijav-Codex\skills\todo\dashboard
+
+added 1 package, and audited 2 packages in 557ms
+
+found 0 vulnerabilities
+--- exit 0

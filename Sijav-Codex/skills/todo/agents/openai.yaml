@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sijav To-do"
+  short_description: "The project's existing SQLite board"
+
+policy:
+  allow_implicit_invocation: true

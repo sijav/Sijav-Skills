@@ -1,0 +1,20 @@
+{
+  "name": "sijav-codex-local",
+  "interface": {
+    "displayName": "Sijav-Codex (local)"
+  },
+  "plugins": [
+    {
+      "name": "sijav-codex",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

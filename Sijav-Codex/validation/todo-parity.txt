@@ -1,0 +1,105 @@
+suite: todo-parity
+command: C:\Users\<user>\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -B skills/todo/test-parity.py
+cwd: C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage
+python: 3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]
+started: 2026-10-01T05:21:25+00:00
+ended: 2026-10-01T05:21:36+00:00
+exit: 0
+----- stdout (complete) -----
+  same   todo list, with no board anywhere: refused, nothing created
+  same   todo list
+  same   todo add --id SB-001 --title the parent --desc d --why w --severity high --points 2 --exit e --area api
+  same   todo add --id SB-002 --title a blocker --desc d --why w --severity critical --points 1 --exit e
+  same   todo next
+  same   todo move SB-002 in_progress
+  same   todo next
+  same   todo move SB-002 done
+  same   todo move SB-001 done
+  same   todo add --id SB-003 --title first finding --desc d --why w --severity medium --points 1 --exit e --parent-task SB-001
+  same   todo add --id SB-004 --title second finding --desc d --why w --severity low --points 3 --exit e --parent-task SB-001
+  same   todo show SB-001
+  same   todo show SB-003
+  same   todo add --id SB-005 --title a grandchild --desc d --why w --severity low --points 1 --exit e --parent-task SB-003
+  same   todo move SB-003 done
+  same   todo move SB-005 dropped
+  same   todo move SB-004 done
+  same   todo edit SB-004 --severity critical --points 5
+  same   todo edit SB-004 --parent-task 
+  same   todo list
+  same   todo next
+  same   todo add --title an id left to the board --desc d --why w --severity low --points 2 --exit e
+  same   todo phase
+  same   todo phase add MVP --goal ship the first version
+  same   todo phase add Later --goal what comes after it
+  same   todo phase add MVP --goal a second one of the same name
+  same   todo add --id SB-007 --title for later --desc d --why w --severity critical --points 1 --exit e --phase Later
+  same   todo add --id SB-008 --title in no known phase --desc d --why w --severity low --points 1 --exit e --phase Nowhere
+  same   todo list
+  same   todo next
+  same   todo show SB-007
+  same   todo edit SB-007 --phase Nowhere
+  same   todo phase done MVP
+  same   todo phase open Nowhere
+  same   todo phase frobnicate
+  same   todo edit SB-007 --phase 
+  same   todo list
+  same   todo okr
+  same   todo okr add --name The first objective --description what it is for
+  same   todo okr add --name The first objective --description a second one of the same name
+  same   todo okr add --id OKR-9 --name Placed --description at a taken position --position 1
+  same   todo okr add --name No description
+  same   todo okr edit OKR-3 --name The first objective, renamed
+  same   todo okr edit OKR-3 --colour red
+  same   todo okr done Later
+  same   todo okr
+  same   todo okr open Nowhere
+  same   todo okr frobnicate
+  same   todo add --id SB-009 --title serving an objective --desc d --why w --severity high --points 3 --exit a condition long enough to check --okr OKR-3
+  same   todo add --id SB-010 --title for no objective --desc d --why w --severity medium --points 1 --exit a condition long enough to check --okr none
+  same   todo add --id SB-011 --title an unknown objective --desc d --why w --severity low --points 1 --exit e --okr OKR-77
+  same   todo show SB-009
+  same   todo move SB-009 blocked
+  same   todo move SB-009 blocked --reason waiting on the owner's answer
+  same   todo list
+  same   todo list --status blocked
+  same   todo list --severity medium
+  same   todo next
+  same   todo show SB-009
+  same   todo move SB-009 in_progress
+  same   todo move SB-010 in_progress
+  same   todo set SB-010 --note the first thing learned
+  same   todo edit SB-010 --note the second thing learned --points 2
+  same   todo move SB-010 done --evidence the check that was run
+  same   todo move SB-010 backlog
+  same   todo move SB-006 dropped --reason no longer wanted
+  same   todo show SB-010
+  same   todo show SB-006
+  same   todo roast SB-010
+  same   todo roast SB-010 --file roasts/sb-010-1.md --score 7.5 --criticals 1
+  same   todo roast SB-010 --file roasts/sb-010-1.md --filed SB-009, SB-007
+  same   todo roast SB-010 --file roasts/sb-010-2.md --score nine
+  same   todo roast SB-010 --file roasts/sb-010-2.md --filed none
+  same   todo show SB-010
+  same   todo validate
+  same   todo render --out BOARD.md
+  same   todo render --out BOARD.md --check
+  same   todo edit SB-009 --title serving an objective, retitled
+  same   todo render --check --out BOARD.md
+  same   todo rm SB-002 --reason a mistake
+  same   todo rm SB-007
+  same   todo rm SB-001 --reason it has findings
+  same   todo rm SB-001 --reason it has findings --force
+  same   todo show SB-003
+  same   todo okr done OKR-3
+  same   todo next
+  same   todo show SB-999
+  same   todo add --title no fields
+  same   todo move SB-001 nonsense
+  same   todo edit SB-001
+  same   todo frobnicate
+
+Both implementations agree on all 90 commands.
+
+----- stderr (complete) -----
+
+----- end -----

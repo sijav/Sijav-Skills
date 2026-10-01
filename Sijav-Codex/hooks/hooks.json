@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys;sys.dont_write_bytecode=1;sys.path=[x for x in sys.path if x];import os,json,runpy;p,e=sys.argv[1],sys.argv[2];sys.argv=sys.argv[1:];os.path.isfile(p) and runpy.run_path(p,run_name='__main__');print(json.dumps(dict(systemMessage='Sijav loop '+e+' hook did not start: '+p+' is missing, so nothing was continued.')))\" \"${PLUGIN_ROOT}/skills/loop/scripts/loop_hook.py\" stop",
+            "commandWindows": "python -c \"import sys;sys.dont_write_bytecode=1;sys.path=[x for x in sys.path if x];import os,json,runpy;p,e=sys.argv[1],sys.argv[2];sys.argv=sys.argv[1:];os.path.isfile(p) and runpy.run_path(p,run_name='__main__');print(json.dumps(dict(systemMessage='Sijav loop '+e+' hook did not start: '+p+' is missing, so nothing was continued.')))\" \"${PLUGIN_ROOT}\\skills\\loop\\scripts\\loop_hook.py\" stop",
+            "timeout": 30,
+            "statusMessage": "Sijav loop: checking for a continuation"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys;sys.dont_write_bytecode=1;sys.path=[x for x in sys.path if x];import os,json,runpy;p,e=sys.argv[1],sys.argv[2];sys.argv=sys.argv[1:];os.path.isfile(p) and runpy.run_path(p,run_name='__main__');print(json.dumps(dict(systemMessage='Sijav loop '+e+' hook did not start: '+p+' is missing, so nothing was continued.')))\" \"${PLUGIN_ROOT}/skills/loop/scripts/loop_hook.py\" session-start",
+            "commandWindows": "python -c \"import sys;sys.dont_write_bytecode=1;sys.path=[x for x in sys.path if x];import os,json,runpy;p,e=sys.argv[1],sys.argv[2];sys.argv=sys.argv[1:];os.path.isfile(p) and runpy.run_path(p,run_name='__main__');print(json.dumps(dict(systemMessage='Sijav loop '+e+' hook did not start: '+p+' is missing, so nothing was continued.')))\" \"${PLUGIN_ROOT}\\skills\\loop\\scripts\\loop_hook.py\" session-start",
+            "timeout": 30,
+            "statusMessage": "Sijav loop: reloading the law after compaction",
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ]
+  }
+}

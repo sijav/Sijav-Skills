@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sijav Roast"
+  short_description: "Review by concrete failing scenarios"
+
+policy:
+  allow_implicit_invocation: true

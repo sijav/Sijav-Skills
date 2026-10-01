@@ -1,0 +1,45 @@
+suite: planted-faults
+command: C:\Users\<user>\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -B validation/planted_faults.py
+cwd: C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage
+python: 3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]
+started: 2026-10-01T05:02:49+00:00
+ended: 2026-10-01T05:20:12+00:00
+exit: 1
+----- stdout (complete) -----
+caught       claude: a failed unconfirmed attempt is promoted to a confirmed id (tests.test_claude_session: FAILED (failures=6))
+caught       claude: an id without a delivered turn counts as confirmed (tests.test_claude_session: FAILED (failures=4))
+caught       claude: rules not re-required before a delivered turn (tests.test_claude_session: FAILED (failures=1))
+caught       claude: a follow-up starts a new conversation (tests.test_claude_session: FAILED (failures=5))
+caught       claude: technical mode may write (tests.test_claude_session: FAILED (failures=9))
+caught       claude: code mode pre-approves writes anywhere (bare Edit) (tests.test_claude_session: FAILED (failures=2))
+caught       claude: .git/.claude/.codex edits not denied (tests.test_claude_session: FAILED (failures=1))
+caught       claude: permission mode left to user settings (tests.test_claude_session: FAILED (failures=2))
+caught       claude: init permission mode not checked (tests.test_claude_session: FAILED (failures=5))
+caught       claude: init apiKeySource not checked (tests.test_claude_session: FAILED (failures=6))
+caught       claude: provider environment inherited (tests.test_claude_session: FAILED (failures=1))
+caught       claude: a missing or late init is accepted (tests.test_claude_session: FAILED (failures=2))
+caught       claude: starting model not checked (tests.test_claude_session: FAILED (failures=3))
+caught       claude: replying model not checked (tests.test_claude_session: FAILED (failures=1))
+caught       claude: SIJAV_CLAUDE=off ignored (tests.test_claude_session: FAILED (failures=1))
+caught       claude: no per-purpose lock (tests.test_claude_session: FAILED (failures=1))
+caught       claude: leftover descendants survive the call (tests.test_claude_session: FAILED (failures=1))
+NOT PLANTED  claude: a failed final state write loses the reply: each edited text must occur once; found [0]
+caught       claude: a stray .claude folder moves the root (tests.test_claude_session: FAILED (failures=28, errors=8))
+NOT PLANTED  claude: session ids from state not validated (both guards): each edited text must occur once; found [0, 1]
+caught       claude: a state copied from another purpose or project accepted (tests.test_claude_session: FAILED (failures=3))
+caught       claude: a CLI in the current folder is picked from PATH (tests.test_claude_session: FAILED (failures=1))
+caught       jev: critical question dropped (tests.test_jev: FAILED (errors=1))
+caught       jev: missing answers accepted (tests.test_jev: FAILED (failures=1))
+caught       jev: facts sent with their sources (tests.test_jev: FAILED (failures=2))
+caught       jev: code in questions not checked (tests.test_jev: FAILED (failures=1))
+caught       jev: a stray .claude folder moves the root (tests.test_jev: FAILED (failures=1))
+caught       verify: supported threshold lowered (tests.test_verify: FAILED (failures=2))
+NOT PLANTED  verify: quotes off their page sent to Jev: each edited text must occur once; found [0]
+caught       verify: failed pages refetched on resume (tests.test_verify: FAILED (failures=1))
+caught       setup: parent folder accepted as source (tests.test_setup: FAILED (failures=4))
+caught       setup: rules skill may be invoked implicitly (tests.test_setup: FAILED (failures=8))
+29 of 32 planted faults caught
+
+----- stderr (complete) -----
+
+----- end -----

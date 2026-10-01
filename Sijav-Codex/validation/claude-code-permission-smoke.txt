@@ -1,0 +1,19 @@
+pass   argv has --safe-mode
+pass   argv has --restricted
+pass   argv has --disable-slash-commands
+pass   argv --permission-mode manual
+pass   no command tool offered
+pass   init model claude-opus-5-5
+pass   init permission mode default
+pass   init apiKeySource none
+pass   init lists no command tool
+pass   the call completed (settings ANTHROPIC_BASE_URL not applied)
+pass   inside Write created the marker
+pass   outside Write created nothing
+pass   outside Write is in permission_denials
+pass   .env Read is in permission_denials
+pass   dummy.key Read is in permission_denials
+pass   fake secret values appear in no reply or record
+pass   no Bash or PowerShell tool use
+pass   the settings hook did not run
+verdict: pass  (written to C:\Users\<user>\AppData\Local\Temp\sijav-claude-code-proof-20261001\smoke-check.json)

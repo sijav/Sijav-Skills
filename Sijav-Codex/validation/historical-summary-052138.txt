@@ -1,0 +1,14 @@
+Sijav-Codex offline validation, 2026-10-01T05:21:38+00:00
+python: 3.12.14 at C:\Users\<user>\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
+node: C:\Program Files\nodejs\node.EXE
+
+helpers-unittest: exit 0
+planted-faults: exit 1
+loop-unittest: exit 0
+setup-validate: exit 0
+todo-parity: exit 0
+todo-subtasks: exit 0
+board-copies: all four identical to the source
+
+Each suite's complete output is in validation/<suite>.txt.
+setup-validate is expected to exit 1 while skills/todo/dashboard/ has not been copied in; its output lists exactly what is missing.

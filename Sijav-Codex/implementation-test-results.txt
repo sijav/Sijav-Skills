@@ -1,0 +1,285 @@
+Sijav-Codex loop adapter -- offline test run, sixth round (native plugin manifest)
+Date: 2026-10-01
+Runner: Claude Opus 5.5 (claude-opus-5-5), staging only.
+Python: 3.13.14 on PATH (the bundled 3.12.14 interpreter path needed approval this session).
+Platform: Windows 11; launcher tests run through powershell and pwsh (each with and without
+-NoProfile) and cmd /C, as before.
+
+Scope: offline only. I started no Codex process, called no model, installed nothing, and changed
+no global config, trust, cache or real project. I could not re-read the cited 0.159.3 sources
+myself: the source copies were not in ../native-hook-research (only app-server schemas are there),
+and curl and WebFetch needed approval this session. The manifest contract below therefore
+follows the root's source findings and the brief's field list, with nothing added.
+
+Exact command (Bash tool, verbatim):
+
+python -B -m unittest -v "C:/Users/<user>/Documents/Codex/2026-09-30/ther/work/sijav-codex-stage/tests/test_loop.py" "C:/Users/<user>/Documents/Codex/2026-09-30/ther/work/sijav-codex-stage/tests/test_native_proof.py"
+
+Note: written from the tool's captured stdout+stderr below, the complete output of that command.
+
+----- output (complete, verbatim) -----
+test_compaction_after_terminal_status_adds_nothing (tests.test_loop.CompactionTests.test_compaction_after_terminal_status_adds_nothing) ... ok
+test_compaction_refeed_only_for_owner_and_compact_source (tests.test_loop.CompactionTests.test_compaction_refeed_only_for_owner_and_compact_source) ... ok
+test_owner_gets_entire_law_after_compaction (tests.test_loop.CompactionTests.test_owner_gets_entire_law_after_compaction) ... ok
+test_concurrent_claims_have_one_winner (tests.test_loop.ConcurrencyTests.test_concurrent_claims_have_one_winner) ... ok
+test_concurrent_identical_callbacks_stay_within_cap (tests.test_loop.ConcurrencyTests.test_concurrent_identical_callbacks_stay_within_cap) ... ok
+test_concurrent_stops_lose_no_count (tests.test_loop.ConcurrencyTests.test_concurrent_stops_lose_no_count) ... ok
+test_moved_or_copied_state_is_stale (tests.test_loop.DiscoveryTests.test_moved_or_copied_state_is_stale) ... ok
+test_nearest_state_wins (tests.test_loop.DiscoveryTests.test_nearest_state_wins) ... ok
+test_payload_cwd_is_used_not_process_cwd (tests.test_loop.DiscoveryTests.test_payload_cwd_is_used_not_process_cwd) ... ok
+test_status_reports_from_subdirectory (tests.test_loop.DiscoveryTests.test_status_reports_from_subdirectory) ... ok
+test_discard_malformed_refuses_a_readable_state (tests.test_loop.FailureTests.test_discard_malformed_refuses_a_readable_state) ... ok
+test_failed_completion_write_reports_what_remains (tests.test_loop.FailureTests.test_failed_completion_write_reports_what_remains) ... ok
+test_failed_increment_write_halts_without_continuation (tests.test_loop.FailureTests.test_failed_increment_write_halts_without_continuation) ... ok
+test_failed_start_write_does_not_clear_sentinel (tests.test_loop.FailureTests.test_failed_start_write_does_not_clear_sentinel) ... ok
+test_held_lock_times_out_with_cause (tests.test_loop.FailureTests.test_held_lock_times_out_with_cause) ... ok
+test_internal_error_never_blocks (tests.test_loop.FailureTests.test_internal_error_never_blocks) ... ok
+test_malformed_state_reports_cause_and_is_left_alone (tests.test_loop.FailureTests.test_malformed_state_reports_cause_and_is_left_alone) ... ok
+test_rename_is_retried_then_fails_with_cause (tests.test_loop.FailureTests.test_rename_is_retried_then_fails_with_cause) ... ok
+test_unreadable_law_reports_without_counting (tests.test_loop.FailureTests.test_unreadable_law_reports_without_counting) ... ok
+test_descendant_hook_drives_nothing (tests.test_loop.IdentityTests.test_descendant_hook_drives_nothing) ... ok
+test_descendant_or_partial_identity_cannot_claim (tests.test_loop.IdentityTests.test_descendant_or_partial_identity_cannot_claim) ... ok
+test_resume_and_reset_refuse_descendants (tests.test_loop.IdentityTests.test_resume_and_reset_refuse_descendants) ... ok
+test_root_session_must_match_the_explicit_session (tests.test_loop.IdentityTests.test_root_session_must_match_the_explicit_session) ... ok
+test_session_from_env_needs_codex (tests.test_loop.IdentityTests.test_session_from_env_needs_codex) ... ok
+test_a_script_python_cannot_open_would_exit_2 (tests.test_loop.LauncherTests.test_a_script_python_cannot_open_would_exit_2)
+The hazard the bootstrap exists for: CPython exits 2 when it cannot ... ok
+test_commands_run_the_real_hook_in_every_shell (tests.test_loop.LauncherTests.test_commands_run_the_real_hook_in_every_shell) ... ok
+test_missing_interpreter_fails_without_blocking (tests.test_loop.LauncherTests.test_missing_interpreter_fails_without_blocking) ... ok
+test_missing_or_moved_script_is_safe_in_every_shell (tests.test_loop.LauncherTests.test_missing_or_moved_script_is_safe_in_every_shell) ... ok
+test_partial_update_without_the_module_fails_without_blocking (tests.test_loop.LauncherTests.test_partial_update_without_the_module_fails_without_blocking) ... ok
+test_shells_under_test (tests.test_loop.LauncherTests.test_shells_under_test) ... ok
+test_the_live_runs_shape_fails_in_powershell (tests.test_loop.LauncherTests.test_the_live_runs_shape_fails_in_powershell)
+Root cause of the failed live run: a quoted interpreter followed ... ok
+test_variants_are_equivalent_and_shell_neutral (tests.test_loop.LauncherTests.test_variants_are_equivalent_and_shell_neutral) ... ok
+test_codex_session_working_outside_the_root_is_refused (tests.test_loop.MisarmingTests.test_codex_session_working_outside_the_root_is_refused) ... ok
+test_root_inside_a_repository_is_refused (tests.test_loop.MisarmingTests.test_root_inside_a_repository_is_refused) ... ok
+test_subdirectory_root_below_the_laws_project_is_refused (tests.test_loop.MisarmingTests.test_subdirectory_root_below_the_laws_project_is_refused) ... ok
+test_claim_cannot_be_replaced_without_takeover (tests.test_loop.OwnershipTests.test_claim_cannot_be_replaced_without_takeover) ... ok
+test_claim_survives_terminal_status (tests.test_loop.OwnershipTests.test_claim_survives_terminal_status) ... ok
+test_other_session_stops_normally_and_is_recorded (tests.test_loop.OwnershipTests.test_other_session_stops_normally_and_is_recorded) ... ok
+test_reset_requires_the_owner (tests.test_loop.OwnershipTests.test_reset_requires_the_owner) ... ok
+test_restarting_a_live_counter_needs_an_explicit_flag (tests.test_loop.OwnershipTests.test_restarting_a_live_counter_needs_an_explicit_flag) ... ok
+test_takeover_of_nothing_is_refused (tests.test_loop.OwnershipTests.test_takeover_of_nothing_is_refused) ... ok
+test_unarmed_session_stops_normally (tests.test_loop.OwnershipTests.test_unarmed_session_stops_normally) ... ok
+test_hooks_shape (tests.test_loop.PackagingTests.test_hooks_shape) ... ok
+test_native_manifest_points_at_hooks_and_no_portable_manifest_wins (tests.test_loop.PackagingTests.test_native_manifest_points_at_hooks_and_no_portable_manifest_wins)
+Codex 0.159.3 loads a root plugin.json as a portable Agent Plugin, ... ok
+test_the_portable_manifest_is_kept_only_as_an_archived_example (tests.test_loop.PackagingTests.test_the_portable_manifest_is_kept_only_as_an_archived_example) ... ok
+test_a_state_naming_an_outside_sentinel_is_malformed (tests.test_loop.SentinelTests.test_a_state_naming_an_outside_sentinel_is_malformed) ... ok
+test_law_named_sentinel_pauses_and_is_only_cleared_by_explicit_request (tests.test_loop.SentinelTests.test_law_named_sentinel_pauses_and_is_only_cleared_by_explicit_request) ... ok
+test_law_without_a_claude_session_needs_only_clear_sentinels (tests.test_loop.SentinelTests.test_law_without_a_claude_session_needs_only_clear_sentinels) ... ok
+test_owner_pause_and_resume (tests.test_loop.SentinelTests.test_owner_pause_and_resume) ... ok
+test_pause_holds_when_the_state_cannot_be_written (tests.test_loop.SentinelTests.test_pause_holds_when_the_state_cannot_be_written) ... ok
+test_pause_holds_with_an_unreadable_state_or_a_held_lock (tests.test_loop.SentinelTests.test_pause_holds_with_an_unreadable_state_or_a_held_lock) ... ok
+test_sentinels_outside_the_project_or_special_are_refused_before_writing (tests.test_loop.SentinelTests.test_sentinels_outside_the_project_or_special_are_refused_before_writing) ... ok
+test_start_keeps_sentinels_unless_explicitly_cleared (tests.test_loop.SentinelTests.test_start_keeps_sentinels_unless_explicitly_cleared) ... ok
+test_stop_command_records_reason (tests.test_loop.SentinelTests.test_stop_command_records_reason) ... ok
+test_law_problems_are_reported (tests.test_loop.StartTests.test_law_problems_are_reported) ... ok
+test_start_from_subdirectory_records_absolute_paths (tests.test_loop.StartTests.test_start_from_subdirectory_records_absolute_paths) ... ok
+test_start_rejects_bad_values (tests.test_loop.StartTests.test_start_rejects_bad_values) ... ok
+test_start_requires_every_parameter (tests.test_loop.StartTests.test_start_requires_every_parameter) ... ok
+test_the_owners_cap_is_not_limited (tests.test_loop.StartTests.test_the_owners_cap_is_not_limited)
+The cap is the owner's policy: a real law uses 10000000. ... ok
+test_values_from_law_only_when_selected_and_present (tests.test_loop.StartTests.test_values_from_law_only_when_selected_and_present) ... ok
+test_cap_exhausts_without_completion (tests.test_loop.StopTests.test_cap_exhausts_without_completion) ... ok
+test_exact_promise_completes (tests.test_loop.StopTests.test_exact_promise_completes) ... ok
+test_false_promises_do_not_stop (tests.test_loop.StopTests.test_false_promises_do_not_stop) ... ok
+test_identical_callbacks_each_count_until_exhausted (tests.test_loop.StopTests.test_identical_callbacks_each_count_until_exhausted)
+A native continuation keeps session, turn_id and stop_hook_active, ... ok
+test_native_first_stop_differs_from_the_second (tests.test_loop.StopTests.test_native_first_stop_differs_from_the_second)
+Codex sends stop_hook_active false first, true afterwards; the ... ok
+test_owner_continues_on_successive_stops_in_one_turn (tests.test_loop.StopTests.test_owner_continues_on_successive_stops_in_one_turn) ... ok
+test_promise_matching_rules (tests.test_loop.StopTests.test_promise_matching_rules) ... ok
+test_wrong_or_malformed_input_never_blocks (tests.test_loop.StopTests.test_wrong_or_malformed_input_never_blocks) ... ok
+test_kill_tree_survives_a_process_that_will_not_die (tests.test_native_proof.CleanupTests.test_kill_tree_survives_a_process_that_will_not_die) ... ok
+test_the_record_is_written_when_termination_times_out_or_fails (tests.test_native_proof.CleanupTests.test_the_record_is_written_when_termination_times_out_or_fails) ... ok
+test_a_refused_or_different_effort_is_a_failed_check (tests.test_native_proof.EffortTests.test_a_refused_or_different_effort_is_a_failed_check)
+The 2026-10-01 043110Z run reported baseline effort low for a ... ok
+test_the_baseline_is_checked_and_never_called_served (tests.test_native_proof.EffortTests.test_the_baseline_is_checked_and_never_called_served) ... ok
+test_thread_start_sets_the_thread_default_effort (tests.test_native_proof.EffortTests.test_thread_start_sets_the_thread_default_effort) ... ok
+test_identity_variables_are_removed_and_nothing_else (tests.test_native_proof.EnvironmentTests.test_identity_variables_are_removed_and_nothing_else) ... ok
+test_any_tool_use_fails_a_fixture_turn (tests.test_native_proof.EvaluatorTests.test_any_tool_use_fails_a_fixture_turn) ... ok
+test_compaction_fixture (tests.test_native_proof.EvaluatorTests.test_compaction_fixture) ... ok
+test_completing_fixture (tests.test_native_proof.EvaluatorTests.test_completing_fixture) ... ok
+test_exhausting_fixture_with_native_flags (tests.test_native_proof.EvaluatorTests.test_exhausting_fixture_with_native_flags) ... ok
+test_the_c_question_asks_for_the_marker_directly (tests.test_native_proof.EvaluatorTests.test_the_c_question_asks_for_the_marker_directly) ... ok
+test_the_live_runs_failed_hooks_pass_no_check_vacuously (tests.test_native_proof.EvaluatorTests.test_the_live_runs_failed_hooks_pass_no_check_vacuously)
+The 2026-10-01 run: every fixture hook exited 1, so the adapter saw ... ok
+test_the_r2_pattern_still_fails_c (tests.test_native_proof.EvaluatorTests.test_the_r2_pattern_still_fails_c)
+The 2026-10-01 r2 run: the SessionStart context was complete, exact ... ok
+test_a_fixture_from_the_old_harness_is_refused (tests.test_native_proof.FixtureTests.test_a_fixture_from_the_old_harness_is_refused) ... ok
+test_a_mode_is_required (tests.test_native_proof.FixtureTests.test_a_mode_is_required) ... ok
+test_an_interpreter_that_needs_quoting_is_refused (tests.test_native_proof.FixtureTests.test_an_interpreter_that_needs_quoting_is_refused) ... ok
+test_fixture_commands_run_the_real_hook_in_every_hook_shell (tests.test_native_proof.FixtureTests.test_fixture_commands_run_the_real_hook_in_every_hook_shell) ... ok
+test_fixture_launcher_failures_never_exit_2 (tests.test_native_proof.FixtureTests.test_fixture_launcher_failures_never_exit_2) ... ok
+test_prepare_again_in_place_keeps_the_superseded_definitions (tests.test_native_proof.FixtureTests.test_prepare_again_in_place_keeps_the_superseded_definitions) ... ok
+test_prepare_writes_the_plugins_commands_with_concrete_unquoted_interpreter (tests.test_native_proof.FixtureTests.test_prepare_writes_the_plugins_commands_with_concrete_unquoted_interpreter) ... ok
+test_refuses_active_trees_repositories_ancestor_state_and_unsafe_paths (tests.test_native_proof.FixtureTests.test_refuses_active_trees_repositories_ancestor_state_and_unsafe_paths) ... ok
+test_refuses_folders_it_does_not_own (tests.test_native_proof.FixtureTests.test_refuses_folders_it_does_not_own) ... ok
+test_run_and_check_refuse_before_launching_codex (tests.test_native_proof.FixtureTests.test_run_and_check_refuse_before_launching_codex) ... ok
+test_missing_hooks_or_skills_and_unknown_fields_are_refused (tests.test_native_proof.NativeManifestTests.test_missing_hooks_or_skills_and_unknown_fields_are_refused) ... ok
+test_paths_must_exist_and_the_manifest_must_be_present (tests.test_native_proof.NativeManifestTests.test_paths_must_exist_and_the_manifest_must_be_present) ... ok
+test_the_staged_package_is_native_with_no_root_manifest (tests.test_native_proof.NativeManifestTests.test_the_staged_package_is_native_with_no_root_manifest) ... ok
+test_a_changed_or_foreign_package_is_refused (tests.test_native_proof.PluginFormTests.test_a_changed_or_foreign_package_is_refused) ... ok
+test_a_root_portable_manifest_is_refused_because_its_hooks_are_dropped (tests.test_native_proof.PluginFormTests.test_a_root_portable_manifest_is_refused_because_its_hooks_are_dropped)
+Codex 0.159.3 prefers a root plugin.json, reads it as a portable ... ok
+test_check_and_run_refuse_a_changed_install_before_launching (tests.test_native_proof.PluginFormTests.test_check_and_run_refuse_a_changed_install_before_launching) ... ok
+test_codex_expansion_of_plugin_root_is_matched_exactly (tests.test_native_proof.PluginFormTests.test_codex_expansion_of_plugin_root_is_matched_exactly) ... ok
+test_prepare_writes_only_the_marker (tests.test_native_proof.PluginFormTests.test_prepare_writes_only_the_marker) ... ok
+test_project_hooks_and_plugin_form_never_mix (tests.test_native_proof.PluginFormTests.test_project_hooks_and_plugin_form_never_mix) ... ok
+test_run_attribution_needs_a_plugin_source_under_the_root (tests.test_native_proof.PluginFormTests.test_run_attribution_needs_a_plugin_source_under_the_root) ... ok
+test_the_installed_commands_run_the_installed_hook_in_every_shell (tests.test_native_proof.PluginFormTests.test_the_installed_commands_run_the_installed_hook_in_every_shell) ... ok
+test_verify_accepts_only_the_installed_plugins_trusted_handlers (tests.test_native_proof.PluginFormTests.test_verify_accepts_only_the_installed_plugins_trusted_handlers) ... ok
+test_credentials_are_removed (tests.test_native_proof.RedactionTests.test_credentials_are_removed) ... ok
+test_changed_definitions_fail (tests.test_native_proof.VerifyHooksTests.test_changed_definitions_fail) ... ok
+test_foreign_stop_hooks_and_fixture_errors_fail (tests.test_native_proof.VerifyHooksTests.test_foreign_stop_hooks_and_fixture_errors_fail) ... ok
+test_the_other_platforms_variant_fails (tests.test_native_proof.VerifyHooksTests.test_the_other_platforms_variant_fails) ... ok
+test_trusted_enabled_selected_variant_passes (tests.test_native_proof.VerifyHooksTests.test_trusted_enabled_selected_variant_passes) ... ok
+test_untrusted_modified_disabled_or_missing_fail (tests.test_native_proof.VerifyHooksTests.test_untrusted_modified_disabled_or_missing_fail) ... ok
+test_a_live_fixture_state_is_stopped_after_the_run (tests.test_native_proof.VersionAndSettleTests.test_a_live_fixture_state_is_stopped_after_the_run) ... ok
+test_requested_version_must_appear_in_both_reports (tests.test_native_proof.VersionAndSettleTests.test_requested_version_must_appear_in_both_reports) ... ok
+
+----------------------------------------------------------------------
+Ran 111 tests in 72.713s
+
+OK
+----- end of output -----
+
+Result: 111 passed, 0 skipped, 0 failed. Staging has no __pycache__, .pyc, .codex, proof-runs,
+.stop or cleared-sentinels. No background process was started.
+
+
+===== Status =====
+
+Project-hooks form, Codex 0.159.3: A/B/C passed (20261001T043110Z-run and 20261001T045941Z-run in
+%TEMP%\sijav-loop-proof-20261001-r2).
+Installed-plugin form: NOT WORKING with the earlier package. The root portable plugin.json made
+Codex 0.159.3 load sijav-codex@sijav-codex-local as an Agent Plugin, and /hooks listed zero
+handlers (root's source findings: core-plugins/src/loader.rs 894-904 discards Agent Plugin hooks;
+plugin_namespace.rs 38-57 and manifest.rs 153-179 make the root portable manifest win; native
+hooks load at loader.rs 1113-1167). The package is now native; that form is PENDING reinstall and
+proof. Automatic mid-turn compaction: PENDING (not exercised).
+
+
+===== Changes this round =====
+
+1. Manifest migration (staging):
+   - plugin.json (root, portable) -> archive/portable-plugin.example.json, moved byte for byte
+     with mv (history kept; no loader reads that path or name).
+   - new .codex-plugin/plugin.json, the native manifest, with exactly:
+       name "sijav-codex", version "0.1.0", description (the companion's current text, verbatim),
+       skills "./skills", hooks "./hooks/hooks.json".
+     No interface/keywords/extensions fields: their native field names were not verified from
+     source this session, so none are invented. Display metadata can be added once confirmed.
+   - hooks/hooks.json, skills/loop/scripts/loop_hook.py and sijav_loop.py: untouched,
+     byte-identical to the versions that passed the project-form proofs.
+2. tests/native_proof.py: NATIVE_MANIFEST, PORTABLE_MANIFEST, NATIVE_MANIFEST_FIELDS;
+   native_manifest_problem(root) refuses a root plugin.json (Agent Plugin, hooks dropped), a
+   missing or unreadable native manifest, any field value other than the five, extra fields, and
+   skills/hooks paths that do not exist; installed_package_problem uses it, and PACKAGE_FILES now
+   includes .codex-plugin/plugin.json (byte-identical to staging required).
+3. Tests: test_loop PackagingTests (native manifest exact fields, no root plugin.json, archived
+   portable example kept); test_native_proof NativeManifestTests (3) and
+   PluginFormTests.test_a_root_portable_manifest_is_refused_because_its_hooks_are_dropped; the
+   installed-copy helper now copies the native manifest.
+4. Docs: skills/loop/SKILL.md status; skills/loop/references/loop-design.md new "Plugin manifest
+   format" section, Files line, installed-package description, status lines, and the two stale
+   lines (summary now "requested values, thread defaults reported by thread/start and per-turn
+   overrides sent; no actual per-turn value"; "No actual project loop has been started; only
+   bounded loops in disposable TEMP fixtures have run").
+Not touched: README, tools/, setup and its tests, companion helpers, IMPLEMENTATION.md, the todo
+skill, other skills.
+
+
+===== Migration notes for the setup coder =====
+
+- The manifest is now .codex-plugin/plugin.json. A root plugin.json must NOT exist in the package
+  or in the installed copy; its presence makes Codex 0.159.3 drop all hooks.
+- Validators expecting plugin.json at the root, or extensions.com.openai.hooks/interface, must
+  read .codex-plugin/plugin.json and its top-level skills/hooks instead.
+- archive/portable-plugin.example.json is documentation only (one new file). The package file
+  count changes by +1 (.codex-plugin/plugin.json) and +1 (archive) -1 (root plugin.json).
+- tests/native_proof.py native_manifest_problem() is the exact rule set used here.
+
+
+===== For the root (PowerShell; nothing below has been run by me) =====
+
+1. Recopy the staged package to the local marketplace source and add/update sijav-codex 0.1.0
+   through Codex's normal plugin flow, replacing the cached portable copy. Confirm the cache at
+   C:\Users\<user>\.codex\plugins\cache\sijav-codex-local\sijav-codex\0.1.0 has
+   .codex-plugin\plugin.json and no plugin.json at its root.
+2. New empty fixture and preparation (from the staging folder):
+     $py = "C:\Users\<user>\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+     $fx = Join-Path $env:TEMP "sijav-loop-proof-20261001-native-plugin"
+     New-Item -ItemType Directory $fx
+     & $py ".\tests\native_proof.py" --prepare $fx --installed-plugin-root "C:\Users\<user>\.codex\plugins\cache\sijav-codex-local\sijav-codex\0.1.0" --plugin-id "sijav-codex@sijav-codex-local"
+   (--prepare refuses a cached copy that still has a root plugin.json or differs from staging.)
+3. Trust, fresh: Set-Location $fx ; codex -> /hooks -> Events -> Stop -> the sijav-codex plugin
+   handler -> inspect -> t -> enable; Events -> SessionStart -> its compact handler -> inspect ->
+   t -> enable. Never press t on the Events list. If /hooks still lists zero handlers, the
+   native manifest did not load hooks either; record that and stop.
+4. From the staging folder:
+     & $py ".\tests\native_proof.py" --check $fx --expect-codex-version 0.159.3
+     & $py ".\tests\native_proof.py" --run $fx --model gpt-6.1-sol --effort medium --expect-codex-version 0.159.3
+
+Dependencies of the installed form: the native manifest's skills and hooks paths; Codex's hook
+shell (PowerShell observed); `python` on the hook environment's PATH; the installed loop_hook.py
+with sijav_loop.py beside it. While the plugin is enabled its hooks run in every Codex session;
+sessions without loop state at or above their cwd stop normally.
+
+
+===== Seventh round: setup migration to the native manifest (narrow) =====
+
+Changed: tools/sijav_codex_setup.py (only the manifest block of check_package, the two manifest
+constants replacing SCHEMA_URI, and the docstring's validation line); tests/test_setup.py (one new
+test); README.md (manifest/path/validation and hook-loading prose only: status row, requirements,
+"It checks" list, install note). Nothing else in those files; no other helper or test changed.
+The setup now reads .codex-plugin/plugin.json (name, semantic version, description, skills
+"./skills", hooks "./hooks/hooks.json", hook file checks as before) and reports a root plugin.json
+as a problem. No extra-field guess was added. archive/portable-plugin.example.json is unchanged
+(sha256 66dee68bc64a2cbbc2d4c5c71767fa36be2a044a775877045ae03dd9f136afac).
+
+Command 1 (Bash, cwd = staging): python -B -m unittest -v tests.test_setup
+----- output (complete, verbatim) -----
+test_locked_dependencies_only_when_asked_and_present (tests.test_setup.Dashboard.test_locked_dependencies_only_when_asked_and_present) ... ok
+test_a_hung_command_is_stopped_with_its_process_tree (tests.test_setup.Install.test_a_hung_command_is_stopped_with_its_process_tree) ... ok
+test_install_stops_on_problems_or_surprises (tests.test_setup.Install.test_install_stops_on_problems_or_surprises) ... ok
+test_install_uses_only_the_native_plugin_commands (tests.test_setup.Install.test_install_uses_only_the_native_plugin_commands) ... ok
+test_no_codex_means_no_install (tests.test_setup.Install.test_no_codex_means_no_install) ... ok
+test_example_agent_profiles_pin_the_requested_model_and_effort (tests.test_setup.Profiles.test_example_agent_profiles_pin_the_requested_model_and_effort) ... ok
+test_node_ranges (tests.test_setup.Profiles.test_node_ranges) ... ok
+test_catalog_must_be_this_package_only (tests.test_setup.Validation.test_catalog_must_be_this_package_only) ... ok
+test_dashboard_references_are_reported_until_it_is_copied_in (tests.test_setup.Validation.test_dashboard_references_are_reported_until_it_is_copied_in) ... ok
+test_native_manifest_is_required_and_a_root_portable_manifest_is_refused (tests.test_setup.Validation.test_native_manifest_is_required_and_a_root_portable_manifest_is_refused)
+Codex 0.159.3 loaded the package with a root plugin.json as a portable ... ok
+test_private_state_and_keys_are_refused (tests.test_setup.Validation.test_private_state_and_keys_are_refused) ... ok
+test_skill_metadata_and_helper_references (tests.test_setup.Validation.test_skill_metadata_and_helper_references) ... ok
+test_skip_tools_runs_nothing (tests.test_setup.Validation.test_skip_tools_runs_nothing) ... ok
+test_the_package_validates (tests.test_setup.Validation.test_the_package_validates) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 28.946s
+
+OK
+----- end of output -----
+
+Command 2 (Bash, cwd = staging): python -B tools/sijav_codex_setup.py --json --skip-tools
+----- output (complete, verbatim) -----
+{
+  "package": "C:\\Users\\<user>\\Documents\\Codex\\2026-09-30\\ther\\work\\sijav-codex-stage",
+  "problems": [],
+  "notes": [
+    "tool versions were not checked (--skip-tools)"
+  ],
+  "tools": {},
+  "install_commands": [
+    "codex plugin marketplace add \"C:\\Users\\<user>\\Documents\\Codex\\2026-09-30\\ther\\work\\sijav-codex-stage\" --json",
+    "codex plugin add sijav-codex@sijav-codex-local --json",
+    "codex plugin list --marketplace sijav-codex-local --available --json"
+  ]
+}
+----- end of output -----
+
+Python 3.13.14 (PATH). No real codex, npm, node or claude ran (fake tools in TEMP copies; the
+real setup was run with --skip-tools). No install, config, trust, model call or loop.

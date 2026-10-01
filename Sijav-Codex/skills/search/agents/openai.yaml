@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sijav Search"
+  short_description: "One plain web search with linked sources"
+
+policy:
+  allow_implicit_invocation: true

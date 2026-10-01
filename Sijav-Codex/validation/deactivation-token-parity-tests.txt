@@ -1,0 +1,11 @@
+test_switched_off_sends_nothing_and_creates_nothing (tests.test_claude_session.Failures.test_switched_off_sends_nothing_and_creates_nothing) ... ok
+test_available_reports_each_cause_without_the_key (tests.test_jev.Availability.test_available_reports_each_cause_without_the_key) ... ok
+test_switched_off_missing_key_and_missing_sdk_make_no_call (tests.test_jev.Unjudged.test_switched_off_missing_key_and_missing_sdk_make_no_call) ... ok
+test_judged_run_sends_exactly_what_the_contract_says (tests.test_jev.Ask.test_judged_run_sends_exactly_what_the_contract_says) ... ok
+test_too_long_needs_one_shortened_framing (tests.test_jev.Unjudged.test_too_long_needs_one_shortened_framing) ... ok
+test_too_long_twice_is_unjudged (tests.test_jev.Unjudged.test_too_long_twice_is_unjudged) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 2.826s
+
+OK

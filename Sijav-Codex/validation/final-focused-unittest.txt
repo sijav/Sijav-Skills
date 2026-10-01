@@ -1,0 +1,145 @@
+test_a_corrected_framing_is_judged_and_observed_selects_brief_facts (tests.test_jev.Ask.test_a_corrected_framing_is_judged_and_observed_selects_brief_facts) ... ok
+test_check_validates_without_recording_or_sending (tests.test_jev.Ask.test_check_validates_without_recording_or_sending) ... ok
+test_every_field_is_checked_for_code_and_problems_go_back_once (tests.test_jev.Ask.test_every_field_is_checked_for_code_and_problems_go_back_once) ... ok
+test_framing_may_not_supply_what_the_helper_sets (tests.test_jev.Ask.test_framing_may_not_supply_what_the_helper_sets) ... ok
+test_judged_run_sends_exactly_what_the_contract_says (tests.test_jev.Ask.test_judged_run_sends_exactly_what_the_contract_says) ... ok
+test_plan_mode_adds_the_owners_critical_question_word_for_word (tests.test_jev.Ask.test_plan_mode_adds_the_owners_critical_question_word_for_word) ... ok
+test_available_reports_each_cause_without_the_key (tests.test_jev.Availability.test_available_reports_each_cause_without_the_key) ... ok
+test_a_stray_claude_folder_does_not_move_the_root (tests.test_jev.Brief.test_a_stray_claude_folder_does_not_move_the_root) ... ok
+test_incomplete_or_code_bearing_briefs_create_no_run (tests.test_jev.Brief.test_incomplete_or_code_bearing_briefs_create_no_run) ... ok
+test_no_project_outside_one (tests.test_jev.Brief.test_no_project_outside_one) ... ok
+test_open_from_a_subdirectory_records_the_brief_unchanged (tests.test_jev.Brief.test_open_from_a_subdirectory_records_the_brief_unchanged) ... ok
+test_a_failed_or_interrupted_publication_never_leaves_a_partial_outcome (tests.test_jev.CallSafety.test_a_failed_or_interrupted_publication_never_leaves_a_partial_outcome) ... ok
+test_a_helper_that_dies_mid_call_blocks_every_reask_until_recovered (tests.test_jev.CallSafety.test_a_helper_that_dies_mid_call_blocks_every_reask_until_recovered) ... ok
+test_an_edited_brief_or_a_malformed_state_is_refused (tests.test_jev.CallSafety.test_an_edited_brief_or_a_malformed_state_is_refused) ... ok
+test_an_interrupt_during_the_call_is_recorded_as_unknown (tests.test_jev.CallSafety.test_an_interrupt_during_the_call_is_recorded_as_unknown) ... ok
+test_an_outcome_whose_state_could_not_be_saved_is_adopted_by_recover (tests.test_jev.CallSafety.test_an_outcome_whose_state_could_not_be_saved_is_adopted_by_recover) ... ok
+test_an_sdk_outside_the_checked_contract_is_not_used (tests.test_jev.CallSafety.test_an_sdk_outside_the_checked_contract_is_not_used) ... ok
+test_every_failure_says_what_is_known_about_the_request (tests.test_jev.CallSafety.test_every_failure_says_what_is_known_about_the_request) ... ok
+test_framings_cannot_hide_facts_or_code_in_other_forms (tests.test_jev.CallSafety.test_framings_cannot_hide_facts_or_code_in_other_forms) ... ok
+test_recover_adopts_only_the_same_requests_recorded_outcome (tests.test_jev.CallSafety.test_recover_adopts_only_the_same_requests_recorded_outcome) ... ok
+test_recover_judges_a_reply_saved_before_the_helper_died (tests.test_jev.CallSafety.test_recover_judges_a_reply_saved_before_the_helper_died) ... ok
+test_sdk_retries_are_off_and_the_timeout_is_finite (tests.test_jev.CallSafety.test_sdk_retries_are_off_and_the_timeout_is_finite) ... ok
+test_finalize_without_jev_says_so (tests.test_jev.Records.test_finalize_without_jev_says_so) ... ok
+test_finalize_writes_one_record_and_notes_add_to_it (tests.test_jev.Records.test_finalize_writes_one_record_and_notes_add_to_it) ... ok
+test_answer_checks (tests.test_jev.Units.test_answer_checks) ... ok
+test_shown_follows_jevs_terms (tests.test_jev.Units.test_shown_follows_jevs_terms) ... ok
+test_answers_are_checked_one_by_one (tests.test_jev.Unjudged.test_answers_are_checked_one_by_one) ... ok
+test_service_failures_are_unjudged_with_their_cause_and_no_key (tests.test_jev.Unjudged.test_service_failures_are_unjudged_with_their_cause_and_no_key) ... ok
+test_switched_off_missing_key_and_missing_sdk_make_no_call (tests.test_jev.Unjudged.test_switched_off_missing_key_and_missing_sdk_make_no_call) ... ok
+test_too_long_needs_one_shortened_framing (tests.test_jev.Unjudged.test_too_long_needs_one_shortened_framing) ... ok
+test_too_long_twice_is_unjudged (tests.test_jev.Unjudged.test_too_long_twice_is_unjudged) ... ok
+test_a_judged_reply_through_the_real_sdk (tests.test_jev_sdk.RealSdk.test_a_judged_reply_through_the_real_sdk) ... ok
+test_a_malformed_key_is_refused_before_any_request (tests.test_jev_sdk.RealSdk.test_a_malformed_key_is_refused_before_any_request) ... ok
+test_a_malformed_reply_is_an_answered_failure (tests.test_jev_sdk.RealSdk.test_a_malformed_reply_is_an_answered_failure) ... ok
+test_a_server_error_is_not_retried (tests.test_jev_sdk.RealSdk.test_a_server_error_is_not_retried) ... ok
+test_a_timeout_is_not_retried_and_its_outcome_is_unknown (tests.test_jev_sdk.RealSdk.test_a_timeout_is_not_retried_and_its_outcome_is_unknown) ... ok
+test_an_unknown_answer_type_is_dropped_by_the_sdk_and_caught_as_missing (tests.test_jev_sdk.RealSdk.test_an_unknown_answer_type_is_dropped_by_the_sdk_and_caught_as_missing) ... ok
+test_too_long_is_told_apart (tests.test_jev_sdk.RealSdk.test_too_long_is_told_apart) ... ok
+test_a_leaked_fake_secret_bash_use_or_fired_hook_fails (tests.test_permission_smoke.Check.test_a_leaked_fake_secret_bash_use_or_fired_hook_fails) ... ok
+test_an_allowed_outside_write_or_secret_read_fails (tests.test_permission_smoke.Check.test_an_allowed_outside_write_or_secret_read_fails) ... ok
+test_no_run_is_inconclusive (tests.test_permission_smoke.Check.test_no_run_is_inconclusive) ... ok
+test_steps_not_attempted_are_inconclusive (tests.test_permission_smoke.Check.test_steps_not_attempted_are_inconclusive) ... ok
+test_the_expected_outcome_passes (tests.test_permission_smoke.Check.test_the_expected_outcome_passes) ... ok
+test_the_fixture_holds_only_synthetic_files (tests.test_permission_smoke.Prepare.test_the_fixture_holds_only_synthetic_files) ... ok
+test_unsafe_folders_are_refused_and_nothing_is_written (tests.test_permission_smoke.Prepare.test_unsafe_folders_are_refused_and_nothing_is_written) ... ok
+test_exit_code_follows_every_suite_and_the_board_copies (tests.test_run_all.Exit.test_exit_code_follows_every_suite_and_the_board_copies) ... ok
+
+----------------------------------------------------------------------
+Ran 46 tests in 25.287s
+
+OK
+Prepared C:\Users\<user>\AppData\Local\Temp\sijav smoke check lqmha3gw\fixture
+Run, from C:\Users\<user>\AppData\Local\Temp\sijav smoke check lqmha3gw\fixture\project, with no --allow-command:
+  python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\skills\claude\claude_session.py" call --purpose smoke-code-0dcd4a464c --mode code --scope "permission smoke" --rules-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check lqmha3gw\fixture\project\LAW.md" --prompt-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check lqmha3gw\fixture\project\PROMPT.md" --project "C:\Users\<user>\AppData\Local\Temp\sijav smoke check lqmha3gw\fixture\project" --timeout 300
+Then: python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\tests\permission_smoke.py" --check "C:\Users\<user>\AppData\Local\Temp\sijav smoke check lqmha3gw\fixture"
+Prepared C:\Users\<user>\AppData\Local\Temp\sijav smoke check ek8zzbmd\fixture
+Run, from C:\Users\<user>\AppData\Local\Temp\sijav smoke check ek8zzbmd\fixture\project, with no --allow-command:
+  python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\skills\claude\claude_session.py" call --purpose smoke-code-7b5c33b2e2 --mode code --scope "permission smoke" --rules-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check ek8zzbmd\fixture\project\LAW.md" --prompt-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check ek8zzbmd\fixture\project\PROMPT.md" --project "C:\Users\<user>\AppData\Local\Temp\sijav smoke check ek8zzbmd\fixture\project" --timeout 300
+Then: python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\tests\permission_smoke.py" --check "C:\Users\<user>\AppData\Local\Temp\sijav smoke check ek8zzbmd\fixture"
+Prepared C:\Users\<user>\AppData\Local\Temp\sijav smoke check i108nt0k\fixture
+Run, from C:\Users\<user>\AppData\Local\Temp\sijav smoke check i108nt0k\fixture\project, with no --allow-command:
+  python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\skills\claude\claude_session.py" call --purpose smoke-code-d69cd54fa2 --mode code --scope "permission smoke" --rules-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check i108nt0k\fixture\project\LAW.md" --prompt-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check i108nt0k\fixture\project\PROMPT.md" --project "C:\Users\<user>\AppData\Local\Temp\sijav smoke check i108nt0k\fixture\project" --timeout 300
+Then: python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\tests\permission_smoke.py" --check "C:\Users\<user>\AppData\Local\Temp\sijav smoke check i108nt0k\fixture"
+Prepared C:\Users\<user>\AppData\Local\Temp\sijav smoke check 3wp5wu74\fixture
+Run, from C:\Users\<user>\AppData\Local\Temp\sijav smoke check 3wp5wu74\fixture\project, with no --allow-command:
+  python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\skills\claude\claude_session.py" call --purpose smoke-code-90288615fb --mode code --scope "permission smoke" --rules-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check 3wp5wu74\fixture\project\LAW.md" --prompt-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check 3wp5wu74\fixture\project\PROMPT.md" --project "C:\Users\<user>\AppData\Local\Temp\sijav smoke check 3wp5wu74\fixture\project" --timeout 300
+Then: python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\tests\permission_smoke.py" --check "C:\Users\<user>\AppData\Local\Temp\sijav smoke check 3wp5wu74\fixture"
+Prepared C:\Users\<user>\AppData\Local\Temp\sijav smoke check vjbciady\fixture
+Run, from C:\Users\<user>\AppData\Local\Temp\sijav smoke check vjbciady\fixture\project, with no --allow-command:
+  python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\skills\claude\claude_session.py" call --purpose smoke-code-22b7689eee --mode code --scope "permission smoke" --rules-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check vjbciady\fixture\project\LAW.md" --prompt-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke check vjbciady\fixture\project\PROMPT.md" --project "C:\Users\<user>\AppData\Local\Temp\sijav smoke check vjbciady\fixture\project" --timeout 300
+Then: python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\tests\permission_smoke.py" --check "C:\Users\<user>\AppData\Local\Temp\sijav smoke check vjbciady\fixture"
+Prepared C:\Users\<user>\AppData\Local\Temp\sijav smoke test nyw5dt6g\fixture
+Run, from C:\Users\<user>\AppData\Local\Temp\sijav smoke test nyw5dt6g\fixture\project, with no --allow-command:
+  python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\skills\claude\claude_session.py" call --purpose smoke-code-613ae5bd79 --mode code --scope "permission smoke" --rules-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke test nyw5dt6g\fixture\project\LAW.md" --prompt-file "C:\Users\<user>\AppData\Local\Temp\sijav smoke test nyw5dt6g\fixture\project\PROMPT.md" --project "C:\Users\<user>\AppData\Local\Temp\sijav smoke test nyw5dt6g\fixture\project" --timeout 300
+Then: python "C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage\tests\permission_smoke.py" --check "C:\Users\<user>\AppData\Local\Temp\sijav smoke test nyw5dt6g\fixture"
+Sijav-Codex offline validation, 2026-10-01T06:22:46+00:00
+python: 3.13.14 at C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe
+node: C:\Program Files\nodejs\node.EXE
+
+helpers-unittest: exit 0
+planted-faults: exit 0
+loop-unittest: exit 0
+setup-validate: exit 0
+todo-parity: exit 0
+todo-subtasks: exit 0
+board-copies: all four identical to the source
+
+Each suite's complete output is in validation/<suite>.txt.
+result: every suite passed and the board copies are identical
+Sijav-Codex offline validation, 2026-10-01T06:22:46+00:00
+python: 3.13.14 at C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe
+node: C:\Program Files\nodejs\node.EXE
+
+helpers-unittest: exit 0
+planted-faults: exit 0
+loop-unittest: exit 1
+setup-validate: exit 0
+todo-parity: exit 0
+todo-subtasks: exit 0
+board-copies: all four identical to the source
+
+Each suite's complete output is in validation/<suite>.txt.
+result: FAILED: loop-unittest
+Sijav-Codex offline validation, 2026-10-01T06:22:47+00:00
+python: 3.13.14 at C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe
+node: C:\Program Files\nodejs\node.EXE
+
+helpers-unittest: exit 0
+planted-faults: exit 0
+loop-unittest: exit 0
+setup-validate: exit 0
+todo-parity: exit 0
+todo-subtasks: exit not run
+board-copies: all four identical to the source
+
+Each suite's complete output is in validation/<suite>.txt.
+result: FAILED: todo-subtasks
+Sijav-Codex offline validation, 2026-10-01T06:22:47+00:00
+python: 3.13.14 at C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe
+node: C:\Program Files\nodejs\node.EXE
+
+helpers-unittest: exit 0
+planted-faults: exit 0
+loop-unittest: exit 0
+setup-validate: exit 0
+todo-parity: exit 0
+todo-subtasks: exit 0
+board-copies: NOT identical; see board-copies.txt
+
+Each suite's complete output is in validation/<suite>.txt.
+result: FAILED: board-copies
+Sijav-Codex offline validation, 2026-10-01T06:22:47+00:00
+python: 3.13.14 at C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe
+node: C:\Program Files\nodejs\node.EXE
+
+helpers-unittest: exit 0
+planted-faults: exit 0
+loop-unittest: exit 0
+setup-validate: exit 0
+todo-parity: exit 0
+todo-subtasks: exit 0
+board-copies: all four identical to the source
+
+Each suite's complete output is in validation/<suite>.txt.
+result: every suite passed and the board copies are identical

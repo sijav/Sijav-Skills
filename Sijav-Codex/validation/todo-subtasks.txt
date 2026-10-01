@@ -1,0 +1,23 @@
+suite: todo-subtasks
+command: "C:\Program Files\nodejs\node.EXE" skills/todo/test-subtasks.mjs
+cwd: C:\Users\<user>\Documents\Codex\2026-09-30\ther\work\sijav-codex-stage
+python: 3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]
+started: 2026-10-01T05:21:36+00:00
+ended: 2026-10-01T05:21:38+00:00
+exit: 0
+----- stdout (complete) -----
+  ok   closing a task tells you to roast it and to file findings as children
+  ok   a child records its parent, and the card shows both directions
+  ok   closing one child says how many are left, and does NOT call for the group roast
+  ok   closing the LAST child calls for a roast of the parent with all of them
+  ok   a dropped child does not hold the group open
+  ok   naming a child as a parent flattens to one level and says so
+  ok   closing a parent that still has open children is allowed, and reports them
+  ok   edit can reparent a finding and cut one loose
+  ok   a task cannot be made its own parent
+
+All checks passed.
+
+----- stderr (complete) -----
+
+----- end -----

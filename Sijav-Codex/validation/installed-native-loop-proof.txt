@@ -1,0 +1,49 @@
+Run record: C:\Users\<user>\AppData\Local\Temp\sijav-loop-native-plugin-proof-20261001\proof-runs\20261001T060506Z-run
+Form: installed plugin: hooks loaded by Codex from the installed package's hooks/hooks.json with ${PLUGIN_ROOT} expanded by Codex; the fixture has no project hooks.json.
+Codex: codex-cli 0.159.3 / Codex Desktop/0.159.3 (Windows 10.0.26200; x86_64) dumb (sijav-native-proof; 2) (requested 0.159.3)
+Fixture state after the run: {'state': 'complete', 'action': 'none'}
+PASS [native] A: a new root thread's sessionId is its id
+PASS [native] A: thread/start applied the requested model and reasoning effort as the thread baseline
+PASS [adapter] armed only thread 01a0f611-0ac8-7a51-8f2c-b3b209405d1b
+PASS [native] A: the turn completed
+PASS [native] A: no tool or other non-text item ran
+PASS [adapter] A: Stop outcomes are ['continued', 'continued', 'continued', 'complete']
+PASS [native] A: every Stop callback carried one native turn_id
+PASS [native] A: the hook's turn_id is the app-server turn id
+PASS [native] A: stop_hook_active is false first, then true
+PASS [adapter] A: same_as_previous_stop follows stop_hook_active and the message hash
+PASS [native] A: Codex reported one fixture Stop hook run per adapter Stop event
+PASS [native] A: no fixture Stop hook run failed
+PASS [adapter] A: final state is complete after 3 continuations
+PASS [model] A: the final answers were exactly the staged replies
+PASS [native] B: a new root thread's sessionId is its id
+PASS [native] B: thread/start applied the requested model and reasoning effort as the thread baseline
+PASS [adapter] armed only thread 01a0f611-4c74-7a12-b0b6-cdd922e9b543
+PASS [native] B: the turn completed
+PASS [native] B: no tool or other non-text item ran
+PASS [adapter] B: Stop outcomes are ['continued', 'continued', 'exhausted']
+PASS [native] B: every Stop callback carried one native turn_id
+PASS [native] B: the hook's turn_id is the app-server turn id
+PASS [native] B: stop_hook_active is false first, then true
+PASS [adapter] B: same_as_previous_stop follows stop_hook_active and the message hash
+PASS [native] B: Codex reported one fixture Stop hook run per adapter Stop event
+PASS [native] B: no fixture Stop hook run failed
+PASS [adapter] B: final state is exhausted at the cap, not complete
+PASS [model] B: every final message was identical (each was counted)
+PASS [native] C: a new root thread's sessionId is its id
+PASS [native] C: thread/start applied the requested model and reasoning effort as the thread baseline
+PASS [adapter] C history turn: a session that does not own the loop stops normally
+PASS [native] C history turn used no tools
+PASS [adapter] armed only thread 01a0f611-7a3a-7e23-b446-9e4401866180
+PASS [native] C: no tool or other non-text item ran after compaction
+PASS [native] C: the contextCompaction item completed
+PASS [adapter] C: the SessionStart hook saw source compact and reloaded the law
+PASS [native] C: Codex reported a completed fixture SessionStart run with context
+PASS [native] C: the context entry carries the whole law body
+PASS [native] C: the context entry equals the adapter's compaction context exactly
+PASS [native] C: the law context arrived before the next final answer
+PASS [model] C: the first final answer after compaction returned the injected marker
+PASS [adapter] C: the marker reply completed the loop without a continuation
+thread A: 01a0f611-0ac8-7a51-8f2c-b3b209405d1b sessionId=01a0f611-0ac8-7a51-8f2c-b3b209405d1b requested gpt-6.1-sol/medium; thread baseline gpt-6.1-sol/medium; per-turn override sent gpt-6.1-sol/medium (no per-turn effective value is reported)
+thread B: 01a0f611-4c74-7a12-b0b6-cdd922e9b543 sessionId=01a0f611-4c74-7a12-b0b6-cdd922e9b543 requested gpt-6.1-sol/medium; thread baseline gpt-6.1-sol/medium; per-turn override sent gpt-6.1-sol/medium (no per-turn effective value is reported)
+thread C: 01a0f611-7a3a-7e23-b446-9e4401866180 sessionId=01a0f611-7a3a-7e23-b446-9e4401866180 requested gpt-6.1-sol/medium; thread baseline gpt-6.1-sol/medium; per-turn override sent gpt-6.1-sol/medium (no per-turn effective value is reported)

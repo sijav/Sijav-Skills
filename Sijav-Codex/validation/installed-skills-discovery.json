@@ -1,0 +1,91 @@
+{
+  "checked_at": "2026-10-01T06:29:33.424+00:00",
+  "installation_phase": "final installed package after source copy and ordinary cache reinstall",
+  "cwd": "C:\\Users\\<user>\\AppData\\Local\\Temp\\sijav-loop-native-plugin-proof-20261001",
+  "userAgent": "Codex Desktop/0.159.3 (Windows 10.0.26200; x86_64) dumb (sijav-native-proof; 2)",
+  "cache_root": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0",
+  "skills": [
+    {
+      "name": "sijav-codex:sijav-codex-agents",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\agents\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    },
+    {
+      "name": "sijav-codex:sijav-codex-dev-round",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\dev-round\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    },
+    {
+      "name": "sijav-codex:sijav-codex-loop",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\loop\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    },
+    {
+      "name": "sijav-codex:sijav-codex-research",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\research\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    },
+    {
+      "name": "sijav-codex:sijav-codex-roast",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\roast\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    },
+    {
+      "name": "sijav-codex:sijav-codex-rules",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\rules\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    },
+    {
+      "name": "sijav-codex:sijav-codex-search",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\search\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    },
+    {
+      "name": "sijav-codex:sijav-codex-todo",
+      "path": "C:\\Users\\<user>\\.codex\\plugins\\cache\\sijav-codex-local\\sijav-codex\\0.1.0\\skills\\todo\\SKILL.md",
+      "scope": "user",
+      "enabled": true,
+      "pluginId": "sijav-codex@sijav-codex-local"
+    }
+  ],
+  "selected_skill_count": 8,
+  "sijav_errors": [],
+  "other_error_count": 0,
+  "invocation_policy_evidence": "Installed agents/openai.yaml files; skills/list metadata does not expose invocation policies",
+  "invocation_policies": {
+    "agents": true,
+    "dev-round": false,
+    "loop": false,
+    "research": true,
+    "roast": true,
+    "rules": false,
+    "search": true,
+    "todo": true
+  },
+  "identity_environment_names_removed": [
+    "CODEX_SESSION_ID",
+    "CODEX_THREAD_ID"
+  ],
+  "owned_process_log_directory": "C:\\Users\\<user>\\AppData\\Local\\Temp\\sijav-skills-final-discovery-rwve26cw",
+  "model_calls": 0,
+  "owned_process_exit": {
+    "pid": 92768,
+    "exit_code": 0,
+    "ended_at": "2026-10-01T06:29:33.455+00:00",
+    "termination": "exited after stdin closed"
+  }
+}

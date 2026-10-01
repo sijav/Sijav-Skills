@@ -1,0 +1,59 @@
+Planted-fault runs made by the coder on 2026-10-01 after the second helper review, before the
+root's final run_all. Interpreter: Python 3.13 on PATH (has typesafe-sdk 0.7.1); each fault runs its
+test module in a fresh temporary copy of the package. Outputs below are copied verbatim from the
+tool's captured stdout (the sandbox refuses shell redirection into this folder).
+
+----- python -B validation/planted_faults.py --check-only  (after fixing one fault's indentation) -----
+52 of 52 faults can be planted   (full per-fault list printed; every line "plantable")
+
+----- python -B validation/planted_faults.py --only "jev:" "verify:" "setup:" -----
+caught       jev: critical question dropped (tests.test_jev: FAILED (errors=1))
+caught       jev: missing answers accepted (tests.test_jev: FAILED (failures=1))
+caught       jev: facts sent with their sources (tests.test_jev: FAILED (failures=2))
+caught       jev: code in questions not checked (tests.test_jev: FAILED (failures=1))
+caught       jev: a stray .claude folder moves the root (tests.test_jev: FAILED (failures=1))
+caught       jev: SDK retries left at their default (tests.test_jev: FAILED (failures=1))
+caught       jev: no in-flight state, so a crashed call can be asked again (tests.test_jev: FAILED (failures=2))
+caught       jev: an interrupt during the call is not recorded (tests.test_jev: FAILED (errors=1))
+caught       jev: a brief edited after open is accepted (tests.test_jev: FAILED (failures=1))
+caught       jev: facts nested in the state are accepted (tests.test_jev: FAILED (failures=1))
+caught       verify: supported threshold lowered (tests.test_verify: FAILED (failures=2))
+caught       verify: quotes off their page sent to Jev (tests.test_verify: FAILED (failures=2))
+caught       verify: failed pages refetched on resume (tests.test_verify: FAILED (failures=1))
+caught       verify: adversarial ellipsis pieces accepted (tests.test_verify: FAILED (failures=2))
+caught       verify: pieces matched inside other words (tests.test_verify: FAILED (failures=2))
+caught       verify: an interrupted Jev batch is asked again on rerun (tests.test_verify: FAILED (failures=1))
+caught       verify: a page in a wrong or unknown charset is read as garbage (tests.test_verify: FAILED (failures=1))
+SURVIVED     verify: a truncated page counts as 'quote not on its page' (tests.test_verify: ['OK'])
+caught       verify: changed inputs resume silently (tests.test_verify: FAILED (failures=1))
+caught       verify: snapshot files outside the run folder accepted (tests.test_verify: FAILED (failures=2))
+caught       verify: the connection follows a second DNS answer (tests.test_verify: FAILED (failures=1, errors=2))
+caught       setup: success claimed without plugin list showing it enabled (tests.test_setup: FAILED (failures=2))
+caught       setup: marketplace add's name falls back silently (tests.test_setup: FAILED (failures=1))
+caught       setup: a hung command's process tree is left running (tests.test_setup: FAILED (errors=1))
+caught       setup: parent folder accepted as source (tests.test_setup: FAILED (failures=16))
+caught       setup: rules skill may be invoked implicitly (tests.test_setup: FAILED (failures=15))
+25 of 26 planted faults caught
+
+The survivor was a real test gap: truncation was tested only at the fetch level, not through to
+the verdict. Added tests.test_verify.Check.test_a_quote_missing_from_a_truncated_page_stays_unconfirmed.
+
+----- python -B validation/planted_faults.py --only "verify: a truncated" -----
+caught       verify: a truncated page counts as 'quote not on its page' (tests.test_verify: FAILED (failures=1))
+1 of 1 planted faults caught
+
+----- python -B validation/planted_faults.py --only <first 13 Claude faults> -----
+caught       claude: a failed unconfirmed attempt is promoted to a confirmed id (tests.test_claude_session: FAILED (failures=6))
+caught       claude: an id without a delivered turn counts as confirmed (tests.test_claude_session: FAILED (failures=4))
+caught       claude: rules not re-required before a delivered turn (tests.test_claude_session: FAILED (failures=1))
+caught       claude: a follow-up starts a new conversation (tests.test_claude_session: FAILED (failures=5))
+caught       claude: technical mode may write (tests.test_claude_session: FAILED (failures=9))
+caught       claude: code mode pre-approves writes anywhere (bare Edit) (tests.test_claude_session: FAILED (failures=2))
+caught       claude: .git/.claude/.codex edits not denied (tests.test_claude_session: FAILED (failures=1))
+caught       claude: permission mode left to user settings (tests.test_claude_session: FAILED (failures=2))
+caught       claude: init permission mode not checked (tests.test_claude_session: FAILED (failures=5))
+caught       claude: init apiKeySource not checked (tests.test_claude_session: FAILED (failures=4))
+caught       claude: provider environment inherited (tests.test_claude_session: FAILED (failures=1))
+caught       claude: a missing or late init is accepted (tests.test_claude_session: FAILED (failures=2))
+caught       claude: starting model not checked (tests.test_claude_session: FAILED (failures=3))
+13 of 13 planted faults caught

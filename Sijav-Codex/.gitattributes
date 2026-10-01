@@ -1,0 +1,3 @@
+validation/*.txt -text whitespace=-trailing-space
+skills/todo/dashboard/test-output.txt -text whitespace=-trailing-space
+implementation-test-results.txt -text whitespace=-trailing-space

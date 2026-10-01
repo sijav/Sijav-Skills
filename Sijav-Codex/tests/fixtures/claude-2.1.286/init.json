@@ -1,0 +1,24 @@
+{
+  "_source": "Public fields of the real system/init event Claude Code 2.1.286 printed on 2026-10-01 for a technical-mode call of claude_session.py in a disposable TEMP fixture (run 20261001T040836159121Z-g1-8f083e). The cwd and session_id are placeholders the fake fills in; plugin paths were dropped and the long slash_commands/skills lists shortened. Nothing private is kept.",
+  "_argv_of_that_call": ["-p", "--model", "claude-opus-5-5", "--effort", "high", "--safe-mode", "--strict-mcp-config", "--input-format", "text", "--output-format", "stream-json", "--verbose", "--permission-prompts", "none", "--session-id", "<uuid>", "--tools", "Read,Glob,Grep,WebFetch", "--allowedTools", "Read", "Glob", "Grep", "WebFetch", "--disallowedTools", "Write", "Edit", "NotebookEdit", "Bash", "PowerShell"],
+  "event": {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "<cwd>",
+    "session_id": "<uuid>",
+    "tools": ["Glob", "Grep", "Read", "WebFetch"],
+    "mcp_servers": [],
+    "model": "claude-opus-5-5",
+    "permissionMode": "default",
+    "slash_commands": ["deep-research", "design", "dataviz", "update-config"],
+    "apiKeySource": "none",
+    "claude_code_version": "2.1.286",
+    "output_style": "default",
+    "agents": ["claude", "Explore", "general-purpose", "Plan"],
+    "skills": ["deep-research", "design", "dataviz", "update-config"],
+    "plugins": [{"name": "figma", "source": "figma@claude-plugins-official", "version": "2.2.120"}],
+    "fast_mode_state": "off"
+  },
+  "_later_smokes": "Runs 20261001T050034 and 20261001T050401 (same TEMP fixture, same session id) used the argv with --permission-mode manual, WebFetch as the only pre-approval and the deny rules; their init reported permissionMode default, tools [Glob, Grep, Read, WebFetch], apiKeySource none, mcp_servers [] and eight installed plugin names; the 05:04 result had num_turns 2 and permission_denials []. --restricted and --disable-slash-commands were added after these runs and are pinned here only by the 2.1.286 help.",
+  "_observed_later_events": "a top-level assistant event (parent_tool_use_id null, message.model claude-opus-5-5), a rate_limit_event, then a result event (subtype success, is_error false, num_turns 1, modelUsage keyed claude-opus-5-5, terminal_reason completed). The resumed call reported the same session id in every event."
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sijav Loop"
+  short_description: "Owner-started project loop on native hooks"
+
+policy:
+  allow_implicit_invocation: false
