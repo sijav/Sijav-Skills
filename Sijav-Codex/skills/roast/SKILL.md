@@ -180,12 +180,12 @@ testing rule through `$sijav-codex-dev-round`.
   work. Other failures keep their exact cause and log path. Nothing is retried
   merely to change an inconvenient answer.
 
-On October 1, 2026 two real technical-mode calls through `claude/claude_session.py`
-(Claude Code 2.1.286, a disposable TEMP project) both succeeded and kept one
+On October 1, 2026 five real technical-mode calls through `claude/claude_session.py`
+(Claude Code 2.1.286, a disposable TEMP project) succeeded and kept one
 conversation: the CLI reported `claude-opus-5-5`, only Glob, Grep, Read and
-WebFetch, the normal permission mode and its own sign-in. Failure, unconfirmed,
-interrupted and code-mode paths are tested offline with a fake CLI pinned to
-that version's help and init. `jev.py` is tested against the real
+WebFetch, the normal permission mode and its own sign-in. A live code-mode check
+passed too (see `$sijav-codex-agents`). Failure, unconfirmed and interrupted
+paths are tested offline with a fake CLI pinned to that version's help and init. `jev.py` is tested against the real
 typesafe-sdk 0.7.1 through a local, in-process transport and with a fake SDK
 for every failure path. No live Jev call has been made. The service, the key
 and model access are confirmed only when a real call runs.

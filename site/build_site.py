@@ -16,13 +16,14 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SK = REPO / "Sijav-Clauder" / "skills"
+CODEX_SK = REPO / "Sijav-Codex" / "skills"
 OUT = REPO / "docs" / "index.html"
 SITE = "https://sijav.github.io/Sijav-Skills/"
 SOURCE = "https://github.com/sijav/Sijav-Skills"
 DESCRIPTION = (
-    "Eight Claude Code skills that work in any project: rule sets that load only when "
-    "called, a dev round, codex sessions, web search and deep research with checked citations, "
-    "roasts judged by jev, a loop and a to-do board."
+    "Eight skills that work in any project, for Claude Code and for Codex: rule sets that load only "
+    "when called, a dev round, codex sessions or native agents, web search and deep research with "
+    "checked citations, roasts judged by jev, a loop, and a to-do board with a read-only dashboard."
 )
 
 FORBIDDEN = {
@@ -165,16 +166,41 @@ SKILLS = [
 ]
 
 
-def skills_table() -> str:
-    missing = [s for s, *_ in SKILLS if not (SK / s / "SKILL.md").is_file()]
-    extra = sorted(p.parent.name for p in SK.glob("*/SKILL.md") if p.parent.name not in {s for s, *_ in SKILLS})
+def skills_table(skills=None, folder=None) -> str:
+    skills, folder = skills or SKILLS, folder or SK
+    missing = [s for s, *_ in skills if not (folder / s / "SKILL.md").is_file()]
+    extra = sorted(p.parent.name for p in folder.glob("*/SKILL.md") if p.parent.name not in {s for s, *_ in skills})
     if missing or extra:
-        raise SystemExit(f"the page's skill list is out of date: missing folders {missing}, unlisted skills {extra}")
+        raise SystemExit(f"the page's skill list for {folder.parent.name} is out of date: missing folders {missing},"
+                         f" unlisted skills {extra}")
     rows = "".join(f'<tr><td class="skill">{s}</td><td>{inline(w)}</td><td>{inline(when)}</td>'
                    f'<td class="cmd">{"<br>".join(f"<code>{html.escape(c.strip())}</code>" for c in call.split("·"))}</td></tr>'
-                   for s, w, when, call in SKILLS)
+                   for s, w, when, call in skills)
     return ('<div class="tablewrap"><table><thead><tr><th>Skill</th><th>What it does</th><th>When it loads</th>'
             f'<th>How you call it</th></tr></thead><tbody>{rows}</tbody></table></div>')
+
+
+# The same eight skills in the Codex plugin. Codex calls a plugin skill by its name with a $.
+CODEX_SKILLS = [
+    ("rules", "The same rule sets, read from the same files: general, dev and design, plus the project's own set.",
+     "Only when you call it", "$sijav-codex-rules · $sijav-codex-rules dev · $sijav-codex-rules design"),
+    ("dev-round", "The same three passes: build, then test, then test as a real user. Claude writes the code and the "
+                  "tests.", "When you call it or load the dev rules", "$sijav-codex-dev-round"),
+    ("agents", "Hands each job to its owner: non-code work to Codex's own agents on the right model and effort, code "
+               "and code review to Claude through its helper. It takes the place of the codex skill.",
+     "When work is handed out", "$sijav-codex-agents"),
+    ("search", "One plain web search by a fresh Codex agent on luna at low effort, answered in a few sentences with "
+               "its links.", "When a fact, a version or a doc page is needed", "$sijav-codex-search"),
+    ("research", "Deep research by Codex agents on astra: questions and a plan you approve, searches side by side, gap "
+                 "rounds, one report, and every quote checked on its page, then judged by jev.",
+     "When a question needs many sources", "$sijav-codex-research"),
+    ("roast", "Failing scenarios for a plan or finished work: Claude reviews the code, a Codex agent frames the logic, "
+              "jev judges it, and Codex decides each finding.", "When a check is wanted", "$sijav-codex-roast"),
+    ("loop", "Starts or resumes the project's loop on Codex's own Stop and compaction hooks, following the project's "
+             "law.", "Only when you call it", "$sijav-codex-loop"),
+    ("todo", "The project's board, the same small database, and its read-only dashboard in the browser.",
+     "In projects that have a board", "$sijav-codex-todo"),
+]
 
 
 TEMPLATE = r"""<title>Skills on Call</title>
@@ -284,19 +310,19 @@ a { color: var(--accent); }
 
 <div class="wrap">
 <header>
-  <p class="eyebrow">Claude Code plugin · sijav-clauder · any project</p>
+  <p class="eyebrow">Claude Code and Codex plugins · sijav-clauder · sijav-codex · any project</p>
   <h1>Skills on Call</h1>
-  <p class="lede">Eight skills that work in any project. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up.</p>
+  <p class="lede">Eight skills that work in any project, in Claude Code and in Codex. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up. Both plugins can work on the same project, sharing its board, its rules and its loop's law.</p>
 </header>
 <nav class="toc" aria-label="Sections">
-  <a href="#skills">Skills</a><a href="#loading">Rule loading</a><a href="#rules">Rule sets</a>
-  <a href="#loop">Loop</a><a href="#roast">Roast</a><a href="#codex">Codex</a><a href="#research">Research</a><a href="#todo">Board</a>
-  <a href="#project">Your project</a><a href="#setup">Setup</a><a href="#install">Install</a><a href="#change">Changing a rule</a>
+  <a href="#skills">Skills</a><a href="#loading">Rules</a><a href="#loop">Loop</a><a href="#roast">Roast</a><a href="#codex">Codex</a>
+  <a href="#research">Research</a><a href="#todo">Board</a><a href="#setup">Setup</a><a href="#on-codex">On Codex</a>
+  <a href="#dashboard">Dashboard</a><a href="#shared">Both</a><a href="#change">Changing a rule</a>
 </nav>
 
 <section id="skills">
   <h2>The eight skills</h2>
-  <p>They ship as one Claude Code plugin, <code>sijav-clauder</code>, from a folder that is its own git repository. Plugin skills are called with the plugin's name first. None of them holds a project's rules, names or paths; each project keeps those itself.</p>
+  <p>They ship as one Claude Code plugin, <code>sijav-clauder</code>, from a folder that is its own git repository. Plugin skills are called with the plugin's name first. None of them holds a project's rules, names or paths; each project keeps those itself. The same eight skills for Codex are in <a href="#on-codex">their own section</a>.</p>
   {{SKILLS_TABLE}}
 </section>
 
@@ -630,6 +656,235 @@ a { color: var(--accent); }
   <p>Claude Code keeps its own copy of an installed plugin, every file in the plugin's folder included, so keep keys outside it. After changing the skills in a clone, raise the plugin's version and run the update.</p>
 </section>
 
+<section id="on-codex">
+  <h2>The same skills on Codex</h2>
+  <p>The repository also holds <code>sijav-codex</code>: the same eight skills as a native Codex plugin, in its <code>Sijav-Codex</code> folder. Codex runs the work and hands each job to its owner. Claude Opus 5.5 alone writes code and tests and reviews code; Codex's own agents do the rest of the delegated work; jev judges logic, never code.</p>
+  <figure>
+    <div class="figwrap">
+      <svg viewBox="0 0 960 330" role="img" aria-label="Codex runs the work and hands each job to its owner: Codex's own agents for search, research, prose and logic; Claude Opus 5.5, through its helper, for code, tests and code review; jev, through its helper, for code-free questions and citations; and the helpers for quote checks, the loop's hooks and the board.">
+        <defs>
+          <marker id="f5-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <rect x="16" y="133" width="150" height="64" rx="8" class="bx-accent"/>
+        <text x="91" y="160" text-anchor="middle" class="t">You</text>
+        <text x="91" y="179" text-anchor="middle" class="ts">ask, approve, decide</text>
+        <path d="M166,165 H206" class="ln" marker-end="url(#f5-ah)"/>
+        <rect x="210" y="103" width="240" height="124" rx="8" class="bx-codex"/>
+        <text x="330" y="134" text-anchor="middle" class="tb">Codex runs the work</text>
+        <text x="330" y="158" text-anchor="middle" class="ts">plans and keeps the records</text>
+        <text x="330" y="177" text-anchor="middle" class="ts">follows the board's next pick</text>
+        <text x="330" y="196" text-anchor="middle" class="ts">decides each finding</text>
+        <path d="M450,165 H482 V48 H516" class="ln" marker-end="url(#f5-ah)"/>
+        <path d="M450,165 H482 V126 H516" class="ln" marker-end="url(#f5-ah)"/>
+        <path d="M450,165 H482 V204 H516" class="ln" marker-end="url(#f5-ah)"/>
+        <path d="M450,165 H482 V282 H516" class="ln" marker-end="url(#f5-ah)"/>
+        <rect x="520" y="16" width="424" height="64" rx="8" class="bx-codex"/>
+        <text x="540" y="43" class="t">Codex's own agents</text>
+        <text x="540" y="63" class="ts">search on luna, research on astra, prose and logic on 6.1 sol</text>
+        <rect x="520" y="94" width="424" height="64" rx="8" class="bx-accent"/>
+        <text x="540" y="121" class="t">Claude Opus 5.5, through claude_session.py</text>
+        <text x="540" y="141" class="ts">writes the code and its tests, reviews code</text>
+        <rect x="520" y="172" width="424" height="64" rx="8" class="bx-judge"/>
+        <text x="540" y="199" class="t">jev, through jev.py</text>
+        <text x="540" y="219" class="ts">judges code-free questions and each citation</text>
+        <rect x="520" y="250" width="424" height="64" rx="8" class="bx-tool"/>
+        <text x="540" y="277" class="t">The helpers</text>
+        <text x="540" y="297" class="ts">quote checks, the loop's hooks, the board tools</text>
+      </svg>
+    </div>
+    <figcaption>Who does what on Codex. Codex never writes or reviews code; Claude does, through its helper. Jev only ever sees logic in plain words.</figcaption>
+  </figure>
+  {{CODEX_SKILLS_TABLE}}
+  <ul>
+    <li><strong>Claude is never replaced.</strong> When Claude is switched off, out of allowance or postponed by you, its code and code reviews wait. Codex does not take them over, and no other model is tried.</li>
+    <li><strong>Each agent on its model.</strong> Plain work runs on <code>gpt-6.1-sol</code> at medium effort, a web search on <code>gpt-6-luna</code> at low, research on <code>gpt-6-astra</code> at high, or xhigh for R&amp;D. When a runtime's spawn tool cannot pick the model, the four example agent profiles in <code>skills/agents/profiles</code> pin it.</li>
+    <li><strong>Lines of work are kept.</strong> Each purpose keeps one conversation: a Codex agent per purpose, and one Claude conversation per purpose, resumed by its exact id.</li>
+    <li><strong>Everything is recorded in the project</strong>, under <code>.codex</code>: agent briefs and replies, every Claude call with its prompt and raw output, roasts, research runs and the loop's state.</li>
+  </ul>
+</section>
+
+<section id="codex-loop">
+  <h2>The loop on Codex</h2>
+  <p>Codex has its own hooks, so the loop works the same way. After each turn, Codex's Stop hook gives the project's law back as the next prompt until the work is done; after a compaction, its SessionStart hook reloads the whole law before the next request. The loop keeps its own state in <code>.codex/sijav-loop/state.json</code>: the one claimed session, the counter, the cap and the exact finish promise. The law itself is only read.</p>
+  <figure>
+    <div class="figwrap">
+      <svg viewBox="0 0 960 636" role="img" aria-label="After every turn Codex's Stop hook asks six questions in order: is a loop armed here or above, is this the claimed session, is the loop active, did the reply end with the promise, is there a pause file, has the counter hit its cap. Any exit lets the session stop; otherwise the law comes back as the next prompt.">
+        <defs>
+          <marker id="f6-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+          <marker id="f6-ahh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-hot"/></marker>
+        </defs>
+        <rect x="120" y="16" width="280" height="44" rx="22" class="bx-codex"/>
+        <text x="260" y="43" text-anchor="middle" class="t">Codex finishes a turn</text>
+        <path d="M260,60 V82" class="ln" marker-end="url(#f6-ah)"/>
+        <rect x="100" y="84" width="320" height="46" rx="6" class="bx"/>
+        <text x="260" y="112" text-anchor="middle" class="t">Is a loop armed here or above?</text>
+        <path d="M260,130 V162" class="ln" marker-end="url(#f6-ah)"/><text x="270" y="152" class="ts">yes</text>
+        <rect x="100" y="164" width="320" height="46" rx="6" class="bx"/>
+        <text x="260" y="192" text-anchor="middle" class="t">Is it the claimed session?</text>
+        <path d="M260,210 V242" class="ln" marker-end="url(#f6-ah)"/><text x="270" y="232" class="ts">yes</text>
+        <rect x="100" y="244" width="320" height="46" rx="6" class="bx"/>
+        <text x="260" y="272" text-anchor="middle" class="t">Is the loop active?</text>
+        <path d="M260,290 V322" class="ln" marker-end="url(#f6-ah)"/><text x="270" y="312" class="ts">yes</text>
+        <rect x="100" y="324" width="320" height="46" rx="6" class="bx"/>
+        <text x="260" y="352" text-anchor="middle" class="t">Did the reply end with the promise?</text>
+        <path d="M260,370 V402" class="ln" marker-end="url(#f6-ah)"/><text x="270" y="392" class="ts">no</text>
+        <rect x="100" y="404" width="320" height="46" rx="6" class="bx"/>
+        <text x="260" y="432" text-anchor="middle" class="t">Is there a pause file?</text>
+        <path d="M260,450 V482" class="ln" marker-end="url(#f6-ah)"/><text x="270" y="472" class="ts">no</text>
+        <rect x="100" y="484" width="320" height="46" rx="6" class="bx"/>
+        <text x="260" y="512" text-anchor="middle" class="t">Has the counter hit its cap?</text>
+        <path d="M260,530 V562" class="ln" marker-end="url(#f6-ah)"/><text x="270" y="552" class="ts">no</text>
+        <rect x="100" y="564" width="320" height="56" rx="8" class="bx-hot"/>
+        <text x="260" y="587" text-anchor="middle" class="t th">The stop is blocked</text>
+        <text x="260" y="606" text-anchor="middle" class="ts">the law comes back as the next prompt</text>
+        <path d="M100,592 H56 V38 H116" class="ln-hot" marker-end="url(#f6-ahh)"/>
+        <text x="44" y="315" text-anchor="middle" transform="rotate(-90 44 315)" class="ts th">Codex works on it; this runs again</text>
+        <rect x="560" y="36" width="384" height="506" rx="10" class="panel-ok"/>
+        <text x="752" y="64" text-anchor="middle" class="tb">The session may stop</text>
+        <path d="M420,107 H556" class="ln" marker-end="url(#f6-ah)"/><text x="488" y="100" text-anchor="middle" class="ts">no</text>
+        <text x="580" y="104" class="t">Not armed here</text><text x="580" y="122" class="ts">the hook does nothing</text>
+        <path d="M420,187 H556" class="ln" marker-end="url(#f6-ah)"/><text x="488" y="180" text-anchor="middle" class="ts">no</text>
+        <text x="580" y="184" class="t">Another session or a spawned agent</text><text x="580" y="202" class="ts">stops normally; it never gets the law</text>
+        <path d="M420,267 H556" class="ln" marker-end="url(#f6-ah)"/><text x="488" y="260" text-anchor="middle" class="ts">no</text>
+        <text x="580" y="264" class="t">Paused, stopped or finished</text><text x="580" y="282" class="ts">set by the loop's own commands</text>
+        <path d="M420,347 H556" class="ln" marker-end="url(#f6-ah)"/><text x="488" y="340" text-anchor="middle" class="ts">yes</text>
+        <text x="580" y="344" class="t">The loop is complete</text><text x="580" y="362" class="ts">only the reply's last line counts</text>
+        <path d="M420,427 H556" class="ln" marker-end="url(#f6-ah)"/><text x="488" y="420" text-anchor="middle" class="ts">yes</text>
+        <text x="580" y="424" class="t">Paused, Claude's loop too</text><text x="580" y="442" class="ts">the shared .stop file</text>
+        <path d="M420,507 H556" class="ln" marker-end="url(#f6-ah)"/><text x="488" y="500" text-anchor="middle" class="ts">yes</text>
+        <text x="580" y="504" class="t">The cap is reached</text><text x="580" y="522" class="ts">this is not completion</text>
+      </svg>
+    </div>
+    <figcaption>What Codex's Stop hook checks after every turn, in this order. After a compaction, the SessionStart hook gives the whole law back before the next request, to the claimed session only.</figcaption>
+  </figure>
+  <h3>Working with it</h3>
+  <ul>
+    <li><strong>Start:</strong> type <code>$sijav-codex-loop</code> in the Codex session that should do the work. It claims that session through Codex's own ids, so another session or a spawned agent is never continued.</li>
+    <li><strong>Pause:</strong> <code>sijav_loop.py pause --reason "..."</code> makes the project's <code>.stop</code>, the same file that pauses Claude's loop, and records the pause. Only you ask for a pause.</li>
+    <li><strong>Resume, stop, status:</strong> <code>resume</code> goes on with the same counter, <code>stop</code> ends the run, and <code>status</code> shows the owner, the counter and any pause file.</li>
+    <li><strong>Finish:</strong> only the last line of the final reply counts, exactly <code>&lt;promise&gt;VALUE&lt;/promise&gt;</code>, outside any code block. Reaching the cap is not finishing.</li>
+    <li><strong>Trust the hooks once:</strong> in Codex, open <code>/hooks</code> and trust the plugin's Stop and SessionStart handlers one at a time. The setup never trusts them for you.</li>
+  </ul>
+  <p class="note">Proved live on Codex 0.159.3 in a throwaway project: continuations until the promise, the cap reached without finishing, and the whole law back after a manual compaction. Not yet seen live: a compaction in the middle of a turn, and a loop session that spawns agents, where only Codex's thread ids keep an agent from being continued.</p>
+</section>
+
+<section id="claude-caller">
+  <h2>Claude as the coder</h2>
+  <p>On Codex, Claude's code and code reviews go through one helper, <code>claude_session.py</code>. It keeps one Claude conversation per purpose, so each line of work keeps its context. It holds no login: Claude Code signs in by itself.</p>
+  <ul>
+    <li><strong>One model:</strong> always <code>claude-opus-5-5</code>, at the effort asked for. No other model, no fallback, no retry.</li>
+    <li><strong>Locked down:</strong> safe mode (no project CLAUDE.md, hooks, skills or MCP), restricted mode (no project settings can widen it), no slash commands, and no permission prompts: anything that would ask is refused.</li>
+    <li><strong>Two modes:</strong> <code>code</code> reads and edits inside the project and runs only the commands you name, such as <code>Bash(python -m unittest *)</code>; <code>technical</code> only reads and fetches web pages. Both refuse to read keys, <code>.env</code> files and other secrets.</li>
+    <li><strong>Checked before it acts:</strong> Claude's first event must show the exact model, only the tools offered, its own sign-in and the project as its folder. Anything else stops it there.</li>
+    <li><strong>The law goes along:</strong> safe mode loads no CLAUDE.md, so a purpose's first call carries the project's law.</li>
+    <li><strong>Recorded:</strong> each call keeps its prompt, the command, the raw output and the result in the project.</li>
+  </ul>
+</section>
+
+<section id="dashboard">
+  <h2>The board's dashboard</h2>
+  <p>A read-only web page for a project's board, the same <code>.claude/todo.db</code> both plugins use. It shows what is in progress, what the board tool picks next and in what order, what was done, every task's full record, and each change as it happens. It never writes the board and never starts work.</p>
+  <figure>
+    <div class="figwrap">
+      <svg viewBox="0 0 960 250" role="img" aria-label="The dashboard reads the board read-only on each change and pushes it live to your browser. The next order comes from the board tool's own picker, run on a throwaway copy of the board. The change history is kept in your user cache folder.">
+        <defs>
+          <marker id="f7-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <rect x="16" y="40" width="210" height="64" rx="8" class="bx"/>
+        <text x="121" y="67" text-anchor="middle" class="t">The board</text>
+        <text x="121" y="87" text-anchor="middle" class="tm tm-s">.claude/todo.db</text>
+        <path d="M226,72 H336" class="ln" marker-end="url(#f7-ah)"/>
+        <text x="281" y="62" text-anchor="middle" class="ts">read only</text>
+        <text x="281" y="90" text-anchor="middle" class="ts">each change</text>
+        <rect x="340" y="40" width="280" height="64" rx="8" class="bx-accent"/>
+        <text x="480" y="67" text-anchor="middle" class="t">The dashboard</text>
+        <text x="480" y="87" text-anchor="middle" class="ts">Node, on this machine only</text>
+        <path d="M620,72 H730" class="ln" marker-end="url(#f7-ah)"/>
+        <text x="675" y="62" text-anchor="middle" class="ts">pushed live</text>
+        <rect x="734" y="40" width="210" height="64" rx="8" class="bx"/>
+        <text x="839" y="67" text-anchor="middle" class="t">Your browser</text>
+        <text x="839" y="87" text-anchor="middle" class="ts">report, board, changes, Relax</text>
+        <path d="M121,104 V192 H336" class="ln" marker-end="url(#f7-ah)"/>
+        <text x="230" y="184" text-anchor="middle" class="ts">a throwaway copy</text>
+        <rect x="340" y="160" width="280" height="64" rx="8" class="bx-tool"/>
+        <text x="480" y="187" text-anchor="middle" class="t">The board tool's own picker</text>
+        <text x="480" y="207" text-anchor="middle" class="ts">todo.py, run on the copy</text>
+        <path d="M480,160 V108" class="ln" marker-end="url(#f7-ah)"/>
+        <text x="490" y="138" class="ts">the next order</text>
+        <path d="M620,92 H677 V192 H730" class="ln" marker-end="url(#f7-ah)"/>
+        <text x="686" y="150" class="ts">kept</text>
+        <rect x="734" y="160" width="210" height="64" rx="8" class="bx"/>
+        <text x="839" y="187" text-anchor="middle" class="t">Change history</text>
+        <text x="839" y="207" text-anchor="middle" class="ts">your user cache folder</text>
+      </svg>
+    </div>
+    <figcaption>Where the dashboard's data comes from. The board is only ever read; the next order is the board tool's own, worked out on a copy; the change history stays in your user folder.</figcaption>
+  </figure>
+  <h3>How to work with it</h3>
+  <ol>
+    <li>It needs Node 22.16 or newer on the 22 line, or Node 24 or newer, and Python 3.9 or newer for the board tool's order.</li>
+    <li>Install its one dependency once, inside its own folder: <code>npm ci --omit=dev --prefix "&lt;todo skill&gt;/dashboard"</code>. The Codex setup does the same with <code>--dashboard-deps</code>.</li>
+    <li>Start it on a project: <code>node "&lt;todo skill&gt;/dashboard/server.mjs" --project "&lt;project&gt;" --port 8765</code>, then open the address it prints. Without <code>--port</code> it takes a free port, which changes on every start.</li>
+    <li>Read it. <strong>Full report</strong> is the overview. <strong>Full board</strong> lists the tasks in the board tool's own next order. <strong>Changes</strong> shows each change with its fields before and after. <strong>Database records</strong> shows every stored row. Click a task for its full record. <strong>Relax mode</strong> is a calm full-screen view of the current and the next work.</li>
+    <li>Leave it open: it updates by itself when the board changes, with no reload. <strong>Pause</strong> holds the view; <strong>Export full data</strong> saves everything as one file.</li>
+    <li>Stop it with Ctrl+C.</li>
+  </ol>
+  <p>To try it without a real board, <code>node "&lt;todo skill&gt;/dashboard/tests/demo-fixture.mjs" --port 8765</code> builds a throwaway board in the system's temp folder and prints commands that change it while you watch. Ctrl+C deletes it.</p>
+  <ul>
+    <li><strong>Read only:</strong> the board is opened read-only, and the next order comes from the board tool's own code, run on a throwaway copy. It never creates a board where none exists.</li>
+    <li><strong>Local only:</strong> it listens on this machine alone and answers only its own page.</li>
+    <li><strong>Done is not tested:</strong> tested and e2e tested come only from the board's own fields; a board without them shows "not recorded".</li>
+    <li><strong>History:</strong> the changes it sees are kept in your user cache folder, never in the project.</li>
+    <li>It ships with the Codex plugin and works for any project with a board, Claude's too.</li>
+  </ul>
+</section>
+
+<section id="shared">
+  <h2>Claude and Codex on one project</h2>
+  <p>Both plugins can work on the same project. They share the project's files and its law, and keep their own records apart.</p>
+  <div class="tablewrap"><table><thead><tr><th>In the project</th><th>Claude (sijav-clauder)</th><th>Codex (sijav-codex)</th></tr></thead><tbody>
+    <tr><td>The board, <code>.claude/todo.db</code></td><td>the board tools</td><td>the same tools, byte for byte, and the dashboard</td></tr>
+    <tr><td>The rules, <code>.claude/rulesets</code></td><td>read by the rules skill</td><td>read by the rules skill</td></tr>
+    <tr><td>The loop's law</td><td>keeps its session and counter in the law's front matter</td><td>only reads the law; its own state is in <code>.codex/sijav-loop</code></td></tr>
+    <tr><td>The pause file, <code>.stop</code></td><td>pauses Claude's loop</td><td>pauses Codex's loop too</td></tr>
+    <tr><td>Records</td><td>under <code>.claude</code>: codex sessions, roasts</td><td>under <code>.codex</code>: agents, Claude calls, roasts, research, the loop</td></tr>
+  </tbody></table></div>
+  <ul>
+    <li><strong>One loop at a time.</strong> Each loop continues only its own session, but two sessions working one board can undo each other's changes.</li>
+    <li><strong>A Claude cap is not a Codex cap.</strong> A Claude law may say <code>max_iterations: 0</code> for no limit. Codex needs a real number, so give it <code>--max-iterations</code>. The finish promise can come from the law with <code>--promise-from-law</code>.</li>
+    <li><strong>Clearing the pause clears both.</strong> When the law names a Claude session, Codex clears <code>.stop</code> only with <code>--clear-sentinels --clear-claude-pause</code>, and only when you ask, because that resumes the Claude loop too. A cleared pause file is moved aside, not deleted.</li>
+  </ul>
+  <p class="note">Checked offline on a throwaway project shared by both: the two board tools give the same next pick; Codex takes the promise from the Claude law, sends back the law's body without its front matter and never writes the law; the shared pause file holds it; and clearing that file needs both flags.</p>
+</section>
+
+<section id="codex-setup">
+  <h2>Install on Codex</h2>
+  <p>The Codex plugin installs from its own folder in a clone of this repository, through Codex's own plugin commands. Installing starts nothing: no loop, no dashboard and no model call.</p>
+  <h3>What it needs</h3>
+  <ul>
+    <li>The Codex command line, 0.159 or newer, signed in by you.</li>
+    <li>Python 3.9 or newer for every helper, and Node 22.13 or newer for <code>todo.mjs</code>; the dashboard's Node is above.</li>
+    <li>For Claude's work: the Claude Code command line on your PATH, signed in by you.</li>
+    <li>For jev: <code>typesafe-sdk</code> 0.7.x on Python 3.10 or newer, and the key in a file outside the plugin, named by <code>SIJAV_JEV_KEY_FILE</code> (else <code>TYPESAFE_API_KEY</code>).</li>
+  </ul>
+  <h3>Steps</h3>
+  <ol>
+    <li>Clone the repository.</li>
+    <li>Check the package; this changes nothing: <code>python "&lt;clone&gt;/Sijav-Codex/tools/sijav_codex_setup.py"</code>.</li>
+    <li>Install by adding <code>--install</code>. It runs <code>codex plugin marketplace add</code> on the package folder, <code>codex plugin add sijav-codex@sijav-codex-local</code> and <code>codex plugin list</code>, and checks each answer.</li>
+    <li>If you like, copy the example agent profiles from <code>skills/agents/profiles</code> into a project's <code>.codex/agents</code> folder, or the one in your home folder, for a spawn tool that cannot pick a model.</li>
+    <li>Before the first loop, trust the plugin's two hooks in Codex's <code>/hooks</code> screen, one handler at a time.</li>
+    <li>After pulling a newer version, run <code>codex plugin add sijav-codex@sijav-codex-local</code> again.</li>
+  </ol>
+  <h3>Switches</h3>
+  <p>Set these before starting Codex. <code>off</code>, <code>0</code>, <code>false</code> or <code>no</code> switches a service off; no setting leaves it on.</p>
+  <ul>
+    <li><code>SIJAV_CLAUDE=off</code>: no Claude call; code and code reviews wait.</li>
+    <li><code>SIJAV_JEV=off</code>: no jev call; the roast and the citation check say jev did not judge.</li>
+    <li><code>SIJAV_CODEX=off</code>: no Codex agents are started; Codex does the non-code work itself and says so.</li>
+  </ul>
+</section>
+
 <section id="change">
   <h2>Changing a rule</h2>
   {{CHANGING}}
@@ -731,6 +986,39 @@ sequenceDiagram
   Note over K: fetches each cited page and looks for the quote on it<br/>then jev judges whether the quote supports the claim
   K->>C: the report and its citation check
 """,
+    "on-codex": """
+flowchart LR
+  Y["You<br/>ask, approve, decide"] --> C["Codex runs the work<br/>plans and keeps the records<br/>follows the board's next pick<br/>decides each finding"]
+  C --> A["Codex's own agents<br/>search on luna, research on astra,<br/>prose and logic on 6.1 sol"]
+  C --> L["Claude Opus 5.5, through claude_session.py<br/>writes the code and its tests, reviews code"]
+  C --> J["jev, through jev.py<br/>judges code-free questions and each citation"]
+  C --> H["The helpers<br/>quote checks, the loop's hooks, the board tools"]
+""",
+    "codex-loop": """
+flowchart TD
+  A(["Codex finishes a turn"]) --> B{"Is a loop armed here or above?"}
+  B -->|no| B1["Not armed here<br/>the hook does nothing"]
+  B -->|yes| C{"Is it the claimed session?"}
+  C -->|no| C1["Another session or a spawned agent<br/>stops normally; it never gets the law"]
+  C -->|yes| D{"Is the loop active?"}
+  D -->|no| D1["Paused, stopped or finished<br/>set by the loop's own commands"]
+  D -->|yes| E{"Did the reply end with the promise?"}
+  E -->|yes| E1["The loop is complete<br/>only the reply's last line counts"]
+  E -->|no| F{"Is there a pause file?"}
+  F -->|yes| F1["Paused, Claude's loop too<br/>the shared .stop file"]
+  F -->|no| G{"Has the counter hit its cap?"}
+  G -->|yes| G1["The cap is reached<br/>this is not completion"]
+  G -->|no| H["The stop is blocked<br/>the law comes back as the next prompt"]
+  H -->|Codex works on it, and this runs again| A
+""",
+    "dashboard": """
+flowchart LR
+  B["The board<br/>.claude/todo.db"] -->|read only, each change| D["The dashboard<br/>Node, on this machine only"]
+  D -->|pushed live| W["Your browser<br/>report, board, changes, Relax"]
+  B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py, run on the copy"]
+  P -->|the next order| D
+  D -->|kept| H["Change history<br/>your user cache folder"]
+""",
 }
 
 
@@ -741,11 +1029,13 @@ def readme(page: str) -> str:
     lede, _ = readme_md.page_parts(page)
     tests = " ".join(p.relative_to(SK).as_posix() for p in sorted(SK.glob("*/test_*.py")))
     names = ", ".join(s for s, *_ in SKILLS)
+    codex_names = ", ".join(s for s, *_ in CODEX_SKILLS)
     return f"""# Sijav Skills
 
 **[Open the guide as a web page: sijav.github.io/Sijav-Skills]({SITE})**
 
-A Claude Code plugin marketplace with one plugin, **sijav-clauder**. {lede}
+The same eight skills, twice: **sijav-clauder**, a Claude Code plugin in this marketplace, and
+**sijav-codex**, a native Codex plugin in its own folder. {lede}
 
 This README and [the web page]({SITE}) are the same guide: `python site/build_site.py` writes
 both from the skills' own files. Change the skills or `site/build_site.py`, never this file by
@@ -757,6 +1047,13 @@ Sijav-Skills/                     the marketplace (this git repository)
   Sijav-Clauder/                  the sijav-clauder plugin
     .claude-plugin/plugin.json
     skills/{names}
+  Sijav-Codex/                    the sijav-codex plugin, installed from this folder
+    .codex-plugin/plugin.json
+    .agents/plugins/marketplace.json
+    hooks/hooks.json              the loop's Stop and SessionStart hooks
+    skills/{codex_names}
+    skills/todo/dashboard/        the board's read-only dashboard
+    tools/sijav_codex_setup.py    checks the package and installs it with codex
   site/build_site.py              writes the website and this README
   docs/index.html                 the website, served by GitHub Pages
 ```
@@ -771,6 +1068,12 @@ From `Sijav-Clauder/skills`:
 - `python todo/test-parity.py`
 - `node todo/test-subtasks.mjs`
 
+From `Sijav-Codex` (all offline, in temporary folders):
+
+- `python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke tests.test_run_all tests.test_loop tests.test_native_proof`
+- `npm test` in `skills/todo/dashboard`
+- `python -B validation/run_all.py` runs the package's suites and keeps each one's full output in `validation/`
+
 ## The website and this README
 
 `python site/build_site.py` writes `docs/index.html`, which GitHub Pages serves from the
@@ -782,6 +1085,9 @@ words.
 ## Keeping it clean
 
 - No project names, paths or project rules go into the skills; they belong to the project.
+- The Codex plugin's board tools are the Claude plugin's, byte for byte: change them in
+  `Sijav-Clauder/skills/todo` and copy them over; `Sijav-Codex/validation/run_all.py` compares them.
+
 - Change a rule the way `rules/SKILL.md` says, and log it in `rules/log.md`. That log is the
   history of each rule, so it keeps the evidence it was written from.
 """
@@ -790,6 +1096,7 @@ words.
 def main(argv: list[str]) -> int:
     page = (TEMPLATE.replace("{{SOURCE}}", SOURCE)
             .replace("{{SKILLS_TABLE}}", skills_table())
+            .replace("{{CODEX_SKILLS_TABLE}}", skills_table(CODEX_SKILLS, CODEX_SK))
             .replace("{{GENERAL}}", ledger(SK / "rules" / "general.md"))
             .replace("{{DEV}}", ledger(SK / "rules" / "dev.md"))
             .replace("{{DEVROUND}}", dev_round())
