@@ -88,7 +88,7 @@ export function createApp(monitor, { WebSocketServer, WebSocket }, settings = de
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
     const port = server.address()?.port;
-    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:${port} ws://localhost:${port} ws://[::1]:${port}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`);
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:${port} ws://localhost:${port}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`);
     if (!hosts.has(req.headers.host)) { res.writeHead(403); res.end('Local host only.'); return; }
     if (req.headers.origin && ![...hosts].some(h => 'http://' + h === req.headers.origin)) { res.writeHead(403); res.end('Same-origin access only.'); return; }
     // Browsers label cross-site requests (an <img> on another site, say); only this page and direct visits are served.

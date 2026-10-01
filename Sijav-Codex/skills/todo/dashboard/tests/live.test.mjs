@@ -107,6 +107,7 @@ test('a committed WAL change is pushed by the file watcher; pushes carry only ne
   assert.ok(later.length <= 4, `a change produces a few coalesced pushes, not one per internal step (${later.length})`);
   const transition = pushed.statusTransitions.find(c => c.itemId === 'MP-004');
   assert.equal(transition.fromStatus, 'backlog'); assert.equal(transition.before, undefined, 'transitions are slim');
+  assert.equal(transition.sourceId, 'board', 'a transition names its board, so the Observed status transitions panel lists it');
   writer.close(); writer = null;
   todo(p.root, 'edit', 'MP-007', '--note', 'Pushed by the watcher');
   await until(() => task(client.latest(), 'MP-007')?.notes.some(n => n.text === 'Pushed by the watcher'), 'pushed tool write');

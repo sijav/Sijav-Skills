@@ -323,7 +323,7 @@ export function loadJournal(path) {
   return { entries, bad, endsClean: text === '' || text.endsWith('\n') };
 }
 const transitionOf = c => c.table === 'task' && c.itemId != null && c.before && c.after && c.before.status !== c.after.status
-  ? { seq: c.seq, id: c.id, at: c.at, observedAt: c.at, itemId: c.itemId, taskKey: 'board:' + c.itemId, title: c.title, fromStatus: c.before.status, toStatus: c.after.status } : null;
+  ? { seq: c.seq, id: c.id, at: c.at, observedAt: c.at, sourceId: c.sourceId, itemId: c.itemId, taskKey: 'board:' + c.itemId, title: c.title, fromStatus: c.before.status, toStatus: c.after.status } : null;
 
 // ---------------------------------------------------------------- picker
 
