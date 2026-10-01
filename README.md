@@ -2,7 +2,8 @@
 
 **[Open the guide as a web page: sijav.github.io/Sijav-Skills](https://sijav.github.io/Sijav-Skills/)**
 
-A Claude Code plugin marketplace with one plugin, **sijav-clauder**. Eight skills that work in any project. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up.
+The same eight skills, twice: **sijav-clauder**, a Claude Code plugin in this marketplace, and
+**sijav-codex**, a native Codex plugin in its own folder. Eight skills that work in any project, in Claude Code and in Codex. A new session starts with no rules at all: the rule sets load only when you call them, and each skill loads when its work comes up. Both plugins can work on the same project, sharing its board, its rules and its loop's law.
 
 This README and [the web page](https://sijav.github.io/Sijav-Skills/) are the same guide: `python site/build_site.py` writes
 both from the skills' own files. Change the skills or `site/build_site.py`, never this file by
@@ -14,13 +15,20 @@ Sijav-Skills/                     the marketplace (this git repository)
   Sijav-Clauder/                  the sijav-clauder plugin
     .claude-plugin/plugin.json
     skills/rules, dev-round, codex, search, research, roast, loop, todo
+  Sijav-Codex/                    the sijav-codex plugin, installed from this folder
+    .codex-plugin/plugin.json
+    .agents/plugins/marketplace.json
+    hooks/hooks.json              the loop's Stop and SessionStart hooks
+    skills/rules, dev-round, agents, search, research, roast, loop, todo
+    skills/todo/dashboard/        the board's read-only dashboard
+    tools/sijav_codex_setup.py    checks the package and installs it with codex
   site/build_site.py              writes the website and this README
   docs/index.html                 the website, served by GitHub Pages
 ```
 
 ## The eight skills
 
-They ship as one Claude Code plugin, `sijav-clauder`, from a folder that is its own git repository. Plugin skills are called with the plugin's name first. None of them holds a project's rules, names or paths; each project keeps those itself.
+They ship as one Claude Code plugin, `sijav-clauder`, from a folder that is its own git repository. Plugin skills are called with the plugin's name first. None of them holds a project's rules, names or paths; each project keeps those itself. The same eight skills for Codex are in [their own section](#on-codex).
 
 | Skill | What it does | When it loads | How you call it |
 |---|---|---|---|
@@ -351,6 +359,160 @@ claude plugin update sijav-clauder@sijav-skills
 
 Claude Code keeps its own copy of an installed plugin, every file in the plugin's folder included, so keep keys outside it. After changing the skills in a clone, raise the plugin's version and run the update.
 
+## The same skills on Codex
+
+The repository also holds `sijav-codex`: the same eight skills as a native Codex plugin, in its `Sijav-Codex` folder. Codex runs the work and hands each job to its owner. Claude Opus 5.5 alone writes code and tests and reviews code; Codex's own agents do the rest of the delegated work; jev judges logic, never code.
+
+```mermaid
+flowchart LR
+  Y["You<br/>ask, approve, decide"] --> C["Codex runs the work<br/>plans and keeps the records<br/>follows the board's next pick<br/>decides each finding"]
+  C --> A["Codex's own agents<br/>search on luna, research on astra,<br/>prose and logic on 6.1 sol"]
+  C --> L["Claude Opus 5.5, through claude_session.py<br/>writes the code and its tests, reviews code"]
+  C --> J["jev, through jev.py<br/>judges code-free questions and each citation"]
+  C --> H["The helpers<br/>quote checks, the loop's hooks, the board tools"]
+```
+
+*Who does what on Codex. Codex never writes or reviews code; Claude does, through its helper. Jev only ever sees logic in plain words.*
+
+| Skill | What it does | When it loads | How you call it |
+|---|---|---|---|
+| rules | The same rule sets, read from the same files: general, dev and design, plus the project's own set. | Only when you call it | `$sijav-codex-rules`<br>`$sijav-codex-rules dev`<br>`$sijav-codex-rules design` |
+| dev-round | The same three passes: build, then test, then test as a real user. Claude writes the code and the tests. | When you call it or load the dev rules | `$sijav-codex-dev-round` |
+| agents | Hands each job to its owner: non-code work to Codex's own agents on the right model and effort, code and code review to Claude through its helper. It takes the place of the codex skill. | When work is handed out | `$sijav-codex-agents` |
+| search | One plain web search by a fresh Codex agent on luna at low effort, answered in a few sentences with its links. | When a fact, a version or a doc page is needed | `$sijav-codex-search` |
+| research | Deep research by Codex agents on astra: questions and a plan you approve, searches side by side, gap rounds, one report, and every quote checked on its page, then judged by jev. | When a question needs many sources | `$sijav-codex-research` |
+| roast | Failing scenarios for a plan or finished work: Claude reviews the code, a Codex agent frames the logic, jev judges it, and Codex decides each finding. | When a check is wanted | `$sijav-codex-roast` |
+| loop | Starts or resumes the project's loop on Codex's own Stop and compaction hooks, following the project's law. | Only when you call it | `$sijav-codex-loop` |
+| todo | The project's board, the same small database, and its read-only dashboard in the browser. | In projects that have a board | `$sijav-codex-todo` |
+
+- **Claude is never replaced.** When Claude is switched off, out of allowance or postponed by you, its code and code reviews wait. Codex does not take them over, and no other model is tried.
+- **Each agent on its model.** Plain work runs on `gpt-6.1-sol` at medium effort, a web search on `gpt-6-luna` at low, research on `gpt-6-astra` at high, or xhigh for R&D. When a runtime's spawn tool cannot pick the model, the four example agent profiles in `skills/agents/profiles` pin it.
+- **Lines of work are kept.** Each purpose keeps one conversation: a Codex agent per purpose, and one Claude conversation per purpose, resumed by its exact id.
+- **Everything is recorded in the project**, under `.codex`: agent briefs and replies, every Claude call with its prompt and raw output, roasts, research runs and the loop's state.
+
+## The loop on Codex
+
+Codex has its own hooks, so the loop works the same way. After each turn, Codex's Stop hook gives the project's law back as the next prompt until the work is done; after a compaction, its SessionStart hook reloads the whole law before the next request. The loop keeps its own state in `.codex/sijav-loop/state.json`: the one claimed session, the counter, the cap and the exact finish promise. The law itself is only read.
+
+```mermaid
+flowchart TD
+  A(["Codex finishes a turn"]) --> B{"Is a loop armed here or above?"}
+  B -->|no| B1["Not armed here<br/>the hook does nothing"]
+  B -->|yes| C{"Is it the claimed session?"}
+  C -->|no| C1["Another session or a spawned agent<br/>stops normally; it never gets the law"]
+  C -->|yes| D{"Is the loop active?"}
+  D -->|no| D1["Paused, stopped or finished<br/>set by the loop's own commands"]
+  D -->|yes| E{"Did the reply end with the promise?"}
+  E -->|yes| E1["The loop is complete<br/>only the reply's last line counts"]
+  E -->|no| F{"Is there a pause file?"}
+  F -->|yes| F1["Paused, Claude's loop too<br/>the shared .stop file"]
+  F -->|no| G{"Has the counter hit its cap?"}
+  G -->|yes| G1["The cap is reached<br/>this is not completion"]
+  G -->|no| H["The stop is blocked<br/>the law comes back as the next prompt"]
+  H -->|Codex works on it, and this runs again| A
+```
+
+*What Codex's Stop hook checks after every turn, in this order. After a compaction, the SessionStart hook gives the whole law back before the next request, to the claimed session only.*
+
+### Working with it
+
+- **Start:** type `$sijav-codex-loop` in the Codex session that should do the work. It claims that session through Codex's own ids, so another session or a spawned agent is never continued.
+- **Pause:** `sijav_loop.py pause --reason "..."` makes the project's `.stop`, the same file that pauses Claude's loop, and records the pause. Only you ask for a pause.
+- **Resume, stop, status:** `resume` goes on with the same counter, `stop` ends the run, and `status` shows the owner, the counter and any pause file.
+- **Finish:** only the last line of the final reply counts, exactly `<promise>VALUE</promise>`, outside any code block. Reaching the cap is not finishing.
+- **Trust the hooks once:** in Codex, open `/hooks` and trust the plugin's Stop and SessionStart handlers one at a time. The setup never trusts them for you.
+
+Proved live on Codex 0.159.3 in a throwaway project: continuations until the promise, the cap reached without finishing, and the whole law back after a manual compaction. Not yet seen live: a compaction in the middle of a turn, and a loop session that spawns agents, where only Codex's thread ids keep an agent from being continued.
+
+## Claude as the coder
+
+On Codex, Claude's code and code reviews go through one helper, `claude_session.py`. It keeps one Claude conversation per purpose, so each line of work keeps its context. It holds no login: Claude Code signs in by itself.
+
+- **One model:** always `claude-opus-5-5`, at the effort asked for. No other model, no fallback, no retry.
+- **Locked down:** safe mode (no project CLAUDE.md, hooks, skills or MCP), restricted mode (no project settings can widen it), no slash commands, and no permission prompts: anything that would ask is refused.
+- **Two modes:** `code` reads and edits inside the project and runs only the commands you name, such as `Bash(python -m unittest *)`; `technical` only reads and fetches web pages. Both refuse to read keys, `.env` files and other secrets.
+- **Checked before it acts:** Claude's first event must show the exact model, only the tools offered, its own sign-in and the project as its folder. Anything else stops it there.
+- **The law goes along:** safe mode loads no CLAUDE.md, so a purpose's first call carries the project's law.
+- **Recorded:** each call keeps its prompt, the command, the raw output and the result in the project.
+
+## The board's dashboard
+
+A read-only web page for a project's board, the same `.claude/todo.db` both plugins use. It shows what is in progress, what the board tool picks next and in what order, what was done, every task's full record, and each change as it happens. It never writes the board and never starts work.
+
+```mermaid
+flowchart LR
+  B["The board<br/>.claude/todo.db"] -->|read only, each change| D["The dashboard<br/>Node, on this machine only"]
+  D -->|pushed live| W["Your browser<br/>report, board, changes, Relax"]
+  B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py, run on the copy"]
+  P -->|the next order| D
+  D -->|kept| H["Change history<br/>your user cache folder"]
+```
+
+*Where the dashboard's data comes from. The board is only ever read; the next order is the board tool's own, worked out on a copy; the change history stays in your user folder.*
+
+### How to work with it
+
+1. It needs Node 22.16 or newer on the 22 line, or Node 24 or newer, and Python 3.9 or newer for the board tool's order.
+2. Install its one dependency once, inside its own folder: `npm ci --omit=dev --prefix "<todo skill>/dashboard"`. The Codex setup does the same with `--dashboard-deps`.
+3. Start it on a project: `node "<todo skill>/dashboard/server.mjs" --project "<project>" --port 8765`, then open the address it prints. Without `--port` it takes a free port, which changes on every start.
+4. Read it. **Full report** is the overview. **Full board** lists the tasks in the board tool's own next order. **Changes** shows each change with its fields before and after. **Database records** shows every stored row. Click a task for its full record. **Relax mode** is a calm full-screen view of the current and the next work.
+5. Leave it open: it updates by itself when the board changes, with no reload. **Pause** holds the view; **Export full data** saves everything as one file.
+6. Stop it with Ctrl+C.
+
+To try it without a real board, `node "<todo skill>/dashboard/tests/demo-fixture.mjs" --port 8765` builds a throwaway board in the system's temp folder and prints commands that change it while you watch. Ctrl+C deletes it.
+
+- **Read only:** the board is opened read-only, and the next order comes from the board tool's own code, run on a throwaway copy. It never creates a board where none exists.
+- **Local only:** it listens on this machine alone and answers only its own page.
+- **Done is not tested:** tested and e2e tested come only from the board's own fields; a board without them shows "not recorded".
+- **History:** the changes it sees are kept in your user cache folder, never in the project.
+- It ships with the Codex plugin and works for any project with a board, Claude's too.
+
+## Claude and Codex on one project
+
+Both plugins can work on the same project. They share the project's files and its law, and keep their own records apart.
+
+| In the project | Claude (sijav-clauder) | Codex (sijav-codex) |
+|---|---|---|
+| The board, `.claude/todo.db` | the board tools | the same tools, byte for byte, and the dashboard |
+| The rules, `.claude/rulesets` | read by the rules skill | read by the rules skill |
+| The loop's law | keeps its session and counter in the law's front matter | only reads the law; its own state is in `.codex/sijav-loop` |
+| The pause file, `.stop` | pauses Claude's loop | pauses Codex's loop too |
+| Records | under `.claude`: codex sessions, roasts | under `.codex`: agents, Claude calls, roasts, research, the loop |
+
+- **One loop at a time.** Each loop continues only its own session, but two sessions working one board can undo each other's changes.
+- **A Claude cap is not a Codex cap.** A Claude law may say `max_iterations: 0` for no limit. Codex needs a real number, so give it `--max-iterations`. The finish promise can come from the law with `--promise-from-law`.
+- **Clearing the pause clears both.** When the law names a Claude session, Codex clears `.stop` only with `--clear-sentinels --clear-claude-pause`, and only when you ask, because that resumes the Claude loop too. A cleared pause file is moved aside, not deleted.
+
+Checked offline on a throwaway project shared by both: the two board tools give the same next pick; Codex takes the promise from the Claude law, sends back the law's body without its front matter and never writes the law; the shared pause file holds it; and clearing that file needs both flags.
+
+## Install on Codex
+
+The Codex plugin installs from its own folder in a clone of this repository, through Codex's own plugin commands. Installing starts nothing: no loop, no dashboard and no model call.
+
+### What it needs
+
+- The Codex command line, 0.159 or newer, signed in by you.
+- Python 3.9 or newer for every helper, and Node 22.13 or newer for `todo.mjs`; the dashboard's Node is above.
+- For Claude's work: the Claude Code command line on your PATH, signed in by you.
+- For jev: `typesafe-sdk` 0.7.x on Python 3.10 or newer, and the key in a file outside the plugin, named by `SIJAV_JEV_KEY_FILE` (else `TYPESAFE_API_KEY`).
+
+### Steps
+
+1. Clone the repository.
+2. Check the package; this changes nothing: `python "<clone>/Sijav-Codex/tools/sijav_codex_setup.py"`.
+3. Install by adding `--install`. It runs `codex plugin marketplace add` on the package folder, `codex plugin add sijav-codex@sijav-codex-local` and `codex plugin list`, and checks each answer.
+4. If you like, copy the example agent profiles from `skills/agents/profiles` into a project's `.codex/agents` folder, or the one in your home folder, for a spawn tool that cannot pick a model.
+5. Before the first loop, trust the plugin's two hooks in Codex's `/hooks` screen, one handler at a time.
+6. After pulling a newer version, run `codex plugin add sijav-codex@sijav-codex-local` again.
+
+### Switches
+
+Set these before starting Codex. `off`, `0`, `false` or `no` switches a service off; no setting leaves it on.
+
+- `SIJAV_CLAUDE=off`: no Claude call; code and code reviews wait.
+- `SIJAV_JEV=off`: no jev call; the roast and the citation check say jev did not judge.
+- `SIJAV_CODEX=off`: no Codex agents are started; Codex does the non-code work itself and says so.
+
 ## Changing a rule
 
 Every rule set has a `log.md` next to it: the history of each rule, with the old text, why it existed, the owner's words and the evidence. The log is the guard; nobody else has to approve a rule.
@@ -372,6 +534,12 @@ From `Sijav-Clauder/skills`:
 - `python todo/test-parity.py`
 - `node todo/test-subtasks.mjs`
 
+From `Sijav-Codex` (all offline, in temporary folders):
+
+- `python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke tests.test_run_all tests.test_loop tests.test_native_proof`
+- `npm test` in `skills/todo/dashboard`
+- `python -B validation/run_all.py` runs the package's suites and keeps each one's full output in `validation/`
+
 ## The website and this README
 
 `python site/build_site.py` writes `docs/index.html`, which GitHub Pages serves from the
@@ -383,5 +551,8 @@ words.
 ## Keeping it clean
 
 - No project names, paths or project rules go into the skills; they belong to the project.
+- The Codex plugin's board tools are the Claude plugin's, byte for byte: change them in
+  `Sijav-Clauder/skills/todo` and copy them over; `Sijav-Codex/validation/run_all.py` compares them.
+
 - Change a rule the way `rules/SKILL.md` says, and log it in `rules/log.md`. That log is the
   history of each rule, so it keeps the evidence it was written from.

@@ -226,8 +226,10 @@ A native agent ID saved in `.codex/agent-sessions/` is never a Claude session id
 and a Claude purpose is never resumed as a native agent. Real technical-mode
 calls through Claude Code 2.1.286 succeeded on October 1, 2026 in a disposable
 project and kept one conversation. The later ones used `--permission-mode
-manual`; init reported `default` and no tool use was denied. `--restricted`,
-`--disable-slash-commands` and code mode have not run live yet. They, the
-failure and recovery paths, and settings-file handling are tested offline with
-a fake CLI pinned to that version's help and init. They are proved live only
-when a real call exercises them.
+manual`; init reported `default` and no tool use was denied. The latest also ran with `--restricted` and `--disable-slash-commands`. A
+separate live code-mode check in a disposable project passed: a write inside
+the project worked, a write outside it and reads of planted secret files were
+denied, no shell was offered, and the project's own settings were ignored. The
+failure and recovery paths are tested offline with a fake CLI pinned to that
+version's help and init; they are proved live only when a real call exercises
+them.
