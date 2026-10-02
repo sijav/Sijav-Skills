@@ -783,7 +783,7 @@ a { color: var(--accent); }
 
 <section id="dashboard">
   <h2>The board's dashboard</h2>
-  <p>A read-only web page for a project's board, the same <code>.claude/todo.db</code> both plugins use. It shows what is in progress, what the board tool picks next and in what order, what was done, every task's full record, and each change as it happens. It never writes the board and never starts work.</p>
+  <p>A read-only web page for a project's board: the same <code>.claude/todo.db</code> both plugins use, or a loop board (an SQLite file with <code>item</code> and <code>dep</code> tables, driven by its own tool). It shows what is in progress, what the board tool picks next and in what order, what was done, every task's full record, and each change as it happens. It never writes the board and never starts work.</p>
   <figure>
     <div class="figwrap">
       <svg viewBox="0 0 960 250" role="img" aria-label="The dashboard reads the board read-only on each change and pushes it live to your browser. The next order comes from the board tool's own picker, run on a throwaway copy of the board. The change history is kept in your user cache folder.">
@@ -792,7 +792,7 @@ a { color: var(--accent); }
         </defs>
         <rect x="16" y="40" width="210" height="64" rx="8" class="bx"/>
         <text x="121" y="67" text-anchor="middle" class="t">The board</text>
-        <text x="121" y="87" text-anchor="middle" class="tm tm-s">.claude/todo.db</text>
+        <text x="121" y="87" text-anchor="middle" class="tm tm-s">.claude/todo.db, or --db</text>
         <path d="M226,72 H336" class="ln" marker-end="url(#f7-ah)"/>
         <text x="281" y="62" text-anchor="middle" class="ts">read only</text>
         <text x="281" y="90" text-anchor="middle" class="ts">each change</text>
@@ -808,7 +808,7 @@ a { color: var(--accent); }
         <text x="230" y="184" text-anchor="middle" class="ts">a throwaway copy</text>
         <rect x="340" y="160" width="280" height="64" rx="8" class="bx-tool"/>
         <text x="480" y="187" text-anchor="middle" class="t">The board tool's own picker</text>
-        <text x="480" y="207" text-anchor="middle" class="ts">todo.py, run on the copy</text>
+        <text x="480" y="207" text-anchor="middle" class="ts">todo.py or the loop's tool, on a copy</text>
         <path d="M480,160 V108" class="ln" marker-end="url(#f7-ah)"/>
         <text x="490" y="138" class="ts">the next order</text>
         <path d="M620,92 H677 V192 H730" class="ln" marker-end="url(#f7-ah)"/>
@@ -824,8 +824,8 @@ a { color: var(--accent); }
   <ol>
     <li>It needs Node 22.16 or newer on the 22 line, or Node 24 or newer, and Python 3.9 or newer for the board tool's order.</li>
     <li>Install its one dependency once, inside its own folder: <code>npm ci --omit=dev --prefix "&lt;todo skill&gt;/dashboard"</code>. The Codex setup does the same with <code>--dashboard-deps</code>.</li>
-    <li>Start it on a project: <code>node "&lt;todo skill&gt;/dashboard/server.mjs" --project "&lt;project&gt;" --port 8765</code>, then open the address it prints. Without <code>--port</code> it takes a free port, which changes on every start.</li>
-    <li>Read it. <strong>Full report</strong> is the overview. <strong>Full board</strong> lists the tasks in the board tool's own next order. <strong>Changes</strong> shows each change with its fields before and after. <strong>Database records</strong> shows every stored row. Click a task for its full record. <strong>Relax mode</strong> is a calm full-screen view of the current and the next work.</li>
+    <li>Start it on a project: <code>node "&lt;todo skill&gt;/dashboard/server.mjs" --project "&lt;project&gt;" --port 8765</code>, then open the address it prints. Without <code>--port</code> it takes a free port, which changes on every start. For a loop board in a subfolder, start it from the project with <code>--db "&lt;subfolder&gt;/&lt;board&gt;.db"</code>; its tool is the <code>.py</code> named after the board file, beside it.</li>
+    <li>Read it. <strong>Full report</strong> is the overview. <strong>Full board</strong> lists the tasks in the board tool's own next order. <strong>Changes</strong> shows each change with its fields before and after. <strong>Database records</strong> shows every stored row. Click a task for its full record. <strong>Relax mode</strong> is a calm full-screen view of the current and the next work. Long text and long lists of ids are folded: <strong>Show more</strong> opens them, <strong>Show less</strong> folds them again.</li>
     <li>Leave it open: it updates by itself when the board changes, with no reload. <strong>Pause</strong> holds the view; <strong>Export full data</strong> saves everything as one file.</li>
     <li>Stop it with Ctrl+C.</li>
   </ol>
@@ -835,6 +835,7 @@ a { color: var(--accent); }
     <li><strong>Local only:</strong> it listens on this machine alone and answers only its own page.</li>
     <li><strong>Done is not tested:</strong> tested and e2e tested come only from the board's own fields; a board without them shows "not recorded".</li>
     <li><strong>History:</strong> the changes it sees are kept in your user cache folder, never in the project.</li>
+    <li><strong>Loop boards:</strong> the order is the loop tool's own <code>board_order()</code>, run on a copy. The machine checks its <code>next</code> may add are not run, since they run commands. Any other database file is refused, never shown as an empty board.</li>
     <li>It ships with the Codex plugin and works for any project with a board, Claude's too.</li>
   </ul>
 </section>
@@ -1013,9 +1014,9 @@ flowchart TD
 """,
     "dashboard": """
 flowchart LR
-  B["The board<br/>.claude/todo.db"] -->|read only, each change| D["The dashboard<br/>Node, on this machine only"]
+  B["The board<br/>.claude/todo.db, or --db"] -->|read only, each change| D["The dashboard<br/>Node, on this machine only"]
   D -->|pushed live| W["Your browser<br/>report, board, changes, Relax"]
-  B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py, run on the copy"]
+  B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py or the loop's tool, on a copy"]
   P -->|the next order| D
   D -->|kept| H["Change history<br/>your user cache folder"]
 """,

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Read-only live dashboard for a project's .claude/todo.db board.",
+  "description": "Read-only live dashboard for a project's to-do board (.claude/todo.db) or a loop board.",
   "engines": {
     "node": "^22.16.0 || >=24.0.0"
   },

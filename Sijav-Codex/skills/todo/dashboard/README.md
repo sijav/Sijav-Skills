@@ -1,13 +1,17 @@
 # To-do board dashboard (read only)
 
-A live, read-only browser view of a project's `.claude/todo.db`. It shows:
+A live, read-only browser view of a project's to-do board: the to-do skill's
+`.claude/todo.db`, or a loop board opened with `--db` (see [Loop boards](#loop-boards)).
+It shows:
 
 - the full report and the full board, in the tool's own next order;
 - every task's complete record;
 - changes as per-field line diffs, and every table;
 - a full-screen Relax display.
 
-It works for any project that uses the to-do skill.
+It works for any project that uses the to-do skill, and for any loop board.
+Any other SQLite file is refused with the tables it has; it is never shown as
+an empty board.
 
 Installed layout:
 
@@ -18,15 +22,18 @@ Installed layout:
     server.mjs                     CLI, HTTP and WebSocket
     lib/board.mjs                  board lookup, read-only reader, watcher, change history
     picker.py                      runs todo.py's own next and policy on an isolated copy
+    loop_picker.py                 runs a loop board's own order and policy on an isolated copy
     defaults.json                  UI labels and limits only (no board policy)
     public/                        browser files
     package.json, package-lock.json
     tests/                         fixture tests and the demo fixture
 ```
 
-The dashboard uses `../todo.py`, found relative to its own folder, so it works
-from any install or cache location. `--todo-py` overrides it. Nothing
-machine-specific is shipped.
+For the to-do skill's board the dashboard uses `../todo.py`, found relative to
+its own folder, so it works from any install or cache location. `--todo-py`
+overrides it. For a loop board it uses the board's own tool: the `.py` named
+after the board file, beside it, or `--tool`. Nothing machine-specific is
+shipped.
 
 ## Requirements and install
 
@@ -55,6 +62,7 @@ From the project, or any subdirectory of it:
 ```
 node "<skills>/todo/dashboard/server.mjs"
 node "<skills>/todo/dashboard/server.mjs" --project "D:/path/to/project" --port 8765
+node "<skills>/todo/dashboard/server.mjs" --db "<subfolder>/<board>.db" --port 8765
 npm --prefix "<skills>/todo/dashboard" start -- --port 8765
 ```
 
@@ -72,19 +80,21 @@ directory junction or `subst` drive.
 
 | Option | Meaning |
 | --- | --- |
-| `--project <dir>` | Start the board lookup here instead of the current directory. The nearest **existing** `<dir or ancestor>/.claude/todo.db` is used, the same walk as `todo.py`. |
-| `--db <file>` | Use this board file, relative to the current directory. It must exist; nothing is ever created. |
+| `--project <dir>` | Start the board lookup here instead of the current directory. The nearest **existing** `<dir or ancestor>/.claude/todo.db` is used, the same walk as `todo.py`. A loop board is never looked for: `--db` names it. |
+| `--db <file>` | Use this board file, relative to the current directory. It must exist; nothing is ever created. A loop board is always opened this way. |
 | `--port <n>` | Default `0`: the OS picks a free port. **That port changes on every start**, so an open tab cannot reconnect after a restart. Pass a fixed `--port` for a stable address. A port in use is reported (exit 2). |
 | `--host <addr>` | `127.0.0.1` (default), `localhost` or `::1`. Non-loopback addresses are refused. |
 | `--data-dir <dir>` | Where change history is kept. Default: a per-user cache folder keyed by the board (below). A folder inside the installed skill is refused. |
 | `--python <exe>` | Python for the picker. Default: `SIJAV_TODO_PYTHON`, then `python`, `py -3`, `python3` on Windows (`python3`, `python` elsewhere). |
 | `--todo-py <file>` | The `todo.py` whose order and policy are used. Default `../todo.py` beside the dashboard folder. |
+| `--tool <file>` | For a loop board: the tool whose order and policy are used. Default: the `.py` named after the board file, beside it (`<name>.db` → `<name>.py`). |
 | `--help` | Usage. |
 
 **No board:** with no board at or above the start directory, the server
 prints `No board. Nothing at or above … has .claude/todo.db.` and exits with
-code 2. It does not fall back to another project and creates nothing. A
-missing `--db` file is refused the same way.
+code 2. It does not fall back to another project and creates
+nothing. A missing `--db` file is refused the same way, and so is a file that
+is not a board (exit 2, naming the tables it has).
 
 **Startup output** (from a fixture run):
 
@@ -211,6 +221,54 @@ page says so.
 Node and Python each digest the rows they read; a result for a different
 snapshot is discarded and recomputed.
 
+## Loop boards
+
+A loop board is an SQLite file with an `item` table (at least `id`, `title`,
+`status`, `severity` and `priority`) and a `dep` table of blockers (`item`,
+`blocker`). Its own tool, a Python file, writes it.
+
+**Opening it:** a loop board is never looked for; name it with `--db`. It
+often sits in a subfolder of its project: start the dashboard from the
+project with `--db <subfolder>/<board>.db`, and the page is named after the
+project. Its tool is the `.py` named after the board file, beside it
+(`<name>.db` → `<name>.py`), or `--tool`.
+
+**Order:** `loop_picker.py` imports the tool, never runs it, and calls
+its `board_order(conn)`. Without `board_order`, it sorts `open_items(conn)` by
+`sort_key`, with `blocked_ids()` and `parked_ids()` not startable. These
+functions may live in a module the tool imports from its own folder. They run
+only on an isolated copy, as with `picker.py`, so importing the tool must not
+touch a database.
+
+**What `next` adds is not run:** a loop tool's `next` may also check the
+machine before it hands out an item (for example, whether a database it needs
+is ready). Those checks run commands and read files, which a read-only view
+must not do. The page shows `board_order()`'s order and names it so.
+
+**Status meaning** is probed on throwaway rows in a rolled-back savepoint:
+
+- the item table's default status is new work;
+- a status `open_items()` no longer lists is closed;
+- a status that leaves a blocked item startable satisfies a blocker;
+- any other status the tool offers counts as started (Doing).
+
+Severity order comes from the tool's `SEV_RANK`, else from the table's CHECK
+list.
+
+**Reasons an item cannot start:** an open blocker ("Waits on 12 (open): …")
+or a parked note ("Parked: …"). A rolled-back probe clears them and checks
+that the tool then offers the item.
+
+**Findings:** rows of a `finding` table count as open while they keep the
+table's default status. Rows of any table with an `item` column are shown
+with their item.
+
+**On the page:** the tool is named by its file name and its `board_order()`.
+The drawer shows the item's own fields (`created_at`, `closed_at`,
+`occurrences`; story, why, exit command, what was done at close) and its
+blockers. It leaves out the to-do skill's sections: area and type,
+objectives, notes, roasts, and findings filed as tasks.
+
 ## Read-only guarantees
 
 - **Connections:** every connection is SQLite read-only (`mode=ro`) and
@@ -229,15 +287,15 @@ snapshot is discarded and recomputed.
 
 ## Live updates
 
-- **Board watch:** `fs.watch` on the board's directory, filtered to `todo.db`
-  and its `-wal`, `-shm` and `-journal` files. It survives atomic replacement
-  of the board file.
+- **Board watch:** `fs.watch` on the board's directory, filtered to the board
+  file and its `-wal`, `-shm` and `-journal`
+  files. It survives atomic replacement of the board file.
 - **Debounce:** an 80 ms debounce merges bursts of events; it is not a refresh
   interval. A notification that left the size, mtime and identity of the board
   and its sidecars unchanged since the last read is lock housekeeping, and is
   counted and ignored.
-- **Tool watch:** `todo.py` is watched too. A change to it reruns the picker
-  and re-derives the policy.
+- **Tool watch:** the board's tool (`todo.py`, or a loop board's own) is watched too. A
+  change to it reruns the picker and re-derives the policy.
 - **Pushes:** several state changes in one event-loop turn are pushed once.
 - **No polling:** there are no timed rereads. The only browser timers are the
   Relax wall clock, the reconnect delay and the toast. On reconnect the
@@ -271,6 +329,12 @@ snapshot is discarded and recomputed.
 
   If only part of the history is loaded, the drawer offers "Load this task's
   full history".
+- **Long text:** a story, a why or a stored value longer than a few lines is
+  cut at a word, with "Show more". A run of 12 or more comma-separated ids
+  (such as a batch of record ids) shows as a count, for example "250 values".
+  "Show more" opens the full text and "Show less" folds it again; what you
+  opened stays open across live updates. Relax folds without buttons. Ids are
+  not turned into names: the board holds the ids, not what they name.
 - **Changes:** row-level additions, removals and edits for every table and the
   schema, shown as per-field line diffs. The newest page loads first; "Show
   more" and "Load all history" fetch the rest. Nothing is silently dropped,
@@ -349,14 +413,19 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 | `board.test.mjs` | Board discovery and no file creation; per-user history keyed by board; reads checked against Python's `sqlite3` (every table, row and field); byte-identical board; nothing grouped without policy; old and unused boards; idle and active WAL; locked board fails explicitly; row diffs; torn journal recovery. |
 | `picker.test.mjs` | Exact real `next` text and pick at every step of working a board; started precedence and blocked started work; a blocked task with a done and an unfinished parent gets exact, probe-confirmed reasons that match how the real tool resolves them; legacy severities and statuses do not cost the pick; a changed `by_rule`/`choose` changes order, labels and groups; refused constants and start-up mutations; tool writes never reach the project; old and unused boards on a copy; missing Python explained. |
 | `live.test.mjs` | Installed copy from a subdirectory, with `$'`, `$&` and `$$` in the project path; host, origin, Sec-Fetch and frame headers; WAL push with a quiet period showing no polling; incremental history and pagination; read failure withdraws pick and order then recovers; broken or changed `todo.py` is watched; atomic replacement; CLI output, restart history, refusals, junction start, Node version gate; real `npm start` from the caller's directory; npm variables inherited from an unrelated npm process never select another (synthetic) board; installed helpers use the parent `todo.py`; demo refuses overrides. |
-| `ui.test.mjs` | Order only from a current result; labelled previous order while re-checking; no order on failure; no recency without policy; done most recent first; field line diffs; dates; recorded-only area; Relax states; theme and display controller; no browser polling. |
-| `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts. |
+| `ui.test.mjs` | Order only from a current result; labelled previous order while re-checking; no order on failure; no recency without policy; done most recent first; field line diffs; dates; recorded-only area; Relax states; theme and display controller; no browser polling; long text and id lists fold, open and fold again, escaped. |
+| `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, the item's own fields in the drawer and Relax naming its tool; no literal `${` in any view. |
+| `loop.test.mjs` | Loop boards made by a small test loop tool (`tests/loop-fixture`): told apart by their tables, and any other SQLite file refused, also by the CLI; found from their own folder and named after the project folder; items, blockers, parked notes and findings mapped; `loop_picker.py` gives the tool's own head, order, status groups and checked reasons, and refuses a tool whose order it cannot read; an older loop board without parked, exit or created columns; the live server through a change; the board never written and nothing created beside it. |
 
 `test-output.txt` holds the full last run.
 
 ## Status
 
 - **Fixture tests:** all pass; see `test-output.txt`.
+- **Loop board view:** checked in the browser on a copy of a real loop board
+  (728 items): the tool's own head and order, the item drawer, and a 250-id
+  list folded to "250 values", opened with Show more and folded with Show
+  less.
 - **Browser QA:** the root ran the earlier build against a synthetic 12-task
   board in TEMP and it passed. It covered fields, story, area and order, a
   WebSocket field diff after a real `todo.py` move, both themes, and Relax
@@ -370,6 +439,12 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 
 - **Port 0 changes on every start.** Use `--port` for a stable browser
   address; a tab opened on an old port does not find the restarted server.
+- **A loop tool's machine checks are not run.** The page shows
+  `board_order()`'s order. If the tool's `next` holds an item back because the
+  machine is not ready, the page does not know it.
+- **Only the tool file itself is watched.** A change to a module it imports
+  (such as a loop tool's `tool/board_order.py`) is picked up at the next board
+  change or "Run next again".
 - **Python is required for order and status meaning.** `todo.mjs` cannot be
   used for this, because its functions can't be loaded without running it.
 - **Probing relies on the tool's own functions and tables:** `choose`,

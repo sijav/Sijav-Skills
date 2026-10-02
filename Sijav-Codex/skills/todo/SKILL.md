@@ -130,6 +130,14 @@ the board tool's picker and status policy. An unavailable policy is reported
 rather than replaced with guessed order or Doing/Done groups. Done does not
 imply tested, and missing fields are shown as unrecorded.
 
+The same dashboard reads a loop board: an SQLite file with `item` and `dep`
+tables, written by its own Python tool. Start it from the project with
+`--db "<subfolder>/<board>.db"`. Its tool is the `.py` named after the board
+file, beside it; pass `--tool "<file>"` when it is elsewhere. Its order is the loop tool's own
+`board_order()`, run on a copy; the machine checks that tool's `next` may add
+are not run. Any other SQLite file is refused. Long text and long id lists are
+folded on the page, with Show more and Show less.
+
 For a visual check or live-update test, use the dashboard's disposable demo
 fixture under the OS temp directory. Installed demo/tests use the parent
 `todo.py`; in a separate staging folder, set `TODO_SKILL_DIR` to the intended
