@@ -169,3 +169,27 @@ export function renderFieldDiff(before,after,settings) {
     return `<section class="field-diff"><header class="field-diff-head"><strong>${escape(friendly(field.key))}</strong><code>${escape(field.key)}</code><span class="diff-kind ${field.kind}">${field.kind}</span><small>${escape(field.oldType===field.newType?field.oldType:field.oldType+' → '+field.newType)}</small></header><div class="diff-scroll"><table class="unified-diff" aria-label="${escape(field.key)} changed lines"><thead><tr><th colspan="4">@@ -${oldCount?1:0},${oldCount} +${newCount?1:0},${newCount} @@</th></tr></thead><tbody>${rows.map(row=>row.kind==='skip'?`<tr class="diff-skip"><td colspan="4">${row.count} unchanged line${row.count===1?'':'s'}</td></tr>`:`<tr class="diff-${row.kind}"><td class="line-number">${row.oldLine??''}</td><td class="line-number">${row.newLine??''}</td><td class="diff-symbol" aria-label="${row.kind==='remove'?'Removed':row.kind==='add'?'Added':'Unchanged'}">${row.kind==='remove'?'−':row.kind==='add'?'+':' '}</td><td class="diff-code"><pre dir="auto">${escape(row.text.replaceAll('\r','␍'))||'<span class="empty-line">(empty line)</span>'}</pre></td></tr>`).join('')}</tbody></table></div></section>`;
   }).join('')||'<p class="muted">No changed fields.</p>'}</div>`;
 }
+
+// Long recorded text stays readable. A run of a dozen or more comma-separated values (ids, keys, codes)
+// shows as its count, and text longer than `chars` shows its start; "Show more" opens the whole text as
+// stored and "Show less" folds it again. `expanded` holds the keys a person opened, so a live update keeps them.
+const VALUE_LIST=/(?:[^\s,;]{6,}\s*,\s*){11,}[^\s,;]{6,}/g;
+export function clampText(text,key,expanded=null,{chars=420,toggle=true}={}){
+  const value=String(text??'');
+  const open=!!expanded?.has(key),lists=value.match(VALUE_LIST)||[];
+  const button=label=>toggle?` <button type="button" class="text-button more-toggle" data-expand="${escape(key)}">${label}</button>`:'';
+  if(open)return escape(value)+button('Show less');
+  if(value.length<=chars&&!lists.length)return escape(value);
+  let html='',budget=chars,last=0;
+  const parts=[];
+  for(const match of value.matchAll(VALUE_LIST)){parts.push({text:value.slice(last,match.index)},{list:match[0]});last=match.index+match[0].length;}
+  parts.push({text:value.slice(last)});
+  for(const part of parts){
+    if(part.list){const n=part.list.split(',').length;html+=`<span class="value-list" title="${n} values, shown in full with Show more">${n} values</span>`;continue;}
+    if(budget<=0||!part.text)continue;
+    if(part.text.length<=budget){html+=escape(part.text);budget-=part.text.length;continue;}
+    const slice=part.text.slice(0,budget),space=slice.lastIndexOf(' ');
+    html+=escape((space>budget*0.6?slice.slice(0,space):slice).trimEnd())+'…';budget=0;
+  }
+  return html+button('Show more');
+}

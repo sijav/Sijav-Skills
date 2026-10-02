@@ -7,6 +7,7 @@
     "diffMaxEdits": 600,
     "toastMs": 3000,
     "summaryFields": ["id", "status", "severity", "priority", "points", "area", "type", "phase", "parent_task", "created", "updated", "closed", "close_output"],
+    "loopSummaryFields": ["id", "status", "severity", "priority", "points", "occurrences", "created_at", "closed_at", "close_output"],
     "compactFields": ["id", "severity", "priority", "status", "points", "area", "type", "work_area", "work_type", "category", "phase", "parent_task", "close_output", "tested", "e2e_tested", "round", "score", "criticals", "reviewer_score", "reviewer_criticals", "position", "task", "parent"],
     "dateFields": ["created", "closed", "updated", "at", "since", "created_at", "closed_at", "updated_at"],
     "longTextFields": ["title", "descr", "why", "exit_cond", "evidence", "reason", "story", "text", "goal", "file", "filed", "dismissed"],

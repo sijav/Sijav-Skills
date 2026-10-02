@@ -18,6 +18,31 @@ const sameName = (a, b) => caseFold ? a.toLowerCase() === b.toLowerCase() : a ==
 
 export class BoardError extends Error {}
 
+/**
+ * The boards this dashboard reads, each with the tool whose own code gives its
+ * order and what its statuses mean:
+ *   todo -- the to-do skill's .claude/todo.db, found by walking up, with the
+ *           skill's todo.py (a task table, or no table yet: a board nobody has used);
+ *   loop -- a loop board: any SQLite board with item and dep tables, named with
+ *           --db, with its own tool, the .py named after the board file beside it
+ *           (<name>.db -> <name>.py) or --tool.
+ * Any other file is refused by name: it is never shown as an empty board.
+ */
+export const KINDS = {
+  todo: { label: "the to-do skill's board", file: join('.claude', 'todo.db'), tool: 'todo.py', picker: 'picker.py', toolFlag: '--todo' },
+  loop: { label: 'a loop board', file: null, tool: null, picker: 'loop_picker.py', toolFlag: '--tool' },
+};
+
+/** A board's kind from its tables and columns, or null for a file that is neither kind. */
+export function kindOf(tableColumns) {
+  if (tableColumns.task || Object.keys(tableColumns).length === 0) return 'todo';
+  const item = tableColumns.item || [], dep = tableColumns.dep || [];
+  if (['id', 'title', 'status', 'severity', 'priority'].every(c => item.includes(c)) && ['item', 'blocker'].every(c => dep.includes(c))) return 'loop';
+  return null;
+}
+export const notABoard = (path, tableColumns) => `${path} is not a to-do board this dashboard reads: it has neither the to-do skill's`
+  + ` task table nor a loop board's item and dep tables (its tables: ${Object.keys(tableColumns).join(', ') || 'none'}). Nothing is shown as a board.`;
+
 export function timestamp(value) {
   if (value == null || value === '') return null;
   if (typeof value === 'number') return new Date(value < 1e12 ? value * 1000 : value).toISOString();
@@ -33,12 +58,14 @@ const realOr = path => { try { return realpathSync.native(path); } catch { retur
 
 // ---------------------------------------------------------------- resolution
 
-/** The same walk as todo.py's find_board(): the nearest EXISTING .claude/todo.db. */
+/** The nearest EXISTING .claude/todo.db walking up (todo.py's own find_board() walk). A loop board is never guessed: --db names it. */
 export function findBoard(start) {
   let directory = resolve(start);
   for (;;) {
-    const candidate = join(directory, '.claude', 'todo.db');
-    if (existsSync(candidate)) return candidate;
+    for (const kind of Object.values(KINDS).filter(k => k.file)) {
+      const candidate = join(directory, kind.file);
+      if (existsSync(candidate)) return candidate;
+    }
     const parent = dirname(directory);
     if (parent === directory) return null;
     directory = parent;
@@ -56,13 +83,19 @@ export function resolveBoard({ cwd = process.cwd(), project = null, db = null } 
     path = resolve(cwd, db); how = '--db';
     if (!existsSync(path)) throw new BoardError(`No board at ${path}. --db never creates a file; a board is created only by the todo tool's explicit init.`);
   } else {
-    path = findBoard(start); how = 'nearest .claude/todo.db at or above ' + start;
-    if (!path) throw new BoardError(`No board. Nothing at or above ${start} has .claude/todo.db. Nothing was created. If this project should have one, use the todo tool's explicit init.`);
+    path = findBoard(start); how = 'nearest board at or above ' + start;
+    if (!path) throw new BoardError(`No board. Nothing at or above ${start} has .claude/todo.db. Nothing was created. If this project should have one, use the todo tool's explicit init; a loop board is opened with --db <its file>.`);
   }
   if (!statSync(path).isFile()) throw new BoardError(`${path} is not a file, so it cannot be a board.`);
+  const { tableColumns } = readTables(path);
+  const kind = kindOf(tableColumns);
+  if (!kind) throw new BoardError(notABoard(path, tableColumns));
   const boardDir = dirname(path);
-  const projectRoot = sameName(basename(boardDir), '.claude') ? dirname(boardDir) : start;
-  return { dbPath: path, projectRoot, start, how };
+  // A loop board often sits in a subfolder of its project: the project is where the lookup started when
+  // the board is inside it (--db <subfolder>/<board>.db from the project), else the board's own folder.
+  const projectRoot = sameName(basename(boardDir), '.claude') ? dirname(boardDir)
+    : kind === 'loop' ? (inside(path, start) ? start : boardDir) : start;
+  return { dbPath: path, projectRoot, start, how, kind };
 }
 
 const inside = (child, parent) => { const r = relative(parent, child); return r === '' || (!!r && !r.startsWith('..') && !isAbsolute(r)); };
@@ -109,6 +142,15 @@ export function discoverTodo(explicit = null, cwd = process.cwd()) {
   const path = explicit ? resolve(cwd, explicit) : join(SKILL_DIR, 'todo.py');
   if (existsSync(path) && statSync(path).isFile()) return { path, reason: null };
   return { path: null, expected: path, reason: explicit ? `--todo-py ${path} does not exist.` : `todo.py was not found beside the dashboard at ${path}. Pass --todo-py <path to the skill's todo.py>.` };
+}
+
+/** The board's own tool: for a to-do board the skill's todo.py (above); for a loop board --tool, else the .py named after the board beside it. */
+export function discoverTool({ explicit = null, cwd = process.cwd(), kind = 'todo', dbPath = null } = {}) {
+  if (kind !== 'loop') return discoverTodo(explicit, cwd);
+  const path = explicit ? resolve(cwd, explicit) : join(dirname(dbPath), basename(dbPath).replace(/\.[^.]*$/, '') + '.py');
+  if (existsSync(path) && statSync(path).isFile()) return { path, reason: null };
+  return { path: null, expected: path, reason: explicit ? `--tool ${path} does not exist.`
+    : `${basename(path)}, named after the board, was not found beside it at ${path}. Pass --tool <path to the board's own tool>.` };
 }
 
 // ---------------------------------------------------------------- reading
@@ -158,10 +200,11 @@ export function readTables(path, { busyMs = 800 } = {}) {
       db.exec('BEGIN');
       const schema = db.prepare("SELECT name, sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(r => ({ name: r.name, sql: r.sql }));
       const indexes = db.prepare("SELECT name, tbl_name, sql FROM sqlite_schema WHERE type IN ('index','trigger','view') AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(r => ({ ...r }));
-      const tables = {}, primaryKeys = {}, tableColumns = {}, rowArrays = {};
+      const tables = {}, primaryKeys = {}, tableColumns = {}, tableDefaults = {}, rowArrays = {};
       for (const table of schema) {
         const columns = db.prepare(`PRAGMA table_info(${quote(table.name)})`).all();
         tableColumns[table.name] = columns.map(c => c.name);
+        tableDefaults[table.name] = Object.fromEntries(columns.filter(c => c.dflt_value != null).map(c => [c.name, String(c.dflt_value).replace(/^'(.*)'$/s, '$1')]));
         primaryKeys[table.name] = columns.filter(c => c.pk).sort((a, b) => a.pk - b.pk).map(c => c.name);
         const keys = primaryKeys[table.name];
         let statement;
@@ -172,7 +215,7 @@ export function readTables(path, { busyMs = 800 } = {}) {
         rowArrays[table.name] = tables[table.name].map(row => tableColumns[table.name].map(c => row[c]));
       }
       db.exec('COMMIT');
-      out = { schema, indexes, tables, primaryKeys, tableColumns, rowsDigest: rowsDigest(rowArrays) };
+      out = { schema, indexes, tables, primaryKeys, tableColumns, tableDefaults, rowsDigest: rowsDigest(rowArrays) };
     } finally { db.close(); }
     if (!idle || fileSignature(path) === before) return out;
   }
@@ -192,6 +235,52 @@ export function checkedValues(sql, field) {
  */
 export function readBoard(path, options) {
   const data = readTables(path, options);
+  const kind = kindOf(data.tableColumns);
+  if (!kind) throw new BoardError(notABoard(path, data.tableColumns));
+  const shaped = kind === 'loop' ? loopTasks(data) : todoTasks(data);
+  const { tasks } = shaped;
+  const statuses = {}; for (const t of tasks) statuses[t.status] = (statuses[t.status] || 0) + 1;
+  const allTimes = tasks.map(t => t.lastRecordedAt).filter(Boolean).sort();
+  return {
+    available: true, stale: false, error: null, lastSuccessfulReadAt: new Date().toISOString(), ...data, kind, taskTable: shaped.taskTable,
+    tasks, statuses, checkedStatuses: shaped.checkedStatuses, checkedSeverities: shaped.checkedSeverities,
+    latestRecordedAt: allTimes.at(-1) || null,
+    file: fileInfo(path), wal: fileInfo(path + '-wal'), journalMode: existsSync(path) ? (isWalHeader(path) ? 'wal' : 'rollback') : null,
+    hash: digest({ schema: data.schema, indexes: data.indexes, tables: data.tables }),
+  };
+}
+
+/**
+ * A loop board's items as the dashboard's tasks: each blocker (dep) is a
+ * dependency, a parked note is an explicit block, and the rows of every other
+ * table that names an item (findings, roasts, exit runs) are its related rows.
+ * What a status means is NOT decided here: it comes from the tool's own policy.
+ */
+function loopTasks({ tables, tableColumns, schema }) {
+  const byItem = rows => { const m = new Map(); for (const r of rows || []) { const k = String(r.item); if (!m.has(k)) m.set(k, []); m.get(k).push(r); } return m; };
+  const blockers = byItem(tables.dep), dependents = new Map();
+  for (const d of tables.dep || []) { const k = String(d.blocker); if (!dependents.has(k)) dependents.set(k, []); dependents.get(k).push(String(d.item)); }
+  const own = Object.entries(tableColumns).filter(([name, cols]) => !['item', 'dep'].includes(name) && cols.includes('item')).map(([name]) => [name, byItem(tables[name])]);
+  const tasks = (tables.item || []).map(raw => {
+    const id = String(raw.id);
+    const related = Object.fromEntries(own.map(([name, rows]) => [name, rows.get(id) || []]).filter(([, rows]) => rows.length));
+    const createdAt = timestamp(raw.created_at), closedAt = timestamp(raw.closed_at);
+    const times = [createdAt, closedAt, ...Object.values(related).flat().map(r => timestamp(r.at))].filter(Boolean).sort();
+    return {
+      key: 'board:' + id, sourceId: 'board', id, title: raw.title, status: raw.status, severity: raw.severity ?? null,
+      priority: raw.priority ?? null, points: raw.points ?? null, description: raw.story ?? null, why: raw.why ?? null,
+      exit: raw.exit_cmd ?? null, area: null, phase: null, parentTask: null, createdAt, closedAt, updatedAt: null, lastRecordedAt: times.at(-1) || null,
+      dependencies: (blockers.get(id) || []).map(d => String(d.blocker)), dependents: dependents.get(id) || [], children: [],
+      notes: [], roasts: [], blocked: raw.parked != null && raw.parked !== '' ? [{ item: raw.id, reason: raw.parked, since: null }] : [],
+      related, raw, isFinding: false,
+    };
+  });
+  const itemSql = schema.find(s => s.name === 'item')?.sql;
+  return { tasks, taskTable: 'item', checkedStatuses: checkedValues(itemSql, 'status'), checkedSeverities: checkedValues(itemSql, 'severity') };
+}
+
+/** The to-do skill's tasks, with each task's related rows attached by their `task` column. */
+function todoTasks(data) {
   const { tables, tableColumns } = data;
   const rows = tables.task || [];
   const related = {};
@@ -223,16 +312,8 @@ export function readBoard(path, options) {
       raw, isFinding: raw.parent_task != null && raw.parent_task !== '',
     };
   });
-  const statuses = {}; for (const t of tasks) statuses[t.status] = (statuses[t.status] || 0) + 1;
   const taskSql = data.schema.find(s => s.name === 'task')?.sql;
-  const allTimes = tasks.map(t => t.lastRecordedAt).filter(Boolean).sort();
-  return {
-    available: true, stale: false, error: null, lastSuccessfulReadAt: new Date().toISOString(), ...data, taskTable: tables.task ? 'task' : null,
-    tasks, statuses, checkedStatuses: checkedValues(taskSql, 'status'), checkedSeverities: checkedValues(taskSql, 'severity'),
-    latestRecordedAt: allTimes.at(-1) || null,
-    file: fileInfo(path), wal: fileInfo(path + '-wal'), journalMode: existsSync(path) ? (isWalHeader(path) ? 'wal' : 'rollback') : null,
-    hash: digest({ schema: data.schema, indexes: data.indexes, tables }),
-  };
+  return { tasks, taskTable: tables.task ? 'task' : null, checkedStatuses: checkedValues(taskSql, 'status'), checkedSeverities: checkedValues(taskSql, 'severity') };
 }
 
 /** The tool's status policy as display rules; empty and explicitly unknown when there is no current policy. */
@@ -262,13 +343,17 @@ export function classify(board, rules, queue = null) {
       isExplicitlyBlocked: !isComplete && t.blocked.length > 0, isWaiting, isBlocked: (!isComplete && t.blocked.length > 0) || isWaiting };
   });
   const count = fn => rules.known ? tasks.filter(fn).length : null;
+  // A loop board files findings in their own table; one is open while it keeps the table's default status (the tool's
+  // `resolve` moves it on). A to-do board's findings are tasks that came out of a roast.
+  const loopFindings = board.kind === 'loop' ? board.tables?.finding || [] : null, openFinding = board.tableDefaults?.finding?.status;
   return { ...board, tasks,
     supportedStatuses: [...new Set([...rules.statuses, ...(board.checkedStatuses || []), ...Object.keys(board.statuses || {})])],
     severities: [...new Set([...rules.severities, ...(board.checkedSeverities || []), ...tasks.map(t => t.severity).filter(Boolean)])],
     counts: { total: tasks.length, open: count(t => t.isOpen), doing: count(t => t.isDoing), finished: count(t => t.isFinished),
       discarded: count(t => t.isDiscarded), complete: count(t => t.isComplete), unfinished: count(t => !t.isComplete),
       blocked: count(t => t.isExplicitlyBlocked), waiting: count(t => t.isWaiting),
-      openFindings: count(t => t.isFinding && !t.isComplete), findings: tasks.filter(t => t.isFinding).length,
+      openFindings: loopFindings ? loopFindings.filter(f => f.status === openFinding).length : count(t => t.isFinding && !t.isComplete),
+      findings: loopFindings ? loopFindings.length : tasks.filter(t => t.isFinding).length,
       notes: (board.tables?.note || []).length, reviews: (board.tables?.roast || []).length } };
 }
 
@@ -294,10 +379,12 @@ export function diffBoard(before, after, at = new Date().toISOString()) {
       const a = old.get(key) || null, b = now.get(key) || null;
       if (encode(a) === encode(b)) continue;
       const row = b || a;
-      const item = table === 'task' ? row.id : row.task ?? null;
+      // The task table is `task` on a to-do board and `item` on a loop board; other rows name theirs in `task` or `item`.
+      const taskTable = after.taskTable || 'task', isTask = table === taskTable;
+      const item = isTask ? row.id : (after.kind === 'loop' ? row.item : row.task) ?? null;
       const task = after.tasks.find(t => t.id === String(item)) || before.tasks?.find(t => t.id === String(item));
       const fields = a && b ? Object.keys({ ...a, ...b }).filter(k => encode(a[k]) !== encode(b[k])) : Object.keys(row);
-      changes.push({ id: randomUUID(), at, sourceId: 'board', sourceName: after.name, table, kind: a ? (b ? 'updated' : 'removed') : 'added',
+      changes.push({ id: randomUUID(), at, sourceId: 'board', sourceName: after.name, table, isTask, kind: a ? (b ? 'updated' : 'removed') : 'added',
         itemId: item == null ? null : String(item), title: task?.title || row.title || row.name || table, fields, before: a, after: b });
     }
   }
@@ -322,15 +409,17 @@ export function loadJournal(path) {
   entries.forEach((entry, index) => { entry.seq ??= index + 1; });
   return { entries, bad, endsClean: text === '' || text.endsWith('\n') };
 }
-const transitionOf = c => c.table === 'task' && c.itemId != null && c.before && c.after && c.before.status !== c.after.status
+// Entries written before `isTask` existed are from to-do boards, whose task table is `task`.
+const transitionOf = c => (c.isTask ?? c.table === 'task') && c.itemId != null && c.before && c.after && c.before.status !== c.after.status
   ? { seq: c.seq, id: c.id, at: c.at, observedAt: c.at, sourceId: c.sourceId, itemId: c.itemId, taskKey: 'board:' + c.itemId, title: c.title, fromStatus: c.before.status, toStatus: c.after.status } : null;
 
 // ---------------------------------------------------------------- picker
 
-/** Run picker.py once from a neutral directory. Resolves with its JSON or rejects with its structured error. */
-export function runPicker({ python, todo, dbPath, settings = defaults.picker }) {
+/** Run the board kind's picker once from a neutral directory. Resolves with its JSON or rejects with its structured error. */
+export function runPicker({ python, todo, dbPath, settings = defaults.picker, kind = 'todo' }) {
+  const spec = KINDS[kind] || KINDS.todo;
   return new Promise((resolveResult, reject) => {
-    const child = execFile(python.command, [...python.args, '-B', join(ROOT, 'picker.py'), '--db', dbPath, '--todo', todo], {
+    const child = execFile(python.command, [...python.args, '-B', join(ROOT, spec.picker), '--db', dbPath, spec.toolFlag, todo], {
       cwd: tmpdir(), shell: false, windowsHide: true, timeout: settings.timeoutMs, maxBuffer: settings.maxBufferBytes,
       env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
     }, (error, stdout) => {
@@ -350,7 +439,8 @@ const fileSha = path => { try { return createHash('sha256').update(readFileSync(
 
 // ---------------------------------------------------------------- monitor
 
-export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null }) {
+export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null, kind = 'todo' }) {
+  const tool = todo ? basename(todo) : (KINDS[kind] || KINDS.todo).tool || "the board's tool"; // the board's own tool, named in every message
   mkdirSync(dataDir, { recursive: true });
   const statePath = join(dataDir, 'baseline.json'), journalPath = join(dataDir, 'changes.jsonl');
   const boardName = name || basename(projectRoot) || dbPath;
@@ -361,7 +451,7 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
   if (loaded.bad.length) journalWarning = `${loaded.bad.length} unreadable change-history line(s) were skipped (line ${loaded.bad.slice(0, 10).join(', ')}${loaded.bad.length > 10 ? ', …' : ''}); every other entry is kept.`;
   const transitions = journal.map(transitionOf).filter(Boolean);
   let nextSeq = (journal.at(-1)?.seq ?? 0) + 1;
-  const source = { id: 'board', name: boardName, short: boardName.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || 'TD', kind: 'project', path: dbPath, projectRoot,
+  const source = { id: 'board', name: boardName, short: boardName.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || 'TD', kind: 'project', boardKind: kind, path: dbPath, projectRoot,
     note: 'Read-only view of this project\'s to-do board. The board is never written; status meaning, order and reasons come from the tool\'s own code.' };
   const picker = { configured: !!(python?.command && todo), python: python?.command ?? null, todo, reason: pickerReason };
   const instanceId = randomUUID(), listeners = new Set(), watchers = [];
@@ -370,9 +460,9 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
   let lastSignature = null, debounce = null, forced = false, closed = false, pendingNotify = false, toolSha = todo ? fileSha(todo) : null;
   const queue = { state: picker.configured ? 'checking' : 'unconfigured', result: null, previous: null, requested: 0, processed: 0, promise: null, error: picker.configured ? null : pickerReason };
 
-  const policyReason = () => !picker.configured ? `todo.py's policy is unavailable: ${pickerReason}`
-    : !queue.result ? (queue.state === 'checking' ? 'Reading todo.py’s policy.' : `todo.py's policy could not be read: ${queue.error}`)
-    : queue.result.tool.sha256 !== toolSha ? (queue.state === 'error' ? `todo.py changed and could not be read: ${queue.error}` : 'todo.py changed; its policy is being read again.') : null;
+  const policyReason = () => !picker.configured ? `${tool}'s policy is unavailable: ${pickerReason}`
+    : !queue.result ? (queue.state === 'checking' ? `Reading ${tool}’s policy.` : `${tool}'s policy could not be read: ${queue.error}`)
+    : queue.result.tool.sha256 !== toolSha ? (queue.state === 'error' ? `${tool} changed and could not be read: ${queue.error}` : `${tool} changed; its policy is being read again.`) : null;
   const currentPolicy = () => policyReason() == null ? queue.result.policy : null;
   const publicQueue = () => {
     const r = queue.result, out = { state: queue.state, error: queue.error, stale: queue.state !== 'ready' && !!(r || queue.previous) };
@@ -396,7 +486,7 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
     const shown = classified ? { ...source, ...classified, rules, picker, queue: shownQueue, tasks: classified.tasks.map(t => ({ ...t, statusObservedAt: latest.get(t.key) ?? null })) } : null;
     return { app: 'Sijav to-do dashboard', readOnly: true, instanceId, revision, checkedAt, readCount, ignoredEvents, lastFileEventAt,
       ui: settings.ui, rules, transport: settings.transport, watch: settings.watch, workClassification: {}, watchState,
-      server: { project: projectRoot, db: dbPath, dataDir, readOnly: true, python: picker.python, todo: picker.todo, toolSha },
+      server: { project: projectRoot, db: dbPath, dataDir, readOnly: true, python: picker.python, todo: picker.todo, tool, kind, toolSha },
       trackingSince: baseline.startedAt, persistenceError: [persistenceError, journalWarning].filter(Boolean).join(' ') || null,
       boards: shown ? [shown] : [], statusTransitions: transitions.slice().reverse(), changeCount: journal.length, latestSeq: journal.at(-1)?.seq ?? 0 };
   };
@@ -430,6 +520,7 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
     const before = fileSignature(dbPath), wasAvailable = board?.available === true;
     try {
       const current = { ...readBoard(dbPath, { busyMs: settings.read?.busyMs ?? 800 }), name: boardName };
+      if (current.kind !== kind) throw new BoardError(`The board file is now ${KINDS[current.kind].label}, not ${KINDS[kind].label}. Restart the dashboard to read it with its own tool.`);
       const after = fileSignature(dbPath);
       lastSignature = before === after ? after : null;
       if (before !== after) schedule(true);
@@ -476,12 +567,12 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
           if (!board?.available) { queue.processed = generation; queue.previous = null; queue.state = 'unavailable'; queue.error = 'The board could not be read, so its next pick is unknown. ' + (board?.error || ''); continue; }
           try {
             const sha = todo ? fileSha(todo) : null;
-            const result = await runPicker({ python, todo, dbPath, settings: settings.picker });
+            const result = await runPicker({ python, todo, dbPath, settings: settings.picker, kind });
             if (closed) return;
             if (generation !== queue.requested) continue;
             if (result.tool.sha256 !== sha || sha !== fileSha(todo)) { // todo.py changed mid-run
               toolSha = fileSha(todo);
-              if (++toolChanges > 3) { queue.processed = generation; queue.previous = null; queue.state = 'error'; queue.error = 'todo.py kept changing during every check. It is read again on its next change.'; }
+              if (++toolChanges > 3) { queue.processed = generation; queue.previous = null; queue.state = 'error'; queue.error = `${tool} kept changing during every check. It is read again on its next change.`; }
               continue;
             }
             toolSha = sha;

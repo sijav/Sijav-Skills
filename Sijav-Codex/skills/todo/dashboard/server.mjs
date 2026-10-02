@@ -1,21 +1,24 @@
 #!/usr/bin/env node
-// Read-only live dashboard for a project's .claude/todo.db.
+// Read-only live dashboard for a project's .claude/todo.db, or a loop board named with --db.
 //   node <skill>/dashboard/server.mjs [--project <dir>] [--db <file>] [--port <n>] [--data-dir <dir>]
-//                                     [--python <exe>] [--todo-py <file>] [--host 127.0.0.1]
+//                                     [--python <exe>] [--todo-py <file>] [--tool <file>] [--host 127.0.0.1]
 import { createServer } from 'node:http';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join, resolve, dirname } from 'node:path';
-import { ROOT, defaults, encode, BoardError, resolveBoard, resolveDataDir, discoverPython, discoverTodo, createMonitor } from './lib/board.mjs';
+import { join, resolve, dirname, basename } from 'node:path';
+import { ROOT, KINDS, defaults, encode, BoardError, resolveBoard, resolveDataDir, discoverPython, discoverTool, createMonitor } from './lib/board.mjs';
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
-export const USAGE = `Read-only live dashboard for the nearest project to-do board.
+export const USAGE = `Read-only live dashboard for a project's to-do board: the to-do skill's
+.claude/todo.db, or a loop board (an SQLite file with item and dep tables).
 
   node ${join(ROOT, 'server.mjs')} [options]
 
   --project <dir>    Start the board lookup here instead of the current directory.
-                     The nearest existing <dir or ancestor>/.claude/todo.db is used.
-  --db <file>        Use this board file. It must exist; nothing is ever created.
+                     The nearest existing .claude/todo.db in <dir> or an ancestor
+                     is used.
+  --db <file>        Use this board file; a loop board is always opened this way. It
+                     must exist; nothing is ever created. Any other file is refused.
   --port <n>         Port to listen on. Default 0: a free port chosen by the OS,
                      which changes on every start. Pass a port for a stable address.
   --host <addr>      Loopback address to bind: 127.0.0.1 (default), localhost or ::1.
@@ -23,11 +26,13 @@ export const USAGE = `Read-only live dashboard for the nearest project to-do boa
                      keyed by the board (never inside the project or the skill).
   --python <exe>     Python 3.9+ for the tool's picker. Default: SIJAV_TODO_PYTHON, then PATH.
   --todo-py <file>   The skill's todo.py. Default: ../todo.py beside this dashboard folder.
+  --tool <file>      A loop board's own tool. Default: the .py named after the board
+                     file, beside it (<name>.db -> <name>.py).
   --help             Show this text.`;
 
 export function parseArgs(argv) {
-  const options = { project: null, db: null, port: 0, host: '127.0.0.1', dataDir: null, python: null, todoPy: null, help: false };
-  const names = { '--project': 'project', '--db': 'db', '--port': 'port', '--host': 'host', '--data-dir': 'dataDir', '--python': 'python', '--todo-py': 'todoPy' };
+  const options = { project: null, db: null, port: 0, host: '127.0.0.1', dataDir: null, python: null, todoPy: null, tool: null, help: false };
+  const names = { '--project': 'project', '--db': 'db', '--port': 'port', '--host': 'host', '--data-dir': 'dataDir', '--python': 'python', '--todo-py': 'todoPy', '--tool': 'tool' };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--help' || arg === '-h') { options.help = true; continue; }
@@ -169,10 +174,10 @@ export async function startDashboard(options = {}, { cwd = process.cwd(), env = 
   const board = resolveBoard({ cwd, project: options.project ?? null, db: options.db ?? null });
   const dataDir = resolveDataDir({ cwd, dataDir: options.dataDir ?? null, dbPath: board.dbPath, env });
   const ws = await loadWs();
-  const todo = discoverTodo(options.todoPy ?? null, cwd);
+  const todo = discoverTool({ explicit: (board.kind === 'loop' ? options.tool : options.todoPy) ?? null, cwd, kind: board.kind, dbPath: board.dbPath });
   const python = todo.path ? discoverPython(options.python ?? null, env) : { command: null, reason: null };
   const pickerReason = todo.reason || python.reason || null;
-  const monitor = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason });
+  const monitor = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason, kind: board.kind });
   const server = createApp(monitor, ws.default ? { WebSocketServer: ws.WebSocketServer ?? ws.default.WebSocketServer, WebSocket: ws.WebSocket ?? ws.default } : ws);
   try { await new Promise((ok, fail) => { server.once('error', fail); server.listen(options.port ?? 0, options.host ?? '127.0.0.1', ok); }); }
   catch (error) { monitor.close(); throw error.code === 'EADDRINUSE' ? new BoardError(`Port ${options.port} is in use. Choose another --port, or 0 for any free port.`) : error; }
@@ -189,12 +194,12 @@ export function describe(started) {
     'Sijav to-do dashboard · read only',
     `URL:        ${started.url}${started.fixedPort ? '' : '  (port chosen by the OS; it changes on restart, pass --port for a stable address)'}`,
     `Project:    ${started.board.projectRoot}`,
-    `Board:      ${started.board.dbPath}  (${started.board.how})`,
+    `Board:      ${started.board.dbPath}  (${KINDS[started.board.kind].label}; ${started.board.how})`,
     `Read-only:  yes · SQLite read-only/query-only connections · no mutation API · board never written`,
     `Watching:   ${s.watchState.board.active ? s.watchState.board.directory + ' for ' + s.watchState.board.files.join(', ') : 'NOT ACTIVE: ' + s.watchState.board.error}` +
       (started.todo.path ? `; ${s.watchState.tool.active ? 'tool ' + started.todo.path : 'tool watch NOT ACTIVE: ' + s.watchState.tool.error}` : ''),
     `Live push:  WebSocket /api/live on file events · no polling`,
-    `Picker:     ${started.pickerReason ? 'unavailable · ' + started.pickerReason : `todo.py ${started.todo.path} via ${started.python.command}` + (queue?.state ? ` · ${queue.state}` : '')}`,
+    `Picker:     ${started.pickerReason ? 'unavailable · ' + started.pickerReason : `${basename(started.todo.path)} ${started.todo.path} via ${started.python.command}` + (queue?.state ? ` · ${queue.state}` : '')}`,
     `History:    ${started.dataDir}`,
     'No task loop is started. Ctrl+C stops the dashboard.',
   ].join('\n');

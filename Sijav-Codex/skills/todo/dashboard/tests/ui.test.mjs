@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
-import {sortLane,firstOpen,nextTask,sortQueue,queuePosition,pickerOrder,diffLines,changedFields,renderFieldDiff,formatDate} from '../public/board-ui.mjs';
+import {sortLane,firstOpen,nextTask,sortQueue,queuePosition,pickerOrder,diffLines,changedFields,renderFieldDiff,formatDate,clampText} from '../public/board-ui.mjs';
 import {rulesFrom} from '../lib/board.mjs';
 import {buildAmbientModel,renderAmbient} from '../public/ambient-ui.mjs';
 import {classifyWork,facetSupport} from '../public/work-context.mjs';
@@ -212,4 +212,25 @@ test('browser code has no data polling: only the Relax clock and reconnect use t
   assert.deepEqual([...app.matchAll(/setTimeout\(([^,]+),/g)].map(m=>m[1]).sort(),['()=>$(\'toast\').hidden=true','connectLive']);
   assert.doesNotMatch(app,/fetch\('\/api\/snapshot/);
   for(const file of ['../server.mjs','../lib/board.mjs'])assert.doesNotMatch(readFileSync(new URL(file,import.meta.url),'utf8'),/setInterval/);
+});
+
+test('long text folds to its start, a long list of ids folds to a count, and Show more / Show less open and fold it',()=>{
+  const ids=Array.from({length:30},(_,i)=>'c-'+String(i).padStart(12,'0')).join(', ');
+  const text='Batch one. PLACES: '+ids+' and then <b>more</b> words.';
+  const folded=clampText(text,'k1',new Set());
+  assert.match(folded,/^Batch one\. PLACES: <span class="value-list"[^>]*>30 values<\/span>/);
+  assert.ok(!folded.includes('c-000000000000'),'no id is shown while folded');
+  assert.ok(folded.includes('&lt;b&gt;more&lt;/b&gt;'),'the text around the list stays, escaped');
+  assert.match(folded,/data-expand="k1">Show more<\/button>$/);
+  const open=clampText(text,'k1',new Set(['k1']));
+  assert.ok(open.includes(ids)&&!open.includes('<b>'),'opened: every id, still escaped');
+  assert.match(open,/data-expand="k1">Show less<\/button>$/);
+  assert.equal(clampText('short <i>x</i>','k2',new Set()),'short &lt;i&gt;x&lt;/i&gt;','short text is only escaped');
+  const few='Values: '+Array.from({length:5},(_,i)=>'value-'+i).join(', ');
+  assert.equal(clampText(few,'k3',new Set()),few,'a short list stays as written');
+  const long='word '.repeat(200);
+  const cut=clampText(long,'k4',new Set(),{chars:100});
+  assert.ok(cut.startsWith('word word')&&cut.includes('…')&&cut.length<200,'cut at a word, with an ellipsis');
+  assert.doesNotMatch(clampText(long,'',null,{chars:100,toggle:false}),/button/,'no button where nothing can open it');
+  assert.match(clampText(long,'a"b',new Set(),{chars:100}),/data-expand="a&quot;b"/,'the key is escaped');
 });

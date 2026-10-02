@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { renameSync } from 'node:fs';
 import { startDashboard } from '../server.mjs';
-import { richProject, tempDir, cleanup, todo, testEnv, STAGE, TODO_PY, until } from './helpers.mjs';
+import { richProject, loopProject, LONG_IDS, sha, tempDir, cleanup, todo, testEnv, STAGE, TODO_PY, until } from './helpers.mjs';
 
 test.after(cleanup);
 const PUBLIC = pathToFileURL(join(STAGE, 'public') + '/').href;
@@ -52,7 +52,7 @@ async function serve(p, options = {}) {
   await new Promise((ok, fail) => { socket.once('open', ok); socket.once('error', fail); });
   return { started, settingsJson, messages, close: async () => { socket.terminate(); await started.close(); } };
 }
-const clean = html => assert.doesNotMatch(html, /undefined|\[object Object\]|NaN/);
+const clean = html => assert.doesNotMatch(html, /undefined|\[object Object\]|NaN|\$\{/);
 
 test('every view, the task drawer and Relax render from the real server’s settings and messages', { timeout: 120000 }, async () => {
   const p = richProject("demo $' $& project");
@@ -146,4 +146,46 @@ test('with no Python the board is shown in full and no status meaning, count or 
     assert.doesNotMatch(html, /Resume · already started|Exact output of todo.py next|in next order/);
     clean(html);
   } finally { await live.close(); }
+});
+
+test('a loop board renders in its own tool’s words, with long id lists folded and the item’s own fields in the drawer', { timeout: 120000 }, async () => {
+  const p = loopProject();
+  const before = sha(p.db);
+  const live = await serve(p);
+  try {
+    await until(() => live.messages.at(-1)?.snapshot.boards[0].queue.state === 'ready', 'loop picker');
+    const report = await renderApp(live.settingsJson, live.messages, '#report');
+    assert.deepEqual(report.errors, []);
+    const html = report.el('content').innerHTML;
+    for (const text of ['The order as board.py’s board_order() gives it', 'How board.py decides (read from its code)', '3 startable · 2 waiting',
+      'First startable not started', 'Findings filed against items and not yet resolved', 'IDS: <span class="value-list"', '40 values', 'data-expand="board:6:why">Show more'])
+      assert.ok(html.includes(text), 'report shows ' + text);
+    assert.ok(!html.includes(LONG_IDS), 'the long id list is folded');
+    assert.doesNotMatch(html, /todo\.py|waiting on parents/, 'no to-do skill words on a loop board');
+    clean(html);
+
+    const lanes = (await renderApp(live.settingsJson, live.messages, '#boards')).el('content').innerHTML;
+    for (const text of ['Waits on 1 (open): Foundation', 'Parked: Owner decides the wording', 'Waiting on blockers'])
+      assert.ok(lanes.includes(text), 'board shows ' + text);
+    clean(lanes);
+
+    const drawer = (await renderApp(live.settingsJson, live.messages, '#task=' + encodeURIComponent('board:1'))).el('detail-content').innerHTML;
+    for (const text of ['>created at<', '>closed at<', '>occurrences<', 'Story of Foundation', 'Exit command', 'check foundation', 'Items waiting on this (1)', 'Table finding (1)', 'First finding', 'stored: 1700000000'])
+      assert.ok(drawer.includes(text), 'drawer shows ' + text);
+    assert.doesNotMatch(drawer, /no such field|Parents that must be done first|Work area, type|Roast rounds|Findings filed from this task|Notes \(/, 'no to-do skill sections');
+    clean(drawer);
+    const waiting = (await renderApp(live.settingsJson, live.messages, '#task=' + encodeURIComponent('board:2'))).el('detail-content').innerHTML;
+    assert.match(waiting, /Items this waits on \(dep\) \(1\)/);
+    assert.match(waiting, /Checked with the tool: removing the reasons above makes it startable/);
+    assert.match(waiting, /Sort key from sort_key\(\)/);
+
+    const relax = await renderApp(live.settingsJson, live.messages, '#relax');
+    assert.deepEqual(relax.errors, []);
+    const ambient = relax.el('ambient-pane').innerHTML;
+    assert.doesNotMatch(ambient, /Show more|data-expand/, 'Relax folds without buttons');
+    assert.ok(ambient.includes('Next · board.py’s board_order()'), 'Relax names the board’s own tool');
+    assert.doesNotMatch(ambient, /todo[.]py/);
+    clean(ambient);
+  } finally { await live.close(); }
+  assert.equal(sha(p.db), before, 'the board is never written');
 });

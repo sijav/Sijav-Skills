@@ -1,4 +1,4 @@
-import {nextTask, firstOpen, sortQueue, formatDate, finishedAt} from './board-ui.mjs';
+import {nextTask, firstOpen, sortQueue, formatDate, finishedAt, clampText} from './board-ui.mjs';
 import {classifyWork, facetSupport} from './work-context.mjs';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -76,6 +76,7 @@ export function buildAmbientModel(snapshot = {}) {
     const phase = ready ? queue.currentPhase : null;
     return {
       id: board.id, name: board.name || board.id, available, stale, error: board.error || null,
+      tool: snapshot.server?.tool || 'todo.py', next: snapshot.server?.kind === 'loop' ? `${snapshot.server?.tool || 'the board’s tool'}’s board_order()` : `${snapshot.server?.tool || 'todo.py'} next`,
       doing: doingTasks.map(task => presentTask(task, board, definitions)),
       head, headRole: !head ? 'none' : queue.headKind === 'started' ? 'resume' : 'next',
       firstOpen: open ? presentTask(open, board, definitions) : null,
@@ -112,7 +113,7 @@ function taskCard(task, role) {
     <div class="ambient-task-meta"><code>${escape(taskId(task))}</code><span>${escape(task.status)}</span>${task.severity ? `<span>${escape(task.severity)}</span>` : ''}${task.points != null ? `<span>${escape(task.points)} pt</span>` : ''}${task.phase ? `<span>Objective ${escape(task.phase)}</span>` : ''}</div>
     <h3 dir="auto">${escape(task.title)}</h3>
     <div class="ambient-tags">${contextTags(task)}</div>
-    <div class="ambient-story"><span class="ambient-label">Story</span><p dir="auto">${task.story == null ? '<span class="ambient-muted">No story recorded.</span>' : escape(task.story)}</p>${task.reason ? `<span class="ambient-label">Why</span><p dir="auto">${escape(task.reason)}</p>` : ''}</div>
+    <div class="ambient-story"><span class="ambient-label">Story</span><p dir="auto">${task.story == null ? '<span class="ambient-muted">No story recorded.</span>' : clampText(task.story, '', null, {chars: 360, toggle: false})}</p>${task.reason ? `<span class="ambient-label">Why</span><p dir="auto">${clampText(task.reason, '', null, {chars: 360, toggle: false})}</p>` : ''}</div>
     ${task.queueReasons.length ? `<details class="ambient-technical ambient-reasons" data-ambient-details="${escape('deferred:' + (task.key || task.id))}"><summary>Not pickable · ${task.queueReasons.length} reason${task.queueReasons.length === 1 ? '' : 's'}</summary>${task.queueReasons.map(reason => `<p dir="auto">${escape(reason.message)}</p>`).join('')}</details>` : ''}
     ${role === 'doing' ? `<div class="ambient-task-foot">Recorded ${escape(task.status)}${task.statusObservedAt ? ' · change observed ' + escape(formatDate(task.statusObservedAt)) : ' · no start time recorded'}</div>` : ''}
   </article>`;
@@ -136,14 +137,14 @@ function boardView(board) {
   const counts = board.counts;
   const showEligibleOpen = board.headRole === 'resume' && board.firstOpen != null;
   const primary = showEligibleOpen ? board.firstOpen : board.head;
-  const primaryLabel = showEligibleOpen ? 'Next not-started task after started work · todo.py' : board.headRole === 'resume' ? 'Resume · todo.py next' : 'Next · todo.py next';
+  const primaryLabel = showEligibleOpen ? `Next not-started task after started work · ${board.tool}` : board.headRole === 'resume' ? `Resume · ${board.next}` : `Next · ${board.next}`;
   return `<section class="ambient-board" data-ambient-board="${escape(board.id)}">
     <header class="ambient-board-head"><h2>${escape(board.name)}</h2><span class="ambient-source-state">${!board.available ? board.stale ? 'Read failed · last successful data' : 'Read failed' : board.stale ? 'Last successful read' : 'Read-only board'}</span></header>
     <div class="ambient-metrics" aria-label="Whole board counts">${[['Not started', counts.open, board.statusNames.open], ['Doing', counts.doing, board.statusNames.doing], ['Done', counts.done, board.statusNames.done], ['All tasks', counts.total, '']].map(([label, value, statuses]) => `<div title="${escape(statuses)}"><span class="ambient-label">${label}</span><strong>${value ?? '—'}</strong></div>`).join('')}</div>
     <div class="ambient-work-grid">
-      <section class="ambient-doing-section"><div class="ambient-section-head"><span class="ambient-kicker"><i class="ambient-indicator"></i>Recorded Doing</span><span class="ambient-count">${counts.doing ?? '—'}</span></div>${board.doing.map(task => taskCard(task, 'doing')).join('') || `<div class="ambient-empty"><span class="ambient-empty-mark">—</span><p>${counts.doing == null ? 'Which statuses mean Doing is unknown until todo.py is read.' : 'No tasks are currently recorded Doing.'}</p></div>`}</section>
+      <section class="ambient-doing-section"><div class="ambient-section-head"><span class="ambient-kicker"><i class="ambient-indicator"></i>Recorded Doing</span><span class="ambient-count">${counts.doing ?? '—'}</span></div>${board.doing.map(task => taskCard(task, 'doing')).join('') || `<div class="ambient-empty"><span class="ambient-empty-mark">—</span><p>${counts.doing == null ? `Which statuses mean Doing is unknown until ${escape(board.tool)} is read.` : 'No tasks are currently recorded Doing.'}</p></div>`}</section>
       <section class="ambient-next-section"><div class="ambient-section-head"><span class="ambient-kicker">${primaryLabel}</span><span class="ambient-queue-state">${escape(board.queue.state)}</span></div>${primary ? taskCard(primary, 'next') : noHead(board)}
-        ${showEligibleOpen ? `<div class="ambient-first-open"><span class="ambient-label">Resume · the tool’s current pick</span><p><code>${escape(taskId(board.head))}</code> <span dir="auto">${escape(board.head.title)}</span></p><small>todo.py next resumes this started task first. The card above is the first not-started task in its eligible order.</small></div>` : board.headRole === 'resume' ? '<div class="ambient-first-open"><span class="ambient-label">First eligible not-started</span><p class="ambient-muted">No eligible not-started task in this result.</p><small>todo.py next resumes the started task above.</small></div>' : ''}
+        ${showEligibleOpen ? `<div class="ambient-first-open"><span class="ambient-label">Resume · the tool’s current pick</span><p><code>${escape(taskId(board.head))}</code> <span dir="auto">${escape(board.head.title)}</span></p><small>${escape(board.next)} resumes this started task first. The card above is the first not-started task in its eligible order.</small></div>` : board.headRole === 'resume' ? '<div class="ambient-first-open"><span class="ambient-label">First eligible not-started</span><p class="ambient-muted">No eligible not-started task in this result.</p><small>' + escape(board.next) + ' resumes the started task above.</small></div>' : ''}
         <div class="ambient-eligibility"><div><span class="ambient-label">Pickable</span><strong>${counts.startable ?? '—'}</strong></div><div><span class="ambient-label">Not pickable</span><strong>${counts.deferred ?? '—'}</strong></div><p>Checked ${board.queue.checkedAt ? escape(formatDate(board.queue.checkedAt)) : 'not yet recorded'}</p></div>
         ${board.hasPhases ? `<div class="ambient-technical ambient-environment ready"><span class="ambient-label">Current objective</span><p dir="auto">${board.phase ? `${escape(board.phase.name)}${board.phase.label ? ' · ' + escape(board.phase.label) : ''} — ${escape(board.phase.goal)}` : board.queue.ready ? 'Every objective is met.' : 'Known once the picker result is ready.'}</p></div>` : ''}
       </section>

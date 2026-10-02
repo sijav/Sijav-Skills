@@ -182,6 +182,11 @@ html[data-theme="dark"] :is(
   color: var(--muted);
 }
 
+html[data-theme="dark"] .value-list {
+  background: var(--neutral-bg);
+  color: var(--neutral-ink);
+}
+
 html[data-theme="dark"] .text-button,
 html[data-theme="dark"] .change-row summary,
 html[data-theme="dark"] .compare-summary,
