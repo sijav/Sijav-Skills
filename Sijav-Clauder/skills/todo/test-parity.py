@@ -22,6 +22,32 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 NODE_SCRIPT = os.path.join(HERE, "todo.mjs")
 PY_SCRIPT = os.path.join(HERE, "todo.py")
 
+# Areas (EF-002): a session works only in the areas the owner gave it, one, a
+# list or all, and a parent in another area still counts once it is done. Each
+# step carries what its output must say and must not say, so the two halves
+# agreeing on a wrong pick does not pass.
+AREA_STEPS = [
+    (["add", "--id", "SB-020", "--title", "a back task", "--desc", "d", "--why", "w",
+      "--severity", "high", "--points", "2", "--exit", "e", "--area", "back"], "Added SB-020", None),
+    (["add", "--id", "SB-021", "--title", "a front task after the back one", "--desc", "d", "--why", "w",
+      "--severity", "critical", "--points", "1", "--exit", "e", "--area", "front", "--parent", "SB-020"],
+     "Added SB-021", None),
+    (["add", "--id", "SB-022", "--title", "an ai task", "--desc", "d", "--why", "w",
+      "--severity", "medium", "--points", "1", "--exit", "e", "--area", "ai"], "Added SB-022", None),
+    (["next", "--area", "front"], "Nothing eligible in area front. 1 task(s) waiting on unfinished parents.", "SB-0"),
+    (["next", "--area", "back"], "in area back: highest severity", "SB-021"),
+    (["next", "--area", "ai,front"], "SB-022", "SB-020"),
+    (["next", "--area", "all"], "ALREADY STARTED, finish this first", "in area"),
+    (["next", "--area", "nowhere"], "Nothing left in area nowhere.", "SB-0"),
+    (["next", "--area", "unset"], "ALREADY STARTED in area unset, finish this first", "SB-02"),
+    (["move", "SB-020", "in_progress"], "SB-020", None),
+    (["next", "--area", "back"], "ALREADY STARTED in area back, finish this first", "SB-021"),
+    (["next", "--area", "front"], "Nothing eligible in area front.", "SB-021  ["),
+    (["move", "SB-020", "done"], "SB-020", None),
+    (["next", "--area", "front"], "SB-021", "SB-022"),
+    (["list", "--area", "back,front"], "SB-021", "SB-022"),
+]
+
 # One script of work, exercising every command and both kinds of parent. Ids are
 # given explicitly so the two runs produce the same ones and a diff means a real
 # difference rather than a numbering race.
@@ -128,6 +154,7 @@ SCRIPT = [
     ["show", "SB-003"],
     ["okr", "done", "OKR-3"],
     ["next"],
+    *[step for step, _must, _never in AREA_STEPS],
     # Failure paths print to stderr and exit non-zero; those must match too.
     ["show", "SB-999"],
     ["add", "--title", "no fields"],
@@ -215,7 +242,18 @@ for args, from_node, from_python in zip(SCRIPT, node, python):
     print(f"    node  : {from_node!r}")
     print(f"    python: {from_python!r}")
 
+# Agreeing is not enough for the area steps: each says what it must and must not print.
+start = SCRIPT.index(AREA_STEPS[0][0])
+for offset, (args, must, never) in enumerate(AREA_STEPS):
+    said = python[start + offset]
+    if must not in said or (never is not None and never in said):
+        differences += 1
+        print(f"  WRONG  todo {' '.join(args)}: must say {must!r}" + (f", never {never!r}" if never else ""))
+        print(f"    said: {said!r}")
+    else:
+        print(f"  right  todo {' '.join(args)}")
+
 if differences:
-    print(f"\n{differences} command(s) differ between the two implementations.")
+    print(f"\n{differences} command(s) differ between the two implementations or print the wrong thing.")
     sys.exit(1)
 print(f"\nBoth implementations agree on all {len(SCRIPT)} commands.")

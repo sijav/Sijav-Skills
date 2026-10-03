@@ -3,6 +3,7 @@
 //
 //   todo                       the whole board
 //   todo next                  what to do next, and why it was picked
+//   todo next --area back,ai   the same, only among those areas' tasks
 //   todo add --title ...       create a task
 //   todo move SB-003 done      change a status
 //   todo show SB-003           one task in full
@@ -348,6 +349,18 @@ const valueOf = (list, name) => {
   return at === -1 ? undefined : list[at + 1]
 }
 
+/**
+ * The areas a session works in, from `--area`: one name or a comma list. null
+ * means every area: no `--area`, an empty one, or `all` among the names.
+ * `unset` names the tasks that have no area, as `list` prints them.
+ */
+const areaFilter = (value) => {
+  if (value === undefined || value === null) return null
+  const names = String(value).split(',').map((name) => name.trim()).filter(Boolean)
+  return !names.length || names.includes('all') ? null : names
+}
+const inAreas = (task, areas) => areas === null || areas.includes(task.area || 'unset')
+
 /** A number from a flag, or null when it is not one: Number('') is 0, which is not what was typed. */
 const numberFrom = (value) => {
   if (value === undefined || String(value).trim() === '') return null
@@ -467,11 +480,11 @@ const byRule = (a, b) =>
  * started tasks the same rule decides which. Taking the first by id meant a low
  * severity task begun earlier beat a critical one. A blocked task is neither.
  */
-const choose = (tasks) => {
+const choose = (tasks, areas = null) => {
   const done = new Set(tasks.filter((task) => task.status === 'done').map((task) => task.id))
-  const started = tasks.filter((task) => (task.status === 'in_progress' || task.status === 'wait_for_roast') && !isBlocked(task)).sort(byRule)
+  const started = tasks.filter((task) => (task.status === 'in_progress' || task.status === 'wait_for_roast') && !isBlocked(task) && inAreas(task, areas)).sort(byRule)
   const eligible = tasks
-    .filter((task) => task.status === 'backlog' && !isBlocked(task))
+    .filter((task) => task.status === 'backlog' && inAreas(task, areas) && !isBlocked(task))
     .filter((task) => task.parents.every((parent) => done.has(parent)))
     .sort(byRule)
   return { started, pick: started[0] ?? eligible[0] }
@@ -632,7 +645,7 @@ if (command === 'phase') {
   const filtered = Boolean(given.status || given.area || given.severity)
   let tasks = all()
   if (!tasks.length) console.log('The board is empty.')
-  if (given.area) tasks = tasks.filter((task) => task.area === given.area)
+  if (areaFilter(given.area) !== null) tasks = tasks.filter((task) => inAreas(task, areaFilter(given.area)))
   if (given.severity) tasks = tasks.filter((task) => task.severity === given.severity)
   const report = filtered ? [] : phaseReport()
   if (report.length) console.log(report.join('\n'))
@@ -669,13 +682,16 @@ if (command === 'phase') {
 } else if (command === 'show') {
   console.log(card(one(args[0])))
 } else if (command === 'next') {
+  const areas = areaFilter(valueOf(args, 'area'))
+  const scope = areas ? ` in area ${areas.join(', ')}` : ''
   const tasks = all()
-  const { started, pick } = choose(tasks)
+  const { started, pick } = choose(tasks, areas)
   if (!pick) {
-    const waiting = tasks.filter((task) => task.status === 'backlog' && !isBlocked(task)).length
-    const blocked = tasks.filter((task) => !['done', 'dropped'].includes(task.status) && isBlocked(task))
-    if (waiting) console.log(`Nothing eligible. ${waiting} task(s) waiting on unfinished parents.`)
-    else if (!blocked.length) console.log('Nothing left.')
+    const mine = tasks.filter((task) => inAreas(task, areas))
+    const waiting = mine.filter((task) => task.status === 'backlog' && !isBlocked(task)).length
+    const blocked = mine.filter((task) => !['done', 'dropped'].includes(task.status) && isBlocked(task))
+    if (waiting) console.log(`Nothing eligible${scope}. ${waiting} task(s) waiting on unfinished parents.`)
+    else if (!blocked.length) console.log(`Nothing left${scope}.`)
     if (blocked.length) {
       console.log(`${blocked.length} task(s) blocked:`)
       for (const task of blocked) console.log(`  ${task.id}: ${blockOf(task.id)}`)
@@ -685,7 +701,7 @@ if (command === 'phase') {
 
   const current = currentPhase()
   const within = current ? ` in ${current.name}` : ''
-  console.log(started[0] ? 'ALREADY STARTED, finish this first\n' : `NEXT${within}: highest severity, unblocked, fewest points\n`)
+  console.log(started[0] ? `ALREADY STARTED${scope}, finish this first\n` : `NEXT${within}${scope}: highest severity, unblocked, fewest points\n`)
   console.log(card(pick))
 } else if (command === 'add') {
   const given = flags(args)
