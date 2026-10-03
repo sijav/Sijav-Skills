@@ -13,7 +13,7 @@ hooks:
 
 1. Locate the project root.
 2. Find the project's loop law file.
-3. The law is the project's `.claude/*loop*.local.md` file, the one its Stop hook reads.
+3. The law is the project's `.claude/*loop*.local.md` file, the one its Stop hook reads. A project may run one loop per session, each with its own law: yours is the one whose front matter names your session (`session:`). Never read, follow, edit or pause another session's law, and never let your loop feed another session.
 4. Read and follow the project's law in force; apply its requirements and exceptions instead of conflicting skill defaults.
 5. Inspect `.claude/settings.local.json`.
 6. Confirm that its Stop hook invokes the project's loop hook.
@@ -24,6 +24,10 @@ hooks:
 11. Perform each turn according to the project's law and the rules it names.
 12. Let the Stop hook continue the loop after each turn; use the compaction re-feed immediately after compaction without waiting for a turn end.
 
+# Areas
+
+The owner may give a loop areas, in its law's front matter (`areas: back,ai`). Work only in them: pick every task with `todo next --area <the areas>`, never resume started work outside them, and file what you find outside them for the owner instead of doing it. Never choose or widen your own areas. After a compaction this skill's hook says the areas again.
+
 # Rules
 
 The loop runs under the rules its project's law names. Read them when the loop starts.
@@ -31,6 +35,7 @@ The loop runs under the rules its project's law names. Read them when the loop s
 # Pause and finish
 
 - Create the project-root `.stop` file only when the owner explicitly requests stopping or pausing the loop. A used-up allowance means asking the owner to switch accounts, not pausing. Killed commands, interrupted calls, explanation requests, and other blockers do not authorize a loop pause.
+- `.stop` in the project root pauses every loop whose hook honours it; `.claude/<law>.stop` (beside `<law>.local.md`) pauses only that loop. Pause only your own loop unless the owner says otherwise.
 - Keep paused work marked as unfinished.
 - Read the exit condition and completion promise from the project's law.
 - End with `<promise>VALUE</promise>` only when that exit condition holds.
