@@ -38,7 +38,7 @@ const date=formatDate;
 // A human date with the stored value kept beside it.
 const dated=(value,prefix='')=>value==null||value===''?`<span class="muted">${escape(prefix)}Not recorded</span>`:`<span title="${escape('Stored value: '+value)}">${escape(prefix+date(value))}</span>`;
 const relative=value=>{if(!value)return 'No timestamp';const mins=Math.max(0,Math.floor((Date.now()-new Date(value))/60000));return mins<1?'Just now':mins<60?`${mins}m ago`:mins<1440?`${Math.floor(mins/60)}h ago`:`${Math.floor(mins/1440)}d ago`;};
-let socket=null,reconnectTimer=null,pendingState=null;
+let socket=null,reconnectTimer=null,pendingState=null,greetedSocket=null; // the socket whose greeting the page holds
 const state={expanded:new Set(),lists:new Map(),summary:null,summaryWanted:null,records:new Map(),rows:new Map(),relaxModel:null,relaxWanted:false,changesLoaded:false,changesLoading:false,data:null,source:'all',view:'report',query:'',status:'all',severity:'all',sort:'next',area:'all',type:'all',topic:'all',phase:'all',tableSelection:{},recordLimits:{},verification:'all',finishedOnly:false,blocked:false,paused:false,selected:null,changes:[],changesComplete:false,taskHistory:{},feedLimit:settings.ui.changePageSize};
 let themeStorage;try{themeStorage=window.localStorage;}catch{}
 const systemTheme=window.matchMedia('(prefers-color-scheme: dark)');
@@ -106,7 +106,8 @@ const phaseOf=(b,name)=>(b?.phases||[]).find(p=>p.name===name);
 // socket -- a list five at a time, the report's totals, a task's record, a table's rows -- and keeps
 // the answers until the filters change or a change is pushed.
 const PAGE=5;let requestSeq=0;const waiting=new Map();
-function ask(type,params={}){return new Promise((resolve,reject)=>{if(!socket||socket.readyState!==WebSocket.OPEN){reject(Error('The dashboard is not connected.'));return;}const id=++requestSeq;waiting.set(id,{resolve,reject});socket.send(JSON.stringify({...params,id,type}));});}
+// Nothing is asked on a socket before its greeting: a relay wants the sign-in first.
+function ask(type,params={}){return new Promise((resolve,reject)=>{if(!socket||socket.readyState!==WebSocket.OPEN||socket!==greetedSocket){reject(Error('The dashboard is not connected.'));return;}const id=++requestSeq;waiting.set(id,{resolve,reject});socket.send(JSON.stringify({...params,id,type}));});}
 const filters=()=>({area:state.area,type:state.type,topic:state.topic,phase:state.phase,status:state.status,severity:state.severity,verification:state.verification,finishedOnly:state.finishedOnly,blocked:state.blocked,query:state.query,sort:state.sort});
 const listKey=spec=>JSON.stringify([spec.list,spec.board,spec.status??null,filters()]);
 function loadList(spec,offset,limit=PAGE){const key=listKey(spec);let entry=state.lists.get(key);if(!entry){entry={spec,items:[],total:null,loading:false,error:null};state.lists.set(key,entry);}if(entry.loading)return;entry.loading=true;entry.error=null;
@@ -386,11 +387,11 @@ function connectLive(){
   socket.onmessage=event=>{
     const message=JSON.parse(event.data);
     if(message.type==='reply'){const asked=waiting.get(message.id);waiting.delete(message.id);if(!asked)return;if(message.error)asked.reject(Error(message.error));else asked.resolve(message.data);return;}
-    if(message.type==='offline'){state.offline=message.reason||'The boards are offline.';render();updateConnection();return;}
+    if(message.type==='offline'){state.offline=message.reason||'The boards are offline.';render();if($('task-dialog').open)$('detail-content').innerHTML=`<div class="banner error">${escape(state.offline)}</div>`+$('detail-content').innerHTML;updateConnection();return;} // an open record says so too
     // Refused (this account may not see the boards): said once, with no reconnecting. The host page forgets
     // the refused token, so Reconnect (or a reload) signs in again, with another account if need be.
     if(message.type==='refused'){state.refused=state.offline=message.reason||'This account cannot see the boards.';render();socket.onclose=null;socket.close();window.dashboardAuth?.forget?.();updateConnection();return;}
-    if(message.type==='hello'){state.offline=state.refused=null;pendingState=null;} // a greeting replaces every change queued before it
+    if(message.type==='hello'){state.offline=state.refused=null;pendingState=null;greetedSocket=socket;} // a greeting replaces every change queued before it
     if(message.type!=='hello'&&message.type!=='changed')return;
     if(state.paused&&message.type==='changed'){(pendingState??=[]).push(message);return;} // every change is kept and applied on resume
     applyMessage(message);
