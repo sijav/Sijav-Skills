@@ -340,6 +340,36 @@ test('published, Relax opened from a bookmark signs in first and then shows Rela
   } finally { await live.close(); }
 });
 
+test('published, Reconnect with Relax waiting signs in before anything is asked again', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    const page = await renderApp(live, '#relax', { published: { livePath: '/progress/live', auth: 'google' }, token: 'signed-in-token', hold: ['relax'] });
+    assert.ok(page.bridge().messages.some(m => m.type === 'relax'), 'Relax asked, and its answer is held');
+    page.el('refresh').listeners.click[0](); // Reconnect, with the page still holding the old greeting's data
+    await page.settled();
+    const second = page.bridge();
+    assert.equal(second.messages[0].type, 'auth', 'the sign-in goes first on the new socket');
+    assert.ok(second.messages.some(m => m.type === 'relax'), 'Relax asks again once greeted');
+    assert.match(page.el('ambient-pane').innerHTML, /Small medium/);
+    assert.deepEqual(page.errors, []);
+  } finally { await live.close(); }
+});
+
+test('an open task record says when the boards go offline', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    const page = await renderApp(live, '#task=' + encodeURIComponent('board:MP-006'));
+    assert.ok(page.el('task-dialog').open && /Findings filed from this task/.test(page.el('detail-content').innerHTML), 'the record is open');
+    page.deliver({ type: 'offline', reason: 'The boards are offline: the PC that has them is not connected.' });
+    assert.match(page.el('detail-content').innerHTML, /^<div class="banner error">The boards are offline: the PC that has them is not connected\.<\/div>/);
+    assert.deepEqual(page.errors, []);
+  } finally { await live.close(); }
+});
+
 test('Reconnect settles the questions in flight, and the Changes view loads its history again', { timeout: 120000 }, async () => {
   const p = richProject();
   const live = await serve(p);
