@@ -48,7 +48,7 @@ async function renderApp(live, hash, { published = null, token = null, hold = []
       bridges.push(this);
       this.real = new WebSocket(live.wsUrl, { headers: { Origin: live.origin } });
       openSockets.add(this.real);
-      this.real.on('open', () => { this.readyState = 1; this.onopen?.(); });
+      this.real.on('open', () => { this.readyState = 1; this.onopen?.(); this.labelAtOpen = el('connection-text').textContent; });
       this.real.on('message', data => { if (this.held) this.held.push(String(data)); else this.receive(String(data)); });
       this.real.on('close', () => { this.readyState = 3; });
       this.real.on('error', () => {});
@@ -93,7 +93,9 @@ async function renderApp(live, hash, { published = null, token = null, hold = []
   };
   /** A message as the relay would send it. */
   const deliver = message => bridges.at(-1).onmessage?.({ data: typeof message === 'string' ? message : JSON.stringify(message) });
-  return { el, errors, settled, loadAll, deliver, auth, bridge: () => bridges.at(-1) };
+  /** A click whose target is inside the elements `closest` names, e.g. { '[data-expand]': { dataset: { expand: 'x' } } }. */
+  const click = closest => { for (const fn of listeners.click || []) fn({ target: { closest: sel => closest[sel] ?? null } }); };
+  return { el, errors, settled, loadAll, deliver, click, auth, bridge: () => bridges.at(-1) };
 }
 
 /** A live dashboard on a fixture: its embedded page settings, and a client following its pushes. */
@@ -357,7 +359,7 @@ test('published, Reconnect with Relax waiting signs in before anything is asked 
   } finally { await live.close(); }
 });
 
-test('an open task record says when the boards go offline', { timeout: 120000 }, async () => {
+test('an open task record says when the boards go offline, through every redraw', { timeout: 120000 }, async () => {
   const p = richProject();
   const live = await serve(p);
   try {
@@ -365,7 +367,25 @@ test('an open task record says when the boards go offline', { timeout: 120000 },
     const page = await renderApp(live, '#task=' + encodeURIComponent('board:MP-006'));
     assert.ok(page.el('task-dialog').open && /Findings filed from this task/.test(page.el('detail-content').innerHTML), 'the record is open');
     page.deliver({ type: 'offline', reason: 'The boards are offline: the PC that has them is not connected.' });
-    assert.match(page.el('detail-content').innerHTML, /^<div class="banner error">The boards are offline: the PC that has them is not connected\.<\/div>/);
+    const note = /^<div class="banner error">The boards are offline: the PC that has them is not connected\.<\/div>/;
+    assert.match(page.el('detail-content').innerHTML, note);
+    page.click({ '[data-expand]': { dataset: { expand: 'board:MP-006:story' } } }); // a section opened: the record redraws
+    assert.match(page.el('detail-content').innerHTML, note, 'the note stays through the redraw');
+    assert.deepEqual(page.errors, []);
+  } finally { await live.close(); }
+});
+
+test('after Reconnect the page says Live only once the new socket is greeted', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    const page = await renderApp(live, '#report');
+    assert.equal(page.el('connection-text').textContent, 'Live · file watcher');
+    page.el('refresh').listeners.click[0]();
+    await page.settled();
+    assert.notEqual(page.bridge().labelAtOpen, 'Live · file watcher', 'not Live from the old greeting when the new socket opens');
+    assert.equal(page.el('connection-text').textContent, 'Live · file watcher', 'Live once greeted');
     assert.deepEqual(page.errors, []);
   } finally { await live.close(); }
 });
