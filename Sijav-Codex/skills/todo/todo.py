@@ -3,6 +3,7 @@
 
   todo                       the whole board
   todo next                  what to do next, and why it was picked
+  todo next --area back,ai   the same, only among those areas' tasks
   todo add --title ...       create a task
   todo move SB-003 done      change a status
   todo show SB-003           one task in full
@@ -387,6 +388,22 @@ def value_of(items, name):
     return items[at + 1] if at + 1 < len(items) else None
 
 
+def area_filter(value):
+    """The areas a session works in, from `--area`: one name or a comma list.
+
+    None means every area: no `--area`, an empty one, or `all` among the names.
+    `unset` names the tasks that have no area, as `list` prints them.
+    """
+    if value is None:
+        return None
+    names = [name.strip() for name in str(value).split(",") if name.strip()]
+    return None if not names or "all" in names else names
+
+
+def in_areas(task, areas):
+    return areas is None or (task["area"] or "unset") in areas
+
+
 def number_from(value):
     """A number from a flag, or None when it is not one."""
     if value is None or str(value).strip() == "":
@@ -559,11 +576,13 @@ def by_severity(task):
     return (SEVERITIES.index(task["severity"]), task["points"], id_number(task["id"]), task["id"])
 
 
-def choose(tasks):
+def choose(tasks, areas=None):
     """What `next` would pick, for `next` and for the rendered board alike.
 
     Work in flight is finished before anything new starts, and among several
     started tasks the same rule decides which. A blocked task is neither.
+    With `areas` only those areas' tasks are picked; a parent in another area
+    still counts, so every task stays in `done`.
     """
     done = {task["id"] for task in tasks if task["status"] == "done"}
     started = sorted(
@@ -571,6 +590,7 @@ def choose(tasks):
             task
             for task in tasks
             if task["status"] in ("in_progress", "wait_for_roast") and not is_blocked(task)
+            and in_areas(task, areas)
         ],
         key=by_rule,
     )
@@ -579,6 +599,7 @@ def choose(tasks):
             task
             for task in tasks
             if task["status"] == "backlog"
+            and in_areas(task, areas)
             and not is_blocked(task)
             and all(parent in done for parent in task["parents"])
         ],
@@ -797,8 +818,8 @@ elif command == "list":
     tasks = all_tasks()
     if not tasks:
         print("The board is empty.")
-    if given.get("area"):
-        tasks = [task for task in tasks if task["area"] == given["area"]]
+    if area_filter(given.get("area")) is not None:
+        tasks = [task for task in tasks if in_areas(task, area_filter(given["area"]))]
     if given.get("severity"):
         tasks = [task for task in tasks if task["severity"] == given["severity"]]
     report = [] if filtered else phase_report()
@@ -836,15 +857,18 @@ elif command == "show":
     print(card(one(args[0])))
 
 elif command == "next":
+    areas = area_filter(value_of(args, "area"))
+    scope = f" in area {', '.join(areas)}" if areas else ""
     tasks = all_tasks()
-    started, pick = choose(tasks)
+    started, pick = choose(tasks, areas)
     if pick is None:
-        waiting = len([task for task in tasks if task["status"] == "backlog" and not is_blocked(task)])
-        blocked = [task for task in tasks if task["status"] not in ("done", "dropped") and is_blocked(task)]
+        mine = [task for task in tasks if in_areas(task, areas)]
+        waiting = len([task for task in mine if task["status"] == "backlog" and not is_blocked(task)])
+        blocked = [task for task in mine if task["status"] not in ("done", "dropped") and is_blocked(task)]
         if waiting:
-            print(f"Nothing eligible. {waiting} task(s) waiting on unfinished parents.")
+            print(f"Nothing eligible{scope}. {waiting} task(s) waiting on unfinished parents.")
         elif not blocked:
-            print("Nothing left.")
+            print(f"Nothing left{scope}.")
         if blocked:
             print(f"{len(blocked)} task(s) blocked:")
             for task in blocked:
@@ -854,9 +878,9 @@ elif command == "next":
     current = current_phase()
     within = f" in {current['name']}" if current else ""
     print(
-        "ALREADY STARTED, finish this first\n"
+        f"ALREADY STARTED{scope}, finish this first\n"
         if started
-        else f"NEXT{within}: highest severity, unblocked, fewest points\n"
+        else f"NEXT{within}{scope}: highest severity, unblocked, fewest points\n"
     )
     print(card(pick))
 

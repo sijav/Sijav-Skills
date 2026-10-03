@@ -138,6 +138,14 @@ severity, then fewest story points, then lowest id, never one whose parent is
 unfinished and never one that is blocked.** Anything already `in_progress` comes
 first, so work in flight gets finished before anything new starts.
 
+**A session that the owner gave areas works only in them.** Pass them every
+time: `todo next --area back` for one area, `--area back,front` for a list.
+No `--area`, or `--area all`, is every area; `unset` names the tasks that have
+no area. A parent in another area still counts once it is done, and work in
+flight outside your areas is not yours to resume. Two sessions with different
+areas on one board never get the same pick. Never choose your own areas: the
+owner sets them.
+
 If the pick looks wrong, correct that task's severity, points or parents and run
 it again. Do not simply pick something else.
 
@@ -271,7 +279,7 @@ another project's rules may differ and a refusal would be a gate on every board.
 
 ```bash
 todo                       the whole board, by column
-todo list --status backlog --area web --severity high     any of the three
+todo list --status backlog --area web,api --severity high  any of the three
 todo show <id>             one task in full
 todo move <id> done        backlog, in_progress, done, dropped, or blocked --reason
                            closing prints what to roast and what is unfinished

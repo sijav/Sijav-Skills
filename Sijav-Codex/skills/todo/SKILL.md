@@ -21,7 +21,8 @@ them and never claim that an absent command is implemented.
 Before project work, check whether another session is already working that
 project using its full command line and session records. Concurrent loop and
 roast transactions are permitted by the tool's SQLite lock handling; two
-independent implementation sessions on one board can clobber each other.
+independent implementation sessions on one board can clobber each other,
+unless the owner gave each its own areas (below).
 
 ## Pick the tool's task
 
@@ -31,6 +32,13 @@ points and lowest ID, excluding blocked tasks and unfinished dependencies.
 Do not choose a different task with an invented ordering. If the pick looks
 wrong, correct the recorded severity, points or parents within the owner's
 instructions, then run `next` again. Mark the selected task `in_progress`.
+
+A session the owner gave areas works only in them: pass them on every pick,
+`next --area back` for one area or `--area back,front` for a list. No `--area`,
+or `all`, is every area; `unset` names tasks with no area. A parent in another
+area still counts once it is done, and started work outside the areas is not
+resumed. Sessions with different areas never get the same pick. The owner sets
+the areas; never choose them yourself.
 
 If no board exists, the tool refuses. Create one only through an authorized
 explicit `init --here` or `init <path>`; bare `init` also refuses. Never turn an
