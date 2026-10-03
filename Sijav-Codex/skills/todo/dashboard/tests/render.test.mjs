@@ -308,3 +308,24 @@ test('published through a relay: its socket path, the sign-in first, no local ac
     clean(page.el('content').innerHTML);
   } finally { await live.close(); }
 });
+
+test('a greeting replaces the changes queued while the view was paused', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    const page = await renderApp(live, '#report');
+    assert.deepEqual(page.errors, []);
+    const pause = () => page.el('pause').listeners.click[0]();
+    pause();
+    const greeting = JSON.parse(page.bridge().greeting);
+    page.deliver({ type: 'changed', boards: [{ ...greeting.boards[0], available: false, error: 'An older read that failed' }], keys: [], changes: [] });
+    page.deliver(page.bridge().greeting); // greeted again, as after a reconnect
+    await page.settled();
+    pause(); // resume
+    await page.settled();
+    assert.doesNotMatch(page.el('content').innerHTML, /could not be read/, 'the change queued before the greeting is not applied');
+    assert.match(page.el('content').innerHTML, /Next · the tool’s own pick/);
+    assert.deepEqual(page.errors, []);
+  } finally { await live.close(); }
+});
