@@ -165,8 +165,10 @@ test('a loop board renders in its own tool’s words, with long id lists folded 
     clean(html);
 
     const lanes = (await renderApp(live.settingsJson, live.messages, '#boards')).el('content').innerHTML;
-    for (const text of ['Waits on 1 (open): Foundation', 'Parked: Owner decides the wording', 'Waiting on blockers'])
+    for (const text of ['Waits on 1 (open): Foundation', 'Parked: Owner decides the wording', 'Waiting on blockers', 'Area · back', 'Area · front'])
       assert.ok(lanes.includes(text), 'board shows ' + text);
+    const areaFilter = (await renderApp(live.settingsJson, live.messages, '#boards')).el('area').innerHTML;
+    assert.ok(areaFilter.includes('value="back"') && areaFilter.includes('value="front"') && areaFilter.includes('value="missing"'), 'the area filter offers each stored area');
     clean(lanes);
 
     const drawer = (await renderApp(live.settingsJson, live.messages, '#task=' + encodeURIComponent('board:1'))).el('detail-content').innerHTML;
@@ -188,4 +190,29 @@ test('a loop board renders in its own tool’s words, with long id lists folded 
     clean(ambient);
   } finally { await live.close(); }
   assert.equal(sha(p.db), before, 'the board is never written');
+});
+
+test('two boards on one page: each board in its own tool’s words, cards named by board, each drawer its own', { timeout: 120000 }, async () => {
+  const loop = loopProject(), board = richProject('todo project');
+  const live = await serve(loop, { dbs: [loop.db, board.db] });
+  try {
+    await until(() => { const s = live.messages.at(-1)?.snapshot; return s?.boards.length === 2 && s.boards.every(b => b.queue.state === 'ready'); }, 'both pickers');
+    const report = await renderApp(live.settingsJson, live.messages, '#report');
+    assert.deepEqual(report.errors, []);
+    const html = report.el('content').innerHTML;
+    for (const text of ['How board.py decides (read from its code)', 'How todo.py decides (read from its code)', 'The order as board.py’s board_order() gives it', 'Exact output of todo.py next'])
+      assert.ok(html.includes(text), 'report shows ' + text);
+    clean(html);
+    const lanes = (await renderApp(live.settingsJson, live.messages, '#boards')).el('content').innerHTML;
+    for (const text of ['Next order from each board’s own tool', '>loop · board<', '>todo project · to-do<', 'Statuses the board and board.py allow', 'Statuses the board and todo.py allow', ' · loop · board<', ' · todo project · to-do<'])
+      assert.ok(lanes.includes(text), 'board shows ' + text);
+    clean(lanes);
+    const loopDrawer = (await renderApp(live.settingsJson, live.messages, '#task=' + encodeURIComponent('board:1'))).el('detail-content').innerHTML;
+    assert.ok(loopDrawer.includes('>created at<') && loopDrawer.includes('Items waiting on this (1)') && !loopDrawer.includes('Findings filed from this task'));
+    const todoDrawer = (await renderApp(live.settingsJson, live.messages, '#task=' + encodeURIComponent('board-2:MP-006'))).el('detail-content').innerHTML;
+    assert.ok(todoDrawer.includes('Findings filed from this task (2 · 2 open)') && todoDrawer.includes('>created<') && !todoDrawer.includes('>created at<'));
+    clean(loopDrawer); clean(todoDrawer);
+    const ambient = (await renderApp(live.settingsJson, live.messages, '#relax')).el('ambient-pane').innerHTML;
+    assert.ok(ambient.includes('board.py’s board_order()') && ambient.includes('todo.py next'), 'Relax names each board’s own tool');
+  } finally { await live.close(); }
 });

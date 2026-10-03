@@ -138,13 +138,17 @@ severity, then fewest story points, then lowest id, never one whose parent is
 unfinished and never one that is blocked.** Anything already `in_progress` comes
 first, so work in flight gets finished before anything new starts.
 
-**A session that the owner gave areas works only in them.** Pass them every
-time: `todo next --area back` for one area, `--area back,front` for a list.
-No `--area`, or `--area all`, is every area; `unset` names the tasks that have
-no area. A parent in another area still counts once it is done, and work in
-flight outside your areas is not yours to resume. Two sessions with different
-areas on one board never get the same pick. Never choose your own areas: the
-owner sets them.
+**A loop is per session, and its loop file sets its board and areas.** The
+file is `.claude/<name>loop<...>.local.md`, naming the session (`session:`),
+optionally its board (`board: .claude/todo.db`) and its areas (`areas: back,ai`),
+set by the owner. The tool reads the loop file of the session running it on
+every command (Claude Code gives each command `CLAUDE_CODE_SESSION_ID`, Codex
+`CODEX_SESSION_ID`): `next` offers only the loop's areas, `--area` can only
+narrow them, and `move <id> in_progress` on a task outside them is refused. A
+parent in another area still counts once it is done. Two loops with different
+areas never get the same task. A session with no loop file works as before:
+the nearest board, every area, and `--area` picks freely (`unset` names tasks
+with no area).
 
 If the pick looks wrong, correct that task's severity, points or parents and run
 it again. Do not simply pick something else.

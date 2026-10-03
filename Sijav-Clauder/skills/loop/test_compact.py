@@ -82,11 +82,11 @@ def test_each_session_gets_only_its_own_law_and_areas(project, monkeypatch, caps
     a = json.loads(run(monkeypatch, capsys, {"source": "compact", "session_id": "session-a"}).out)
     context_a = a["hookSpecificOutput"]["additionalContext"]
     assert "# Law A" in context_a and "# Law B" not in context_a
-    assert "areas: back,ai." in context_a and "todo next --area back,ai" in context_a
+    assert "areas: back,ai." in context_a and "takes them from this loop file" in context_a
     b = json.loads(run(monkeypatch, capsys, {"source": "compact", "session_id": "session-b"}).out)
     context_b = b["hookSpecificOutput"]["additionalContext"]
     assert "# Law B" in context_b and "# Law A" not in context_b
-    assert "todo next --area dashboard" in context_b
+    assert "areas: dashboard." in context_b
 
 
 def test_a_session_no_law_names_gets_nothing(project, monkeypatch, capsys):
@@ -102,6 +102,17 @@ def test_a_law_naming_no_session_counts_only_when_it_is_the_only_one(project, mo
         "---\nsession: session-b\n---\n\n# Law B\n", encoding="utf-8"
     )
     assert run(monkeypatch, capsys, {"source": "compact", "session_id": "any"}).out == ""
+
+
+def test_a_skill_driven_loop_comes_back_even_beside_a_project_hook(project, monkeypatch, capsys):
+    two_loops(project)
+    settings = {"hooks": {"SessionStart": [{"matcher": "compact", "hooks": []}]}}
+    (project / ".claude" / "settings.local.json").write_text(json.dumps(settings), encoding="utf-8")
+    law = project / ".claude" / "b-loop.local.md"
+    law.write_text(law.read_text(encoding="utf-8").replace("---\nsession", "---\ndriver: skill\nsession"), encoding="utf-8")
+    assert "# Law B" in run(monkeypatch, capsys, {"source": "compact", "session_id": "session-b"}).out
+    assert run(monkeypatch, capsys, {"source": "compact", "session_id": "session-a"}).out == ""
+    assert "deferred: the project runs its own compaction hook" in logged(project)
 
 
 def test_one_loop_pauses_alone(project, monkeypatch, capsys):

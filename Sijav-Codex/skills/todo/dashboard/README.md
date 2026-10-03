@@ -81,7 +81,7 @@ directory junction or `subst` drive.
 | Option | Meaning |
 | --- | --- |
 | `--project <dir>` | Start the board lookup here instead of the current directory. The nearest **existing** `<dir or ancestor>/.claude/todo.db` is used, the same walk as `todo.py`. A loop board is never looked for: `--db` names it. |
-| `--db <file>` | Use this board file, relative to the current directory. It must exist; nothing is ever created. A loop board is always opened this way. |
+| `--db <file>` | Use this board file, relative to the current directory. It must exist; nothing is ever created. A loop board is always opened this way. Give `--db` more than once to show several boards on one page (see [Several boards](#several-boards)). |
 | `--port <n>` | Default `0`: the OS picks a free port. **That port changes on every start**, so an open tab cannot reconnect after a restart. Pass a fixed `--port` for a stable address. A port in use is reported (exit 2). |
 | `--host <addr>` | `127.0.0.1` (default), `localhost` or `::1`. Non-loopback addresses are refused. |
 | `--data-dir <dir>` | Where change history is kept. Default: a per-user cache folder keyed by the board (below). A folder inside the installed skill is refused. |
@@ -269,6 +269,30 @@ The drawer shows the item's own fields (`created_at`, `closed_at`,
 blockers. It leaves out the to-do skill's sections: area and type,
 objectives, notes, roasts, and findings filed as tasks.
 
+## Several boards
+
+Two sessions on one project often keep two boards, a loop board and a to-do
+board say. Give `--db` once per board and one page shows them all:
+
+```
+node "<skills>/todo/dashboard/server.mjs" --db "<subfolder>/<loop board>.db" --db ".claude/todo.db" --port 8765
+```
+
+- Each board is read with its own tool and keeps its own change history, under
+  its own id: `board` for the first, `board-2` and on for the rest. A board
+  shown alone keeps `board`, so its history and links do not change.
+- The board list switches between them; "All" shows every board, with each card
+  naming its board. Every board's lanes, picks, reasons and task drawer are in
+  its own tool's words.
+- Changes from every board share one numbering, so the Changes view, paging and
+  live pushes work across boards. A task's own history is asked for by its key,
+  `<board id>:<task id>`, since two boards may both have a task 12.
+- The same board given twice is shown once. `--tool` names one loop board's
+  tool, so it is refused when several loop boards are given; each then uses the
+  `.py` named after its board file. `--data-dir` keeps one folder per board.
+- A loop board's items show their stored `area`, and the area filter selects
+  them.
+
 ## Read-only guarantees
 
 - **Connections:** every connection is SQLite read-only (`mode=ro`) and
@@ -414,8 +438,8 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 | `picker.test.mjs` | Exact real `next` text and pick at every step of working a board; started precedence and blocked started work; a blocked task with a done and an unfinished parent gets exact, probe-confirmed reasons that match how the real tool resolves them; legacy severities and statuses do not cost the pick; a changed `by_rule`/`choose` changes order, labels and groups; refused constants and start-up mutations; tool writes never reach the project; old and unused boards on a copy; missing Python explained. |
 | `live.test.mjs` | Installed copy from a subdirectory, with `$'`, `$&` and `$$` in the project path; host, origin, Sec-Fetch and frame headers; WAL push with a quiet period showing no polling; incremental history and pagination; read failure withdraws pick and order then recovers; broken or changed `todo.py` is watched; atomic replacement; CLI output, restart history, refusals, junction start, Node version gate; real `npm start` from the caller's directory; npm variables inherited from an unrelated npm process never select another (synthetic) board; installed helpers use the parent `todo.py`; demo refuses overrides. |
 | `ui.test.mjs` | Order only from a current result; labelled previous order while re-checking; no order on failure; no recency without policy; done most recent first; field line diffs; dates; recorded-only area; Relax states; theme and display controller; no browser polling; long text and id lists fold, open and fold again, escaped. |
-| `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, the item's own fields in the drawer and Relax naming its tool; no literal `${` in any view. |
-| `loop.test.mjs` | Loop boards made by a small test loop tool (`tests/loop-fixture`): told apart by their tables, and any other SQLite file refused, also by the CLI; found from their own folder and named after the project folder; items, blockers, parked notes and findings mapped; `loop_picker.py` gives the tool's own head, order, status groups and checked reasons, and refuses a tool whose order it cannot read; an older loop board without parked, exit or created columns; the live server through a change; the board never written and nothing created beside it. |
+| `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, its areas on the cards and in the filter, the item's own fields in the drawer and Relax naming its tool; two boards on one page, each in its own tool's words, cards named by board, each drawer its own; no literal `${` in any view. |
+| `loop.test.mjs` | Two boards on one page: each read with its own tool and history, one numbering of changes, the same board given twice shown once, `--tool` refused for several loop boards. Loop boards made by a small test loop tool (`tests/loop-fixture`): told apart by their tables, and any other SQLite file refused, also by the CLI; found from their own folder and named after the project folder; items, blockers, parked notes and findings mapped; `loop_picker.py` gives the tool's own head, order, status groups and checked reasons, and refuses a tool whose order it cannot read; an older loop board without parked, exit or created columns; the live server through a change; the board never written and nothing created beside it. |
 
 `test-output.txt` holds the full last run.
 

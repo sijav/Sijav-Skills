@@ -170,7 +170,9 @@ No design rules yet.
 
 ## The loop
 
-A project can run a loop: after each reply, its Stop hook gives the project's law back as the next prompt, until the work is done. The loop skill engages that loop and follows the law. Starting it is the project's own command, run from the session that should do the work: that session becomes the loop's only session, and the pause file goes.
+A project can run a loop: after each reply, a Stop hook gives the loop's law back as the next prompt, until the work is done. The loop skill engages that loop and follows the law. Starting it is the project's own command, run from the session that should do the work: that session becomes the loop's only session, and the pause file goes.
+
+A loop is per session, so a project can run several at once. Each has its own loop file, `<name>-loop.local.md`, naming its session, its board and its areas. The project's own hook drives its loop; a loop file that says `driver: skill` is driven by the loop skill's own hooks, which run only in the session that invoked the skill. No loop ever gets another loop's law.
 
 ```mermaid
 flowchart TD
@@ -194,9 +196,13 @@ flowchart TD
 
 Type `/sijav-clauder:loop` in the session that should do the work. The project's start command makes it the loop's only session and removes the pause file.
 
+#### Areas
+
+The loop file's `areas:` are the only work its session gets: the to-do script reads them on every command, so `next` offers nothing else and a task outside them cannot be started.
+
 #### Pause
 
-A `.stop` file in the project pauses the loop. Claude makes one only when you ask; a used-up codex allowance means asking you to switch accounts, not pausing.
+A `.stop` file in the project pauses every loop; `.claude/<loop file>.stop` pauses one. Claude makes one only when you ask; a used-up codex allowance means asking you to switch accounts, not pausing.
 
 #### Finish
 
@@ -292,13 +298,14 @@ sequenceDiagram
 - In those projects it replaces the built-in to-do list: the next task, new tasks, status changes, and anything found along the way.
 - Ids keep the board's own prefix. A roast's findings become children of the task they came from.
 - Two versions of the tool, one for Node and one for Python, give the same output byte for byte.
+- A session's loop file sets its board and its areas, and the tool reads it on every command: `next` offers only those areas (`--area` can narrow them), and a task outside them cannot be started. Two sessions with different areas never get the same task.
 
 ## What a project adds
 
 The bundle holds none of these; each project keeps its own, inside its `.claude` folder.
 
 - **Its rules:** a file in `.claude/rulesets`, read by `/sijav-clauder:rules` in that project. A project rule wins over a general rule it clashes with.
-- **Its loop:** a law file named `<name>-loop.local.md`, the hooks that give it back after each reply and after a compaction, and the command that starts it.
+- **Its loops:** one law file per session, named `<name>-loop.local.md`, with that session, its board and its areas; the hooks that give it back after each reply and after a compaction; and the command that starts it.
 - **Its board:** `todo.db`, for the todo skill.
 - **Its records:** codex sessions and roast records are written into the project, never into the skills folder.
 
@@ -454,7 +461,7 @@ flowchart LR
 
 1. It needs Node 22.16 or newer on the 22 line, or Node 24 or newer, and Python 3.9 or newer for the board tool's order.
 2. Install its one dependency once, inside its own folder: `npm ci --omit=dev --prefix "<todo skill>/dashboard"`. The Codex setup does the same with `--dashboard-deps`.
-3. Start it on a project: `node "<todo skill>/dashboard/server.mjs" --project "<project>" --port 8765`, then open the address it prints. Without `--port` it takes a free port, which changes on every start. For a loop board in a subfolder, start it from the project with `--db "<subfolder>/<board>.db"`; its tool is the `.py` named after the board file, beside it.
+3. Start it on a project: `node "<todo skill>/dashboard/server.mjs" --project "<project>" --port 8765`, then open the address it prints. Without `--port` it takes a free port, which changes on every start. For a loop board in a subfolder, start it from the project with `--db "<subfolder>/<board>.db"`; its tool is the `.py` named after the board file, beside it. Give `--db` more than once to show several boards on one page, each read with its own tool.
 4. Read it. **Full report** is the overview. **Full board** lists the tasks in the board tool's own next order. **Changes** shows each change with its fields before and after. **Database records** shows every stored row. Click a task for its full record. **Relax mode** is a calm full-screen view of the current and the next work. Long text and long lists of ids are folded: **Show more** opens them, **Show less** folds them again.
 5. Leave it open: it updates by itself when the board changes, with no reload. **Pause** holds the view; **Export full data** saves everything as one file.
 6. Stop it with Ctrl+C.
@@ -531,7 +538,7 @@ Rules do not go into CLAUDE.md or memory files: those load into every session.
 
 From `Sijav-Clauder/skills`:
 
-- `uv run --no-project --with pytest --with typesafe-sdk python -m pytest codex/test_codex_session.py codex/test_copy_session.py loop/test_compact.py research/test_research.py roast/test_roast.py search/test_search.py -q`
+- `uv run --no-project --with pytest --with typesafe-sdk python -m pytest codex/test_codex_session.py codex/test_copy_session.py loop/test_compact.py loop/test_loop_stop.py research/test_research.py roast/test_roast.py search/test_search.py -q`
 - `python todo/test-parity.py`
 - `node todo/test-subtasks.mjs`
 

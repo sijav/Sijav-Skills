@@ -164,12 +164,20 @@ SCRIPT = [
 ]
 
 
-def run(interpreter, script, directory, args):
+# The session ids Claude Code and Codex give every command. A run sees one only
+# when a step sets it, so where the test itself runs never changes a result.
+SESSION_VARIABLES = ("CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID")
+
+
+def run(interpreter, script, directory, args, session=None):
     # Bytes, decoded as UTF-8 and nothing else. text=True read the pipes in
     # universal-newline mode, which folds \r\n into \n, so Python printing \r\n
     # on Windows while Node printed \n passed here and differed in every file
     # either half's output was written to, KN-482.
-    result = subprocess.run([interpreter, script, *args], cwd=directory, capture_output=True)
+    env = {key: value for key, value in os.environ.items() if key not in SESSION_VARIABLES}
+    if session:
+        env["CLAUDE_CODE_SESSION_ID"] = session
+    result = subprocess.run([interpreter, script, *args], cwd=directory, capture_output=True, env=env)
     stdout = result.stdout.decode("utf-8")
     stderr = result.stderr.decode("utf-8")
     # stdout, stderr and the exit code all count: a difference in which stream a
@@ -218,6 +226,54 @@ def refuses_without_a_board(interpreter, script):
         shutil.rmtree(directory, ignore_errors=True)
 
 
+# A session's loop file sets its board and its areas, and the tool reads it on every
+# command. Each step: the session running it, the command, what it must print, what
+# it must never print.
+LOOP_FILE = '---\nsession: "loop-session"\nareas: back,ai\n---\n\n# The law\n'
+BOARD_LOOP_FILE = '---\nsession: "board-session"\nboard: sub/.claude/todo.db\n---\n'
+MISSING_LOOP_FILE = '---\nsession: "missing-session"\nboard: nowhere/.claude/todo.db\n---\n'
+LOOP_SETUP = [
+    ["add", "--id", "SB-101", "--title", "a back task", "--desc", "d", "--why", "w",
+     "--severity", "high", "--points", "2", "--exit", "e", "--area", "back"],
+    ["add", "--id", "SB-102", "--title", "a front task", "--desc", "d", "--why", "w",
+     "--severity", "critical", "--points", "1", "--exit", "e", "--area", "front"],
+    ["add", "--id", "SB-103", "--title", "an ai task", "--desc", "d", "--why", "w",
+     "--severity", "medium", "--points", "1", "--exit", "e", "--area", "ai"],
+    ["add", "--id", "SB-104", "--title", "a task with no area", "--desc", "d", "--why", "w",
+     "--severity", "low", "--points", "1", "--exit", "e"],
+    ["init", "sub"],
+]
+LOOP_STEPS = [
+    ("loop-session", ["next"], "NEXT in area back, ai: highest severity", "SB-102"),
+    ("loop-session", ["next", "--area", "ai"], "SB-103", "SB-101"),
+    ("loop-session", ["next", "--area", "front"], "front: not one of this session's areas (back, ai), set in", "SB-1"),
+    ("loop-session", ["move", "SB-102", "in_progress"], "SB-102 is in area front; this session works in back, ai", "->"),
+    ("loop-session", ["move", "SB-103", "in_progress"], "SB-103: backlog -> in_progress", None),
+    ("loop-session", ["next"], "ALREADY STARTED in area back, ai, finish this first", "SB-102"),
+    (None, ["next"], "ALREADY STARTED, finish this first", "in area"),
+    ("another-session", ["next"], "ALREADY STARTED, finish this first", "in area"),
+    ("board-session", ["list"], "The board is empty.", "SB-101"),
+    ("missing-session", ["list"], "names the board", "SB-101"),
+]
+
+
+def loop_transcript(interpreter, script):
+    directory = tempfile.mkdtemp(prefix="todo-loop-")
+    try:
+        run(interpreter, script, directory, ["init", "--here"])
+        for args in LOOP_SETUP:
+            run(interpreter, script, directory, args)
+        for name, body in (("work-loop.local.md", LOOP_FILE), ("board-loop.local.md", BOARD_LOOP_FILE),
+                           ("missing-loop.local.md", MISSING_LOOP_FILE)):
+            with open(os.path.join(directory, ".claude", name), "w", encoding="utf-8") as handle:
+                handle.write(body)
+        said = [run(interpreter, script, directory, args, session) for session, args, _must, _never in LOOP_STEPS]
+        created = os.path.exists(os.path.join(directory, "nowhere"))
+        return said, created
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
 node = transcript("node", NODE_SCRIPT)
 python = transcript(sys.executable, PY_SCRIPT)
 
@@ -241,6 +297,25 @@ for args, from_node, from_python in zip(SCRIPT, node, python):
     print(f"  DIFFER todo {' '.join(args)}")
     print(f"    node  : {from_node!r}")
     print(f"    python: {from_python!r}")
+
+loop_node, created_node = loop_transcript("node", NODE_SCRIPT)
+loop_python, created_python = loop_transcript(sys.executable, PY_SCRIPT)
+for (session, args, must, never), from_node, from_python in zip(LOOP_STEPS, loop_node, loop_python):
+    label = f"todo {' '.join(args)} (session {session or 'none'})"
+    if from_node != from_python:
+        differences += 1
+        print(f"  DIFFER {label}")
+        print(f"    node  : {from_node!r}")
+        print(f"    python: {from_python!r}")
+    elif must not in from_python or (never is not None and never in from_python):
+        differences += 1
+        print(f"  WRONG  {label}: must say {must!r}" + (f", never {never!r}" if never else ""))
+        print(f"    said: {from_python!r}")
+    else:
+        print(f"  right  {label}")
+if created_node or created_python:
+    differences += 1
+    print("  WRONG  a board named by a loop file but missing was created")
 
 # Agreeing is not enough for the area steps: each says what it must and must not print.
 start = SCRIPT.index(AREA_STEPS[0][0])

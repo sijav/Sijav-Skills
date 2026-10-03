@@ -387,7 +387,8 @@ a { color: var(--accent); }
 
 <section id="loop">
   <h2>The loop</h2>
-  <p>A project can run a loop: after each reply, its Stop hook gives the project's law back as the next prompt, until the work is done. The loop skill engages that loop and follows the law. Starting it is the project's own command, run from the session that should do the work: that session becomes the loop's only session, and the pause file goes.</p>
+  <p>A project can run a loop: after each reply, a Stop hook gives the loop's law back as the next prompt, until the work is done. The loop skill engages that loop and follows the law. Starting it is the project's own command, run from the session that should do the work: that session becomes the loop's only session, and the pause file goes.</p>
+  <p>A loop is per session, so a project can run several at once. Each has its own loop file, <code>&lt;name&gt;-loop.local.md</code>, naming its session, its board and its areas. The project's own hook drives its loop; a loop file that says <code>driver: skill</code> is driven by the loop skill's own hooks, which run only in the session that invoked the skill. No loop ever gets another loop's law.</p>
   <figure>
     <div class="figwrap">
       <svg viewBox="0 0 960 556" role="img" aria-label="After every reply the Stop hook asks five questions in order: is there a .stop file, does the project have a law file, is this the loop's own session, did the reply end with the finish promise, has the counter hit its cap. Any exit lets the session stop; otherwise the law comes back as the next prompt.">
@@ -436,7 +437,8 @@ a { color: var(--accent); }
   </figure>
   <div class="cols">
     <div><h4>Start</h4><p>Type <code>/sijav-clauder:loop</code> in the session that should do the work. The project's start command makes it the loop's only session and removes the pause file.</p></div>
-    <div><h4>Pause</h4><p>A <code>.stop</code> file in the project pauses the loop. Claude makes one only when you ask; a used-up codex allowance means asking you to switch accounts, not pausing.</p></div>
+    <div><h4>Areas</h4><p>The loop file's <code>areas:</code> are the only work its session gets: the to-do script reads them on every command, so <code>next</code> offers nothing else and a task outside them cannot be started.</p></div>
+    <div><h4>Pause</h4><p>A <code>.stop</code> file in the project pauses every loop; <code>.claude/&lt;loop file&gt;.stop</code> pauses one. Claude makes one only when you ask; a used-up codex allowance means asking you to switch accounts, not pausing.</p></div>
     <div><h4>Finish</h4><p>The reply ends with the law's finish promise only when all work is closed: no open, parked or failing items left.</p></div>
   </div>
 </section>
@@ -590,6 +592,7 @@ a { color: var(--accent); }
     <li>In those projects it replaces the built-in to-do list: the next task, new tasks, status changes, and anything found along the way.</li>
     <li>Ids keep the board's own prefix. A roast's findings become children of the task they came from.</li>
     <li>Two versions of the tool, one for Node and one for Python, give the same output byte for byte.</li>
+    <li>A session's loop file sets its board and its areas, and the tool reads it on every command: <code>next</code> offers only those areas (<code>--area</code> can narrow them), and a task outside them cannot be started. Two sessions with different areas never get the same task.</li>
   </ul>
 </section>
 
@@ -598,7 +601,7 @@ a { color: var(--accent); }
   <p>The bundle holds none of these; each project keeps its own, inside its <code>.claude</code> folder.</p>
   <ul>
     <li><strong>Its rules:</strong> a file in <code>.claude/rulesets</code>, read by <code>/sijav-clauder:rules</code> in that project. A project rule wins over a general rule it clashes with.</li>
-    <li><strong>Its loop:</strong> a law file named <code>&lt;name&gt;-loop.local.md</code>, the hooks that give it back after each reply and after a compaction, and the command that starts it.</li>
+    <li><strong>Its loops:</strong> one law file per session, named <code>&lt;name&gt;-loop.local.md</code>, with that session, its board and its areas; the hooks that give it back after each reply and after a compaction; and the command that starts it.</li>
     <li><strong>Its board:</strong> <code>todo.db</code>, for the todo skill.</li>
     <li><strong>Its records:</strong> codex sessions and roast records are written into the project, never into the skills folder.</li>
   </ul>
@@ -824,7 +827,7 @@ a { color: var(--accent); }
   <ol>
     <li>It needs Node 22.16 or newer on the 22 line, or Node 24 or newer, and Python 3.9 or newer for the board tool's order.</li>
     <li>Install its one dependency once, inside its own folder: <code>npm ci --omit=dev --prefix "&lt;todo skill&gt;/dashboard"</code>. The Codex setup does the same with <code>--dashboard-deps</code>.</li>
-    <li>Start it on a project: <code>node "&lt;todo skill&gt;/dashboard/server.mjs" --project "&lt;project&gt;" --port 8765</code>, then open the address it prints. Without <code>--port</code> it takes a free port, which changes on every start. For a loop board in a subfolder, start it from the project with <code>--db "&lt;subfolder&gt;/&lt;board&gt;.db"</code>; its tool is the <code>.py</code> named after the board file, beside it.</li>
+    <li>Start it on a project: <code>node "&lt;todo skill&gt;/dashboard/server.mjs" --project "&lt;project&gt;" --port 8765</code>, then open the address it prints. Without <code>--port</code> it takes a free port, which changes on every start. For a loop board in a subfolder, start it from the project with <code>--db "&lt;subfolder&gt;/&lt;board&gt;.db"</code>; its tool is the <code>.py</code> named after the board file, beside it. Give <code>--db</code> more than once to show several boards on one page, each read with its own tool.</li>
     <li>Read it. <strong>Full report</strong> is the overview. <strong>Full board</strong> lists the tasks in the board tool's own next order. <strong>Changes</strong> shows each change with its fields before and after. <strong>Database records</strong> shows every stored row. Click a task for its full record. <strong>Relax mode</strong> is a calm full-screen view of the current and the next work. Long text and long lists of ids are folded: <strong>Show more</strong> opens them, <strong>Show less</strong> folds them again.</li>
     <li>Leave it open: it updates by itself when the board changes, with no reload. <strong>Pause</strong> holds the view; <strong>Export full data</strong> saves everything as one file.</li>
     <li>Stop it with Ctrl+C.</li>

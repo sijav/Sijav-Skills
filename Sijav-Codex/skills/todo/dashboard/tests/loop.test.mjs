@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { BoardError, discoverTool, findBoard, kindOf, readBoard, resolveBoard } from '../lib/board.mjs';
 import { describe, startDashboard } from '../server.mjs';
-import { PYTHON, STAGE, cleanEnv, cleanup, listing, loopProject, sha, tempDir, testEnv, until } from './helpers.mjs';
+import { PYTHON, STAGE, TODO_PY, cleanEnv, cleanup, listing, loopProject, richProject, sha, tempDir, testEnv, todo, until } from './helpers.mjs';
 
 test.after(cleanup);
 
@@ -65,6 +65,7 @@ test('readBoard maps loop items: story, why, exit command, blockers, parked note
   const t = id => board.tasks.find(task => task.id === String(id));
   assert.deepEqual(board.tasks.map(task => task.id), ['1', '2', '3', '4', '5', '6']);
   assert.deepEqual([t(1).description, t(1).why, t(1).exit, t(1).points], ['Story of Foundation', 'Why Foundation', 'check foundation', 3]);
+  assert.deepEqual(board.tasks.map(task => task.area), ['back', null, null, 'front', null, 'back'], 'each item’s stored area');
   assert.deepEqual(t(2).dependencies, ['1']);
   assert.deepEqual(t(1).dependents, ['2']);
   assert.deepEqual(t(3).blocked.map(b => b.reason), ['Owner decides the wording']);
@@ -163,4 +164,45 @@ test('an older loop board (no parked, exit or created columns) and a tool with o
   const board = readBoard(join(dir, 'board.db'));
   assert.deepEqual([board.kind, board.tasks.find(t => t.id === '1').blocked, board.tasks.find(t => t.id === '1').exit], ['loop', [], null]);
   assert.equal(sha(join(dir, 'board.db')), before);
+});
+
+test('two boards on one page: each read with its own tool and history, one numbering of changes', { timeout: 120000 }, async () => {
+  const loop = loopProject(), board = richProject('todo project');
+  const started = await startDashboard({ db: loop.db, dbs: [loop.db, board.db, loop.db], todoPy: TODO_PY }, { cwd: loop.root, env: testEnv() });
+  try {
+    const ready = () => { const s = started.monitor.snapshot(); return s.boards.length === 2 && s.boards.every(b => b.queue?.state === 'ready') && s; };
+    const s = await until(ready, 'both pickers');
+    assert.deepEqual(s.boards.map(b => [b.id, b.boardKind, b.tool]), [['board', 'loop', 'board.py'], ['board-2', 'todo', 'todo.py']], 'the same board given twice is one board');
+    assert.equal(s.boards[0].queue.headId, '1', 'the loop board keeps its own order');
+    assert.match(todo(board.root, 'next'), new RegExp(s.boards[1].queue.headId), 'the to-do board keeps its own');
+    const keys = s.boards.flatMap(b => b.tasks.map(t => t.key));
+    assert.equal(new Set(keys).size, keys.length, 'no two tasks share a key');
+    assert.ok(s.boards[0].tasks.every(t => t.key === 'board:' + t.id) && s.boards[1].tasks.every(t => t.key === 'board-2:' + t.id));
+    assert.deepEqual(s.server.boards.map(x => x.kind), ['loop', 'todo']);
+    const text = describe(started);
+    assert.match(text, /Boards: +2, on one page/);
+    assert.match(text, /a loop board; --db/);
+    assert.match(text, /the to-do skill's board; --db/);
+
+    todo(board.root, 'move', 'MP-004', 'in_progress');
+    loop.run('start', '6');
+    const changed = await until(() => {
+      const list = started.monitor.changes();
+      return list.some(c => c.sourceId === 'board-2' && c.itemId === 'MP-004') && list.some(c => c.sourceId === 'board' && c.itemId === '6') && list;
+    }, 'a change on each board');
+    const seqs = changed.map(c => c.seq);
+    assert.equal(new Set(seqs).size, seqs.length, 'every change has its own number');
+    assert.deepEqual(seqs, seqs.slice().sort((a, b) => b - a), 'newest first');
+    const own = started.monitor.changes({ item: 'board-2:MP-004' });
+    assert.ok(own.length > 0 && own.every(c => c.sourceId === 'board-2' && c.itemId === 'MP-004'), 'one task\'s history, by its key');
+    assert.equal(started.monitor.changes({ after: changed[0].seq }).length, 0);
+    const after = await until(() => { const x = ready(); return x && x.boards[1].queue.headId === 'MP-004' && x; }, 'the to-do board\'s new pick');
+    assert.equal(after.boards[0].tasks.find(t => t.id === '6').status, 'doing');
+  } finally { await started.close(); }
+  assert.ok(listing(loop.dir).every(name => ['board.db', 'board.py', 'tool'].includes(name)), 'nothing created beside the loop board');
+});
+
+test('--tool is refused when several loop boards are shown, each of which uses its own', async () => {
+  const a = loopProject('loop a'), b = loopProject('loop b');
+  await assert.rejects(startDashboard({ db: a.db, dbs: [a.db, b.db], tool: a.tool }, { cwd: a.root, env: testEnv() }), /several loop boards were given/);
 });

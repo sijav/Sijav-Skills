@@ -76,7 +76,8 @@ export function buildAmbientModel(snapshot = {}) {
     const phase = ready ? queue.currentPhase : null;
     return {
       id: board.id, name: board.name || board.id, available, stale, error: board.error || null,
-      tool: snapshot.server?.tool || 'todo.py', next: snapshot.server?.kind === 'loop' ? `${snapshot.server?.tool || 'the board’s tool'}’s board_order()` : `${snapshot.server?.tool || 'todo.py'} next`,
+      tool: board.tool || snapshot.server?.tool || 'todo.py',
+      next: (board.boardKind ?? snapshot.server?.kind) === 'loop' ? `${board.tool || snapshot.server?.tool || 'the board’s tool'}’s board_order()` : `${board.tool || snapshot.server?.tool || 'todo.py'} next`,
       doing: doingTasks.map(task => presentTask(task, board, definitions)),
       head, headRole: !head ? 'none' : queue.headKind === 'started' ? 'resume' : 'next',
       firstOpen: open ? presentTask(open, board, definitions) : null,

@@ -21,7 +21,8 @@ matter itself is not printed.
 It prints nothing when there is no law for this session, when a `.stop`
 sentinel pauses every loop or `.claude/<law>.stop` pauses this one, or when
 the project's own settings already run a SessionStart "compact" hook -- one
-copy of the law, not two. Every run appends one line to `.claude/loop-after-compact.log`
+copy of the law, not two. A law that says `driver: skill` is driven by this
+skill's hooks, not the project's, so it is printed even then. Every run appends one line to `.claude/loop-after-compact.log`
 in the project, so whether it fired after a compaction can be checked.
 
 This file used to rebuild context from agent/RALPH.md and todo.mjs for the
@@ -138,11 +139,13 @@ def main() -> int:
     if os.path.exists(os.path.join(root, ".stop")):
         log(root, source, "paused (.stop): nothing printed")
         return 0
-    if has_own_hook(root):
-        log(root, source, "deferred: the project runs its own compaction hook")
-        return 0
     session = str(event.get("session_id") or "").strip()
     found = law_for(root, session)
+    if found is not None and front_matter(found[1]).get("driver") == "skill":
+        pass  # this skill's own loop: the project's hook does not drive it
+    elif has_own_hook(root):
+        log(root, source, "deferred: the project runs its own compaction hook")
+        return 0
     if found is None:
         log(root, source, f"no law names session {session or '?'}: nothing printed")
         return 0
@@ -156,7 +159,7 @@ def main() -> int:
     if areas:
         law += (
             f"\n\n# THIS LOOP'S AREAS\n\nThe owner gave this loop these areas: {areas}."
-            f" Work only in them; pick with `todo next --area {areas}`."
+            " The to-do script takes them from this loop file on every command."
         )
     log(root, source, f"printed {law_path}")
     print(

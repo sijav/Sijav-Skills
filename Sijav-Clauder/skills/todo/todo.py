@@ -4,6 +4,11 @@
   todo                       the whole board
   todo next                  what to do next, and why it was picked
   todo next --area back,ai   the same, only among those areas' tasks
+
+A session's loop file (`.claude/<name>loop<...>.local.md` naming the session) sets
+its board and its areas. The tool reads it on every command: `next` offers only
+the loop's areas, `--area` can only narrow them, and starting a task outside them
+is refused. A session with no loop file works on the nearest board, all areas.
   todo add --title ...       create a task
   todo move SB-003 done      change a status
   todo show SB-003           one task in full
@@ -68,6 +73,58 @@ def find_board(start):
         directory = parent
 
 
+def front_matter(path):
+    """A loop file's front matter, the `key: value` lines between its first two `---`."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return {}
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    fields = {}
+    for line in text[3:end if end != -1 else 0].splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key.strip():
+            fields[key.strip()] = value.strip().strip("\"'")
+    return fields
+
+
+def session_loop(start):
+    """The loop file of the session running this command, found walking up.
+
+    A loop is per session. Its file, `.claude/<name>loop<...>.local.md`, names its
+    session and may name its board and its areas. Claude Code and Codex give every
+    command the session's id; without one, or with no loop file naming it, there is
+    no loop and nothing changes. Returns (project root, loop file, fields) or None.
+    """
+    session = os.environ.get("CLAUDE_CODE_SESSION_ID") or os.environ.get("CODEX_SESSION_ID") or ""
+    if not session:
+        return None
+    directory = os.path.abspath(start)
+    while True:
+        folder = os.path.join(directory, ".claude")
+        if os.path.isdir(folder):
+            for name in sorted(os.listdir(folder)):
+                if "loop" in name and name.endswith(".local.md"):
+                    fields = front_matter(os.path.join(folder, name))
+                    if fields.get("session") == session:
+                        return directory, os.path.join(folder, name), fields
+        parent = os.path.dirname(directory)
+        if parent == directory:
+            return None
+        directory = parent
+
+
+def board_of(start):
+    """The board of this session's loop when its loop file names one, else the nearest board."""
+    loop = session_loop(start)
+    if loop and loop[2].get("board"):
+        return os.path.normpath(os.path.join(loop[0], loop[2]["board"]))
+    return find_board(start)
+
+
 _argv = sys.argv[1:]
 _command = _argv[0] if _argv else "list"
 
@@ -92,7 +149,7 @@ if _command == "init":
     print(f"Started a new board at {_made}", file=sys.stderr)
     raise SystemExit(0)
 
-BOARD = find_board(os.getcwd())
+BOARD = board_of(os.getcwd())
 
 # Refuse BEFORE makedirs and before sqlite3.connect. Both create what is
 # missing, so a check placed after either is not a check.
@@ -102,6 +159,11 @@ if BOARD is None:
         file=sys.stderr,
     )
     print("If this project should have one: todo init --here", file=sys.stderr)
+    raise SystemExit(2)
+
+# A board the loop file names is never created either.
+if not os.path.exists(BOARD):
+    print(f"This session's loop names the board {BOARD}, which does not exist. Nothing was created.", file=sys.stderr)
     raise SystemExit(2)
 
 # Two processes on one board are normal. Five seconds of waiting for a lock is
@@ -402,6 +464,26 @@ def area_filter(value):
 
 def in_areas(task, areas):
     return areas is None or (task["area"] or "unset") in areas
+
+
+def loop_areas():
+    """This session's loop and its areas, or (None, None) when it has no loop file or no areas."""
+    loop = session_loop(os.getcwd())
+    return (loop, area_filter(loop[2].get("areas"))) if loop else (None, None)
+
+
+def areas_for(asked):
+    """The areas `next` picks from: the session's loop areas, always, narrowed by `--area`."""
+    asked = area_filter(asked)
+    loop, mine = loop_areas()
+    if mine is None:
+        return asked
+    if asked is None:
+        return mine
+    outside = [name for name in asked if name not in mine]
+    if outside:
+        fail(f"{', '.join(outside)}: not one of this session's areas ({', '.join(mine)}), set in {loop[1]}.")
+    return asked
 
 
 def number_from(value):
@@ -857,7 +939,7 @@ elif command == "show":
     print(card(one(args[0])))
 
 elif command == "next":
-    areas = area_filter(value_of(args, "area"))
+    areas = areas_for(value_of(args, "area"))
     scope = f" in area {', '.join(areas)}" if areas else ""
     tasks = all_tasks()
     started, pick = choose(tasks, areas)
@@ -1076,6 +1158,10 @@ elif command == "move":
     if status not in STATUSES:
         fail(f"status must be one of {', '.join(STATUSES)}, or blocked")
     task = one(task_id)
+    if status == "in_progress":
+        loop, mine = loop_areas()
+        if mine is not None and not in_areas(task, mine):
+            fail(f"{task_id} is in area {task['area'] or 'unset'}; this session works in {', '.join(mine)} (its loop file, {loop[1]}).")
     was_blocked = block_of(task_id)
     stamp = now()
     db.execute("UPDATE task SET status = ?, updated = ? WHERE id = ?", (status, stamp, task_id))
