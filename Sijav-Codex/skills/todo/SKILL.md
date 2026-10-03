@@ -135,7 +135,10 @@ The server prints the actual local URL and chooses a free port by default.
 Board discovery walks up from the selected project to an existing
 `.claude/todo.db`; `--db "<absolute board file>"` explicitly selects another
 existing file. Missing boards are refused. The dashboard starts no task loop
-and exposes no board mutation action. File events push updates by WebSocket.
+and exposes no board mutation action. The page never loads a board whole: it
+asks typed, paginated questions over its WebSocket (lists five at a time as
+they scroll, a task's record when opened), and file events push only what
+changed.
 Its full board, task records, field diffs and Relax view use stored data and
 the board tool's picker and status policy. An unavailable policy is reported
 rather than replaced with guessed order or Doing/Done groups. Done does not

@@ -24,14 +24,29 @@ const inst = install();
 const { startDashboard, parseArgs, nodeSupported, isEntry, callerDirectory } = await import(inst.serverUrl);
 const { WebSocket } = await import(pathToFileURL(join(inst.dash, 'node_modules', 'ws', 'wrapper.mjs')).href);
 
+/**
+ * A client of the dashboard's socket, as the page is: `hello` gives each board's details, each
+ * `changed` replaces the boards it names and adds history, and `ask` sends a typed request and
+ * resolves with its reply. Pushes are kept in `messages`; replies are not.
+ */
 function live(url) {
-  const messages = [], socket = new WebSocket(url.replace('http', 'ws') + 'api/live', { headers: { Origin: url.replace(/\/$/, '') } });
-  socket.on('message', data => messages.push(JSON.parse(data)));
+  const messages = [], replies = new Map(), socket = new WebSocket(url.replace('http', 'ws') + 'api/live', { headers: { Origin: url.replace(/\/$/, '') } });
+  let view = null, seq = 0;
+  socket.on('message', data => {
+    const message = JSON.parse(data);
+    if (message.type === 'reply') { replies.get(message.id)?.(message); replies.delete(message.id); return; }
+    messages.push(message);
+    if (message.type === 'hello') view = message;
+    else if (message.type === 'changed' && view) {
+      const { boards, keys, changes, type, ...top } = message;
+      view = { ...view, ...top, boards: view.boards.map(b => boards.find(x => x.id === b.id) || b) };
+    }
+  });
   const opened = new Promise((ok, fail) => { socket.once('open', ok); socket.once('error', fail); });
-  return { messages, opened, socket, latest: () => messages.at(-1)?.snapshot, close: () => socket.terminate() };
+  const ask = (type, params = {}) => new Promise((ok, fail) => { const id = ++seq; replies.set(id, m => m.error ? fail(new Error(m.error)) : ok(m.data)); socket.send(JSON.stringify({ ...params, id, type })); });
+  return { messages, opened, socket, ask, latest: () => view, close: () => socket.terminate() };
 }
 const board0 = snap => snap?.boards[0];
-const task = (snap, id) => board0(snap)?.tasks.find(t => t.id === id);
 const ready = snap => board0(snap)?.queue.state === 'ready' && snap;
 const installedFiles = () => listing(inst.dash).concat(listing(join(inst.dash, 'public')), listing(dirname(inst.dash)));
 /** Start the CLI and resolve once it has printed its state, or exited. */
@@ -87,22 +102,26 @@ test('a committed WAL change is pushed by the file watcher; pushes carry only ne
   let writer = null;
   t.after(async () => { client.close(); writer?.close(); await started.close(); });
   await client.opened;
-  await until(() => ready(client.latest()), 'initial snapshot');
-  assert.equal(client.messages[0].reset, true); assert.equal(client.messages[0].changesComplete, true);
+  await until(() => ready(client.latest()), 'initial view');
+  assert.equal(client.messages[0].type, 'hello');
+  assert.equal(client.messages[0].boards[0].tasks, undefined, 'no board is sent whole');
+  assert.equal(client.messages[0].boards[0].total, 11);
   writer = new DatabaseSync(p.db);
   writer.exec('PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0');
   await until(() => board0(client.latest()).journalMode === 'wal' && ready(client.latest()), 'WAL mode observed');
   const quietCount = client.messages.length, quietReads = client.latest().readCount;
   await delay(1500);
-  assert.equal(client.messages.length, quietCount, 'no snapshot without a file event');
+  assert.equal(client.messages.length, quietCount, 'no push without a file event');
   assert.equal((await (await fetch(started.url + 'api/snapshot')).json()).readCount, quietReads, 'no timed rereads');
   const seqBefore = client.latest().latestSeq, mainBefore = sha(p.db);
   writer.exec("UPDATE task SET status='in_progress', updated='2026-10-01T10:00:00.000Z' WHERE id='MP-004'");
-  const pushed = await until(() => { const s = client.latest(); return task(s, 'MP-004')?.status === 'in_progress' && board0(s).queue.headId === 'MP-004' && ready(s); }, 'pushed WAL change');
+  const pushed = await until(() => { const s = client.latest(); return client.messages.slice(quietCount).some(m => m.keys.includes('board:MP-004')) && board0(s).queue.headId === 'MP-004' && ready(s); }, 'pushed WAL change');
+  assert.equal((await client.ask('task', { key: 'board:MP-004' })).task.status, 'in_progress', 'the task is asked for, not pushed');
   assert.equal(board0(pushed).queue.headKind, 'started');
   assert.equal(sha(p.db), mainBefore, 'the change is only in the WAL; nothing was checkpointed');
   const later = client.messages.slice(quietCount);
-  assert.ok(later.every(m => m.reset === false && m.changes.every(c => c.seq > seqBefore)), 'later pushes carry only new entries');
+  assert.ok(later.every(m => m.type === 'changed' && m.changes.every(c => c.seq > seqBefore)), 'later pushes carry only new entries');
+  assert.ok(later.every(m => m.boards.every(b => b.tasks === undefined && b.tables === undefined)), 'a push never carries a board whole');
   assert.equal(later.flatMap(m => m.changes).filter(c => c.itemId === 'MP-004' && c.table === 'task').length, 1, 'each entry is sent once');
   assert.ok(later.length <= 4, `a change produces a few coalesced pushes, not one per internal step (${later.length})`);
   const transition = pushed.statusTransitions.find(c => c.itemId === 'MP-004');
@@ -110,7 +129,7 @@ test('a committed WAL change is pushed by the file watcher; pushes carry only ne
   assert.equal(transition.sourceId, 'board', 'a transition names its board, so the Observed status transitions panel lists it');
   writer.close(); writer = null;
   todo(p.root, 'edit', 'MP-007', '--note', 'Pushed by the watcher');
-  await until(() => task(client.latest(), 'MP-007')?.notes.some(n => n.text === 'Pushed by the watcher'), 'pushed tool write');
+  await until(async () => client.messages.some(m => m.keys?.includes('board:MP-007')) && (await client.ask('task', { key: 'board:MP-007' })).task.notes.some(n => n.text === 'Pushed by the watcher'), 'pushed tool write');
   const all = await (await fetch(started.url + 'api/changes?limit=all')).json();
   const pageOne = await (await fetch(started.url + 'api/changes?limit=1')).json();
   const pageTwo = await (await fetch(started.url + `api/changes?limit=1&before=${pageOne.changes[0].seq}`)).json();
@@ -126,17 +145,18 @@ test('a failed board read withdraws the pick and order; reading again restores t
   const client = live(started.url);
   t.after(async () => { client.close(); await started.close(); });
   await client.opened;
-  await until(() => ready(client.latest()), 'initial snapshot');
+  await until(() => ready(client.latest()), 'initial view');
   const aside = p.db + '.aside';
   await until(() => { try { renameSync(p.db, aside); return true; } catch { return false; } }, 'move the board away');
   const failed = await until(() => { const s = client.latest(); return board0(s).available === false && s; }, 'read failure pushed');
   const q = board0(failed).queue;
   assert.equal(q.state, 'unavailable'); assert.match(q.error, /could not be read/);
   for (const key of ['headId', 'rankedIds', 'nextText', 'startableIds', 'previous']) assert.equal(q[key], undefined, `${key} withdrawn`);
-  assert.equal(board0(failed).stale, true); assert.equal(board0(failed).tasks.length, 11, 'last successful data stays visible');
-  const { buildAmbientModel, renderAmbient } = await import(pathToFileURL(join(inst.dash, 'public', 'ambient-ui.mjs')).href);
-  assert.equal(buildAmbientModel(failed).boards[0].head, null);
-  assert.doesNotMatch(renderAmbient(failed), /Nothing left|picks nothing/);
+  assert.equal(board0(failed).stale, true); assert.equal(board0(failed).total, 11, 'last successful data stays visible');
+  const { renderAmbientModel } = await import(pathToFileURL(join(inst.dash, 'public', 'ambient-ui.mjs')).href);
+  const relaxed = await client.ask('relax');
+  assert.equal(relaxed.boards[0].head, null);
+  assert.doesNotMatch(renderAmbientModel(relaxed), /Nothing left|picks nothing/);
   await until(() => { try { renameSync(aside, p.db); return true; } catch { return false; } }, 'move the board back');
   const back = await until(() => { const s = client.latest(); return board0(s).available && ready(s); }, 'recovered');
   assert.equal(board0(back).queue.headId, 'MP-001');
@@ -150,7 +170,7 @@ test('the tool is watched: a broken todo.py withdraws policy and pick; a changed
   const client = live(started.url);
   t.after(async () => { client.close(); await started.close(); });
   await client.opened;
-  await until(() => ready(client.latest()), 'initial snapshot');
+  await until(() => ready(client.latest()), 'initial view');
   todo(p.root, 'move', 'MP-004', 'wait_for_roast');
   await until(() => { const s = ready(client.latest()); return s && board0(s).queue.headId === 'MP-004' && s; }, 'wait_for_roast resumed first');
   writeFileSync(tool, original + '\nthis is not python(\n');
@@ -163,7 +183,7 @@ test('the tool is watched: a broken todo.py withdraws policy and pick; a changed
   assert.deepEqual(board0(changed).rules.doingStatuses, ['in_progress']);
   assert.notEqual(board0(changed).queue.headId, 'MP-004');
   assert.equal(board0(changed).queue.nextText, todoWith(tool, duplicateBoard(p.db), 'next'));
-  assert.ok(!task(changed, 'MP-004').isDoing);
+  assert.ok(!(await client.ask('task', { key: 'board:MP-004' })).task.isDoing);
 });
 
 test('atomic replacement of the board file is picked up through the directory watch', async t => {
@@ -172,14 +192,14 @@ test('atomic replacement of the board file is picked up through the directory wa
   const client = live(started.url);
   t.after(async () => { client.close(); await started.close(); });
   await client.opened;
-  await until(() => ready(client.latest()), 'initial snapshot');
+  await until(() => ready(client.latest()), 'initial view');
   const work = duplicateBoard(p.db);
   add(work, 'MP-1001', 'Arrived by replacement', ['--severity', 'critical', '--points', '1']);
   const temp = p.db + '.replace-tmp';
   copyFileSync(join(work, '.claude', 'todo.db'), temp);
   // Windows refuses a rename over a file another process has open; SQLite opens briefly, so retry.
   await until(() => { try { renameSync(temp, p.db); return true; } catch { return false; } }, 'rename over the board');
-  const snap = await until(() => { const s = ready(client.latest()); return s && task(s, 'MP-1001') && board0(s).queue.headId === 'MP-1001' && s; }, 'replacement pushed');
+  const snap = await until(() => { const s = ready(client.latest()); return s && board0(s).total === 12 && board0(s).queue.headId === 'MP-1001' && s; }, 'replacement pushed');
   assert.equal(board0(snap).queue.nextText, todo(work, 'next'));
 });
 
