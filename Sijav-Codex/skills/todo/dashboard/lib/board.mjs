@@ -233,11 +233,12 @@ export function checkedValues(sql, field) {
  * their `task` column. Status meaning (doing, done, ...) is NOT decided here:
  * it comes from the tool's own policy, applied by classify().
  */
-export function readBoard(path, options) {
+export function readBoard(path, options = {}) {
   const data = readTables(path, options);
   const kind = kindOf(data.tableColumns);
   if (!kind) throw new BoardError(notABoard(path, data.tableColumns));
-  const shaped = kind === 'loop' ? loopTasks(data) : todoTasks(data);
+  const sourceId = options?.sourceId ?? 'board';
+  const shaped = kind === 'loop' ? loopTasks(data, sourceId) : todoTasks(data, sourceId);
   const { tasks } = shaped;
   const statuses = {}; for (const t of tasks) statuses[t.status] = (statuses[t.status] || 0) + 1;
   const allTimes = tasks.map(t => t.lastRecordedAt).filter(Boolean).sort();
@@ -256,7 +257,7 @@ export function readBoard(path, options) {
  * table that names an item (findings, roasts, exit runs) are its related rows.
  * What a status means is NOT decided here: it comes from the tool's own policy.
  */
-function loopTasks({ tables, tableColumns, schema }) {
+function loopTasks({ tables, tableColumns, schema }, sourceId = 'board') {
   const byItem = rows => { const m = new Map(); for (const r of rows || []) { const k = String(r.item); if (!m.has(k)) m.set(k, []); m.get(k).push(r); } return m; };
   const blockers = byItem(tables.dep), dependents = new Map();
   for (const d of tables.dep || []) { const k = String(d.blocker); if (!dependents.has(k)) dependents.set(k, []); dependents.get(k).push(String(d.item)); }
@@ -267,9 +268,9 @@ function loopTasks({ tables, tableColumns, schema }) {
     const createdAt = timestamp(raw.created_at), closedAt = timestamp(raw.closed_at);
     const times = [createdAt, closedAt, ...Object.values(related).flat().map(r => timestamp(r.at))].filter(Boolean).sort();
     return {
-      key: 'board:' + id, sourceId: 'board', id, title: raw.title, status: raw.status, severity: raw.severity ?? null,
+      key: sourceId + ':' + id, sourceId, id, title: raw.title, status: raw.status, severity: raw.severity ?? null,
       priority: raw.priority ?? null, points: raw.points ?? null, description: raw.story ?? null, why: raw.why ?? null,
-      exit: raw.exit_cmd ?? null, area: null, phase: null, parentTask: null, createdAt, closedAt, updatedAt: null, lastRecordedAt: times.at(-1) || null,
+      exit: raw.exit_cmd ?? null, area: raw.area ?? null, phase: null, parentTask: null, createdAt, closedAt, updatedAt: null, lastRecordedAt: times.at(-1) || null,
       dependencies: (blockers.get(id) || []).map(d => String(d.blocker)), dependents: dependents.get(id) || [], children: [],
       notes: [], roasts: [], blocked: raw.parked != null && raw.parked !== '' ? [{ item: raw.id, reason: raw.parked, since: null }] : [],
       related, raw, isFinding: false,
@@ -280,7 +281,7 @@ function loopTasks({ tables, tableColumns, schema }) {
 }
 
 /** The to-do skill's tasks, with each task's related rows attached by their `task` column. */
-function todoTasks(data) {
+function todoTasks(data, sourceId = 'board') {
   const { tables, tableColumns } = data;
   const rows = tables.task || [];
   const related = {};
@@ -303,7 +304,7 @@ function todoTasks(data) {
     const createdAt = timestamp(raw.created ?? raw.created_at), closedAt = timestamp(raw.closed ?? raw.closed_at), updatedAt = timestamp(raw.updated ?? raw.updated_at);
     const times = [createdAt, closedAt, updatedAt, ...[...notes, ...roasts].map(r => timestamp(r.at)), ...blocked.map(r => timestamp(r.since))].filter(Boolean).sort();
     return {
-      key: 'board:' + id, sourceId: 'board', id, title: raw.title, status: raw.status, severity: raw.severity ?? null,
+      key: sourceId + ':' + id, sourceId, id, title: raw.title, status: raw.status, severity: raw.severity ?? null,
       priority: raw.priority ?? null, points: raw.points ?? null, description: raw.descr ?? raw.story ?? null, why: raw.why ?? null,
       exit: raw.exit_cond ?? null, area: raw.area ?? null, phase: raw.phase ?? null, parentTask: raw.parent_task ?? null,
       createdAt, closedAt, updatedAt, lastRecordedAt: times.at(-1) || null,
@@ -369,7 +370,7 @@ function rowMap(rows, keys) {
   return map;
 }
 /** Row-level changes between two successful reads, for every table and the schema. */
-export function diffBoard(before, after, at = new Date().toISOString()) {
+export function diffBoard(before, after, at = new Date().toISOString(), sourceId = 'board') {
   if (!before || before.hash === after.hash) return [];
   const changes = [];
   for (const table of new Set([...Object.keys(before.tables), ...Object.keys(after.tables)])) {
@@ -384,13 +385,13 @@ export function diffBoard(before, after, at = new Date().toISOString()) {
       const item = isTask ? row.id : (after.kind === 'loop' ? row.item : row.task) ?? null;
       const task = after.tasks.find(t => t.id === String(item)) || before.tasks?.find(t => t.id === String(item));
       const fields = a && b ? Object.keys({ ...a, ...b }).filter(k => encode(a[k]) !== encode(b[k])) : Object.keys(row);
-      changes.push({ id: randomUUID(), at, sourceId: 'board', sourceName: after.name, table, isTask, kind: a ? (b ? 'updated' : 'removed') : 'added',
+      changes.push({ id: randomUUID(), at, sourceId, sourceName: after.name, table, isTask, kind: a ? (b ? 'updated' : 'removed') : 'added',
         itemId: item == null ? null : String(item), title: task?.title || row.title || row.name || table, fields, before: a, after: b });
     }
   }
   const schemaOf = board => ({ tables: board.schema, other: board.indexes ?? [] });
   if (encode(schemaOf(before)) !== encode(schemaOf(after))) {
-    changes.push({ id: randomUUID(), at, sourceId: 'board', sourceName: after.name, table: 'schema', kind: 'updated', itemId: null, title: 'Database schema',
+    changes.push({ id: randomUUID(), at, sourceId, sourceName: after.name, table: 'schema', kind: 'updated', itemId: null, title: 'Database schema',
       fields: ['schema'], before: Object.fromEntries([...before.schema, ...(before.indexes ?? [])].map(s => [s.name, s.sql])),
       after: Object.fromEntries([...after.schema, ...(after.indexes ?? [])].map(s => [s.name, s.sql])) });
   }
@@ -411,7 +412,7 @@ export function loadJournal(path) {
 }
 // Entries written before `isTask` existed are from to-do boards, whose task table is `task`.
 const transitionOf = c => (c.isTask ?? c.table === 'task') && c.itemId != null && c.before && c.after && c.before.status !== c.after.status
-  ? { seq: c.seq, id: c.id, at: c.at, observedAt: c.at, sourceId: c.sourceId, itemId: c.itemId, taskKey: 'board:' + c.itemId, title: c.title, fromStatus: c.before.status, toStatus: c.after.status } : null;
+  ? { seq: c.seq, id: c.id, at: c.at, observedAt: c.at, sourceId: c.sourceId, itemId: c.itemId, taskKey: (c.sourceId || 'board') + ':' + c.itemId, title: c.title, fromStatus: c.before.status, toStatus: c.after.status } : null;
 
 // ---------------------------------------------------------------- picker
 
@@ -439,7 +440,7 @@ const fileSha = path => { try { return createHash('sha256').update(readFileSync(
 
 // ---------------------------------------------------------------- monitor
 
-export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null, kind = 'todo' }) {
+export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null, kind = 'todo', sourceId = 'board' }) {
   const tool = todo ? basename(todo) : (KINDS[kind] || KINDS.todo).tool || "the board's tool"; // the board's own tool, named in every message
   mkdirSync(dataDir, { recursive: true });
   const statePath = join(dataDir, 'baseline.json'), journalPath = join(dataDir, 'changes.jsonl');
@@ -447,11 +448,13 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
   let baseline = { startedAt: new Date().toISOString(), dbPath, board: null }, persistenceError = null, journalWarning = null;
   try { if (existsSync(statePath)) baseline = JSON.parse(readFileSync(statePath, 'utf8')); } catch (e) { persistenceError = 'Previous baseline could not be read; history continues from now: ' + e.message; }
   const loaded = loadJournal(journalPath), journal = loaded.entries;
+  // History written while this board was shown under another id (alone, or in another order) is still its own.
+  for (const entry of journal) entry.sourceId = sourceId;
   let needsNewline = !loaded.endsClean;
   if (loaded.bad.length) journalWarning = `${loaded.bad.length} unreadable change-history line(s) were skipped (line ${loaded.bad.slice(0, 10).join(', ')}${loaded.bad.length > 10 ? ', …' : ''}); every other entry is kept.`;
   const transitions = journal.map(transitionOf).filter(Boolean);
   let nextSeq = (journal.at(-1)?.seq ?? 0) + 1;
-  const source = { id: 'board', name: boardName, short: boardName.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || 'TD', kind: 'project', boardKind: kind, path: dbPath, projectRoot,
+  const source = { id: sourceId, tool, name: boardName, short: boardName.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || 'TD', kind: 'project', boardKind: kind, path: dbPath, projectRoot,
     note: 'Read-only view of this project\'s to-do board. The board is never written; status meaning, order and reasons come from the tool\'s own code.' };
   const picker = { configured: !!(python?.command && todo), python: python?.command ?? null, todo, reason: pickerReason };
   const instanceId = randomUUID(), listeners = new Set(), watchers = [];
@@ -519,13 +522,13 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
     checkedAt = new Date().toISOString(); readCount++;
     const before = fileSignature(dbPath), wasAvailable = board?.available === true;
     try {
-      const current = { ...readBoard(dbPath, { busyMs: settings.read?.busyMs ?? 800 }), name: boardName };
+      const current = { ...readBoard(dbPath, { busyMs: settings.read?.busyMs ?? 800, sourceId }), name: boardName };
       if (current.kind !== kind) throw new BoardError(`The board file is now ${KINDS[current.kind].label}, not ${KINDS[kind].label}. Restart the dashboard to read it with its own tool.`);
       const after = fileSignature(dbPath);
       lastSignature = before === after ? after : null;
       if (before !== after) schedule(true);
       const previous = baseline.board;
-      if (!previous || previous.hash !== current.hash) persist(current, diffBoard(previous, current, checkedAt));
+      if (!previous || previous.hash !== current.hash) persist(current, diffBoard(previous, current, checkedAt, sourceId));
       const changed = !lastReadable || lastReadable.hash !== current.hash;
       board = current; lastReadable = current;
       if (changed || requeue || !wasAvailable || queue.state === 'unavailable') requestQueue();
@@ -638,7 +641,7 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
   /** Change history, newest first: a page before a sequence number, everything after one, or one task's entries. */
   const changes = ({ before = null, after = null, limit = null, item = null } = {}) => {
     let list = journal;
-    if (item != null) list = list.filter(c => c.itemId === String(item));
+    if (item != null) list = list.filter(c => sameItem(c, item));
     if (after != null) list = list.filter(c => c.seq > after);
     if (before != null) list = list.filter(c => c.seq < before);
     list = list.slice().reverse();
@@ -649,5 +652,69 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
     settled: async () => { while (!closed && (queue.promise || pendingNotify)) { if (queue.promise) await queue.promise; else await new Promise(r => setImmediate(r)); } return snapshot(); },
     subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); },
     close: () => { closed = true; clearTimeout(debounce); for (const watcher of watchers) watcher.close(); listeners.clear(); },
+  };
+}
+
+/** A change's task, asked for by the task's key (`<board id>:<task id>`) or, on one board, by its id alone. */
+const sameItem = (c, item) => {
+  const text = String(item);
+  return `${c.sourceId}:${c.itemId}` === text || c.itemId === text;
+};
+
+/**
+ * Several boards as one monitor, for one page: a snapshot holding every board (each still read
+ * with its own tool), and one change history. Each board keeps its own journal and numbering;
+ * here every entry gets a sequence number unique across the boards, in the order it was seen.
+ */
+export function combineMonitors(monitors) {
+  if (monitors.length === 1) return monitors[0];
+  const instanceId = randomUUID(), listeners = new Set(), merged = [], seen = monitors.map(() => 0);
+  const pull = () => {
+    const fresh = [];
+    monitors.forEach((monitor, index) => {
+      const entries = monitor.changes({ after: seen[index] }); // newest first
+      if (entries.length) seen[index] = entries[0].seq;
+      fresh.push(...entries.reverse());
+    });
+    fresh.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    for (const entry of fresh) merged.push({ ...entry, localSeq: entry.seq, seq: merged.length + 1 });
+  };
+  const snapshot = () => {
+    pull();
+    const snaps = monitors.map(m => m.snapshot()), [first] = snaps;
+    const sum = key => snaps.reduce((n, s) => n + (s[key] || 0), 0);
+    const latest = key => snaps.map(s => s[key]).filter(Boolean).sort().at(-1) ?? null;
+    return { ...first, instanceId, revision: sum('revision'), checkedAt: latest('checkedAt'), readCount: sum('readCount'),
+      ignoredEvents: sum('ignoredEvents'), lastFileEventAt: latest('lastFileEventAt'),
+      boards: snaps.flatMap(s => s.boards.map(b => ({ ...b, server: s.server, watchState: s.watchState }))),
+      server: { ...first.server, boards: snaps.map(s => s.server) },
+      trackingSince: snaps.map(s => s.trackingSince).filter(Boolean).sort()[0] ?? null,
+      persistenceError: snaps.map(s => s.persistenceError).filter(Boolean).join(' ') || null,
+      statusTransitions: snaps.flatMap(s => s.statusTransitions).sort((a, b) => String(b.observedAt).localeCompare(String(a.observedAt))),
+      changeCount: merged.length, latestSeq: merged.at(-1)?.seq ?? 0 };
+  };
+  const changes = ({ before = null, after = null, limit = null, item = null } = {}) => {
+    pull();
+    let list = merged;
+    if (item != null) list = list.filter(c => `${c.sourceId}:${c.itemId}` === String(item));
+    if (after != null) list = list.filter(c => c.seq > after);
+    if (before != null) list = list.filter(c => c.seq < before);
+    list = list.slice().reverse();
+    return limit != null ? list.slice(0, limit) : list;
+  };
+  // A change on any board is one push of the whole page.
+  let pending = false;
+  const unsubscribe = monitors.map(m => m.subscribe(() => {
+    if (pending) return;
+    pending = true;
+    setImmediate(() => { pending = false; const snap = snapshot(); for (const listener of listeners) listener(snap); });
+  }));
+  return {
+    readNow: () => { for (const m of monitors) m.readNow(); },
+    recheck: async () => { for (const m of monitors) await m.recheck(); return snapshot(); },
+    snapshot, changes, paths: { ...monitors[0].paths, boards: monitors.map(m => m.paths) },
+    settled: async () => { for (const m of monitors) await m.settled(); return snapshot(); },
+    subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); },
+    close: () => { for (const off of unsubscribe) off(); listeners.clear(); for (const m of monitors) m.close(); },
   };
 }

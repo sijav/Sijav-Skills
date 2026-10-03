@@ -113,7 +113,7 @@ export function loopTool(tool, ...args) {
  * A project whose board is a loop board in a subfolder: <root>/loop/board.db, made and filled by the
  * test loop tool's own commands. Board order: #2 critical waits on #1, #3 critical is parked, then #1 high,
  * #4 medium (doing) and #6 low; #5 is closed. #1 has an open finding, #5 a resolved one; #6's why carries a
- * long list of ids.
+ * long list of ids. #1 and #6 are in area back, #4 in area front, the rest have none.
  */
 export const LONG_IDS = Array.from({ length: 40 }, (_, i) => 'c-' + (0xabc000 + i).toString(16).padStart(12, '0')).join(', ');
 export function loopProject(name = 'loop project') {
@@ -121,12 +121,12 @@ export function loopProject(name = 'loop project') {
   cpSync(join(STAGE, 'tests', 'loop-fixture'), dir, { recursive: true });
   const tool = join(dir, 'board.py'), run = (...args) => loopTool(tool, ...args);
   run('init');
-  run('add', '--title', 'Foundation', '--severity', 'high', '--priority', '1', '--exit', 'check foundation', '--story', 'Story of Foundation', '--why', 'Why Foundation', '--points', '3', '--created', '1700000000');
+  run('add', '--title', 'Foundation', '--severity', 'high', '--priority', '1', '--exit', 'check foundation', '--story', 'Story of Foundation', '--why', 'Why Foundation', '--points', '3', '--created', '1700000000', '--area', 'back');
   run('add', '--title', 'Needs foundation', '--severity', 'critical', '--exit', 'check needs', '--created', '1700000001');
   run('add', '--title', 'Waiting on a person', '--severity', 'critical', '--exit', 'check person', '--created', '1700000002');
-  run('add', '--title', 'In progress', '--severity', 'medium', '--exit', 'check progress', '--created', '1700000003');
+  run('add', '--title', 'In progress', '--severity', 'medium', '--exit', 'check progress', '--created', '1700000003', '--area', 'front');
   run('add', '--title', 'Shipped', '--severity', 'low', '--exit', 'check shipped', '--created', '1700000004');
-  run('add', '--title', 'Long list', '--severity', 'low', '--priority', '5', '--exit', 'check list', '--why', 'Batch of places. IDS: ' + LONG_IDS, '--created', '1700000005');
+  run('add', '--title', 'Long list', '--severity', 'low', '--priority', '5', '--exit', 'check list', '--why', 'Batch of places. IDS: ' + LONG_IDS, '--created', '1700000005', '--area', 'back');
   run('dep', '2', '1');
   run('park', '3', '--reason', 'Owner decides the wording');
   run('start', '4');

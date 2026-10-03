@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, resolve, dirname, basename } from 'node:path';
-import { ROOT, KINDS, defaults, encode, BoardError, resolveBoard, resolveDataDir, discoverPython, discoverTool, createMonitor } from './lib/board.mjs';
+import { ROOT, KINDS, defaults, encode, BoardError, resolveBoard, resolveDataDir, discoverPython, discoverTool, createMonitor, combineMonitors } from './lib/board.mjs';
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 export const USAGE = `Read-only live dashboard for a project's to-do board: the to-do skill's
@@ -19,6 +19,8 @@ export const USAGE = `Read-only live dashboard for a project's to-do board: the 
                      is used.
   --db <file>        Use this board file; a loop board is always opened this way. It
                      must exist; nothing is ever created. Any other file is refused.
+                     Give --db more than once to show several boards on one page,
+                     each read with its own tool and keeping its own history.
   --port <n>         Port to listen on. Default 0: a free port chosen by the OS,
                      which changes on every start. Pass a port for a stable address.
   --host <addr>      Loopback address to bind: 127.0.0.1 (default), localhost or ::1.
@@ -27,7 +29,8 @@ export const USAGE = `Read-only live dashboard for a project's to-do board: the 
   --python <exe>     Python 3.9+ for the tool's picker. Default: SIJAV_TODO_PYTHON, then PATH.
   --todo-py <file>   The skill's todo.py. Default: ../todo.py beside this dashboard folder.
   --tool <file>      A loop board's own tool. Default: the .py named after the board
-                     file, beside it (<name>.db -> <name>.py).
+                     file, beside it (<name>.db -> <name>.py). With several loop
+                     boards each uses its own, so --tool is refused there.
   --help             Show this text.`;
 
 export function parseArgs(argv) {
@@ -40,6 +43,8 @@ export function parseArgs(argv) {
     if (!names[flag]) throw new BoardError(`Unknown option ${arg}.\n\n${USAGE}`);
     const value = inline ?? argv[++i];
     if (value == null || value === '') throw new BoardError(`${flag} needs a value.`);
+    if (flag === '--db') (options.dbs ??= []).push(value);
+    if (flag === '--db' && options.db != null) continue; // the first --db stays the main board
     options[names[flag]] = value;
   }
   const port = Number(options.port);
@@ -171,24 +176,60 @@ async function loadWs() {
 
 /** Resolve, watch and serve. Returns handles so callers and tests can stop it. */
 export async function startDashboard(options = {}, { cwd = process.cwd(), env = process.env } = {}) {
-  const board = resolveBoard({ cwd, project: options.project ?? null, db: options.db ?? null });
-  const dataDir = resolveDataDir({ cwd, dataDir: options.dataDir ?? null, dbPath: board.dbPath, env });
+  const asked = options.dbs?.length > 1 ? options.dbs : [options.db ?? null];
+  const boards = [];
+  for (const db of asked) {
+    const board = resolveBoard({ cwd, project: options.project ?? null, db });
+    if (!boards.some(b => samePath(b.dbPath, board.dbPath))) boards.push(board);
+  }
+  const loops = boards.filter(b => b.kind === 'loop').length;
+  if (boards.length > 1 && loops > 1 && options.tool) throw new BoardError('--tool names one loop board\'s tool, but several loop boards were given; each uses the .py named after its board file.');
   const ws = await loadWs();
-  const todo = discoverTool({ explicit: (board.kind === 'loop' ? options.tool : options.todoPy) ?? null, cwd, kind: board.kind, dbPath: board.dbPath });
-  const python = todo.path ? discoverPython(options.python ?? null, env) : { command: null, reason: null };
-  const pickerReason = todo.reason || python.reason || null;
-  const monitor = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason, kind: board.kind });
+  // One monitor per board: its own id, history folder, tool and picker. A board shown alone keeps the id `board`.
+  const pieces = boards.map((board, index) => {
+    const sourceId = index === 0 ? 'board' : `board-${index + 1}`;
+    const dataDir = resolveDataDir({ cwd, dataDir: options.dataDir == null ? null : boards.length === 1 ? options.dataDir : join(resolve(cwd, options.dataDir), sourceId), dbPath: board.dbPath, env });
+    const todo = discoverTool({ explicit: (board.kind === 'loop' ? options.tool : options.todoPy) ?? null, cwd, kind: board.kind, dbPath: board.dbPath });
+    const python = todo.path ? discoverPython(options.python ?? null, env) : { command: null, reason: null };
+    const pickerReason = todo.reason || python.reason || null;
+    const name = boards.length === 1 ? null : `${basename(board.projectRoot)} · ${board.kind === 'loop' ? basename(board.dbPath).replace(/\.[^.]*$/, '') : 'to-do'}`;
+    const monitor = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason, kind: board.kind, sourceId, name });
+    return { board, sourceId, dataDir, todo, python, pickerReason, monitor };
+  });
+  const monitor = combineMonitors(pieces.map(p => p.monitor));
+  const [{ board, dataDir, todo, python, pickerReason }] = pieces;
   const server = createApp(monitor, ws.default ? { WebSocketServer: ws.WebSocketServer ?? ws.default.WebSocketServer, WebSocket: ws.WebSocket ?? ws.default } : ws);
   try { await new Promise((ok, fail) => { server.once('error', fail); server.listen(options.port ?? 0, options.host ?? '127.0.0.1', ok); }); }
   catch (error) { monitor.close(); throw error.code === 'EADDRINUSE' ? new BoardError(`Port ${options.port} is in use. Choose another --port, or 0 for any free port.`) : error; }
   const port = server.address().port, host = (options.host ?? '127.0.0.1') === '::1' ? '[::1]' : options.host ?? '127.0.0.1';
   const url = `http://${host}:${port}/`;
   const close = () => new Promise(done => server.close(() => { monitor.close(); done(); }));
-  return { url, port, server, monitor, board, dataDir, python, todo, pickerReason, close, fixedPort: (options.port ?? 0) !== 0 };
+  return { url, port, server, monitor, board, boards: pieces, dataDir, python, todo, pickerReason, close, fixedPort: (options.port ?? 0) !== 0 };
 }
 
 export function describe(started) {
   const s = started.monitor.snapshot();
+  const pieces = started.boards ?? [{ board: started.board, sourceId: 'board', dataDir: started.dataDir, todo: started.todo, python: started.python, pickerReason: started.pickerReason }];
+  const perBoard = piece => {
+    const shown = s.boards.find(b => b.id === piece.sourceId), w = shown?.watchState ?? s.watchState, queue = shown?.queue;
+    return [
+      `Board:      ${piece.board.dbPath}  (${KINDS[piece.board.kind].label}; ${piece.board.how})`,
+      `Watching:   ${w.board.active ? w.board.directory + ' for ' + w.board.files.join(', ') : 'NOT ACTIVE: ' + w.board.error}` +
+        (piece.todo.path ? `; ${w.tool.active ? 'tool ' + piece.todo.path : 'tool watch NOT ACTIVE: ' + w.tool.error}` : ''),
+      `Picker:     ${piece.pickerReason ? 'unavailable · ' + piece.pickerReason : `${basename(piece.todo.path)} ${piece.todo.path} via ${piece.python.command}` + (queue?.state ? ` · ${queue.state}` : '')}`,
+      `History:    ${piece.dataDir}`,
+    ];
+  };
+  if (pieces.length > 1) return [
+    'Sijav to-do dashboard · read only',
+    `URL:        ${started.url}${started.fixedPort ? '' : '  (port chosen by the OS; it changes on restart, pass --port for a stable address)'}`,
+    `Project:    ${started.board.projectRoot}`,
+    `Read-only:  yes · SQLite read-only/query-only connections · no mutation API · boards never written`,
+    `Live push:  WebSocket /api/live on file events · no polling`,
+    `Boards:     ${pieces.length}, on one page`,
+    ...pieces.flatMap(perBoard),
+    'No task loop is started. Ctrl+C stops the dashboard.',
+  ].join('\n');
   const queue = s.boards[0]?.queue;
   return [
     'Sijav to-do dashboard · read only',

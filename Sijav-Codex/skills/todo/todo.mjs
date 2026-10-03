@@ -4,6 +4,11 @@
 //   todo                       the whole board
 //   todo next                  what to do next, and why it was picked
 //   todo next --area back,ai   the same, only among those areas' tasks
+//
+// A session's loop file (`.claude/<name>loop<...>.local.md` naming the session)
+// sets its board and its areas. The tool reads it on every command: `next` offers
+// only the loop's areas, `--area` can only narrow them, and starting a task
+// outside them is refused. A session with no loop file works as before.
 //   todo add --title ...       create a task
 //   todo move SB-003 done      change a status
 //   todo show SB-003           one task in full
@@ -18,7 +23,7 @@
 // lowest id, and never a task whose parent is unfinished. Anything already in
 // progress or review comes first, so work in flight gets finished.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 // SQLite is inside Node, so this script has no dependencies and works in a
@@ -61,6 +66,60 @@ const findBoard = (start) => {
   }
 }
 
+
+/** A loop file's front matter, the `key: value` lines between its first two `---`. */
+const frontMatter = (path) => {
+  let text
+  try {
+    text = readFileSync(path, 'utf8')
+  } catch {
+    return {}
+  }
+  if (!text.startsWith('---')) return {}
+  const end = text.indexOf('\n---', 3)
+  const fields = {}
+  for (const line of text.slice(3, end === -1 ? 0 : end).split(/\r?\n/)) {
+    const at = line.indexOf(':')
+    if (at > 0 && line.slice(0, at).trim()) fields[line.slice(0, at).trim()] = line.slice(at + 1).trim().replace(/^["']+|["']+$/g, '')
+  }
+  return fields
+}
+
+/**
+ * The loop file of the session running this command, found walking up. A loop is
+ * per session: its file, `.claude/<name>loop<...>.local.md`, names its session and
+ * may name its board and its areas. Claude Code and Codex give every command the
+ * session's id; without one, or with no loop file naming it, nothing changes.
+ */
+const sessionLoop = (start) => {
+  const session = process.env.CLAUDE_CODE_SESSION_ID || process.env.CODEX_SESSION_ID || ''
+  if (!session) return null
+  let dir = resolve(start)
+  for (;;) {
+    const folder = join(dir, '.claude')
+    let names = []
+    try {
+      if (statSync(folder).isDirectory()) names = readdirSync(folder).sort()
+    } catch {}
+    for (const name of names) {
+      if (name.includes('loop') && name.endsWith('.local.md')) {
+        const fields = frontMatter(join(folder, name))
+        if (fields.session === session) return { root: dir, file: join(folder, name), fields }
+      }
+    }
+    const parent = dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
+}
+
+/** The board of this session's loop when its loop file names one, else the nearest board. */
+const boardOf = (start) => {
+  const loop = sessionLoop(start)
+  if (loop && loop.fields.board) return resolve(loop.root, loop.fields.board)
+  return findBoard(start)
+}
+
 const [command = 'list', ...args] = process.argv.slice(2)
 
 // `init` is the ONLY thing that creates a board, and it does not guess where.
@@ -83,13 +142,18 @@ if (command === 'init') {
   process.exit(0)
 }
 
-const BOARD = findBoard(process.cwd())
+const BOARD = boardOf(process.cwd())
 
 // Refuse BEFORE mkdir and before SQLite opens. Both create what is missing, so
 // a check placed after either is not a check.
 if (!BOARD) {
   console.error(`No board. Nothing at or above ${process.cwd()} has .claude/todo.db.`)
   console.error('If this project should have one: todo init --here')
+  process.exit(2)
+}
+// A board the loop file names is never created either.
+if (!existsSync(BOARD)) {
+  console.error(`This session's loop names the board ${BOARD}, which does not exist. Nothing was created.`)
   process.exit(2)
 }
 
@@ -360,6 +424,21 @@ const areaFilter = (value) => {
   return !names.length || names.includes('all') ? null : names
 }
 const inAreas = (task, areas) => areas === null || areas.includes(task.area || 'unset')
+/** This session's loop and its areas, or nulls when it has no loop file or no areas. */
+const loopAreas = () => {
+  const loop = sessionLoop(process.cwd())
+  return loop ? { loop, mine: areaFilter(loop.fields.areas) } : { loop: null, mine: null }
+}
+/** The areas `next` picks from: the session's loop areas, always, narrowed by `--area`. */
+const areasFor = (asked) => {
+  const wanted = areaFilter(asked)
+  const { loop, mine } = loopAreas()
+  if (mine === null) return wanted
+  if (wanted === null) return mine
+  const outside = wanted.filter((name) => !mine.includes(name))
+  if (outside.length) fail(`${outside.join(', ')}: not one of this session's areas (${mine.join(', ')}), set in ${loop.file}.`)
+  return wanted
+}
 
 /** A number from a flag, or null when it is not one: Number('') is 0, which is not what was typed. */
 const numberFrom = (value) => {
@@ -682,7 +761,7 @@ if (command === 'phase') {
 } else if (command === 'show') {
   console.log(card(one(args[0])))
 } else if (command === 'next') {
-  const areas = areaFilter(valueOf(args, 'area'))
+  const areas = areasFor(valueOf(args, 'area'))
   const scope = areas ? ` in area ${areas.join(', ')}` : ''
   const tasks = all()
   const { started, pick } = choose(tasks, areas)
@@ -879,6 +958,10 @@ if (command === 'phase') {
   }
   if (!STATUSES.includes(status)) fail(`status must be one of ${STATUSES.join(', ')}, or blocked`)
   const task = one(id)
+  if (status === 'in_progress') {
+    const { loop, mine } = loopAreas()
+    if (mine !== null && !inAreas(task, mine)) fail(`${id} is in area ${task.area || 'unset'}; this session works in ${mine.join(', ')} (its loop file, ${loop.file}).`)
+  }
   const wasBlocked = blockOf(id)
   const stamp = now()
   db.prepare('UPDATE task SET status = ?, updated = ? WHERE id = ?').run(status, stamp, id)

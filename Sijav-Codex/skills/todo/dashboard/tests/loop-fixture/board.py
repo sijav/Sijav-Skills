@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS item (
   tested INTEGER NOT NULL DEFAULT 0,
   tested_how TEXT,
   e2e_tested INTEGER NOT NULL DEFAULT 0,
-  e2e_how TEXT
+  e2e_how TEXT,
+  area TEXT
 );
 CREATE TABLE IF NOT EXISTS dep (item INTEGER NOT NULL, blocker INTEGER NOT NULL, PRIMARY KEY (item, blocker));
 CREATE TABLE IF NOT EXISTS finding (
@@ -68,6 +69,7 @@ def main(argv=None):
     add.add_argument("--story")
     add.add_argument("--points", type=int)
     add.add_argument("--created", type=int, required=True)
+    add.add_argument("--area")
     dep = commands.add_parser("dep")
     dep.add_argument("item", type=int)
     dep.add_argument("blocker", type=int)
@@ -94,9 +96,10 @@ def main(argv=None):
     with conn:
         if args.command == "add":
             cursor = conn.execute(
-                "INSERT INTO item (title, why, story, severity, priority, exit_cmd, points, created_at)"
-                " VALUES (?,?,?,?,?,?,?,?)",
-                (args.title, args.why, args.story, args.severity, args.priority, args.exit, args.points, args.created))
+                "INSERT INTO item (title, why, story, severity, priority, exit_cmd, points, created_at, area)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (args.title, args.why, args.story, args.severity, args.priority, args.exit, args.points, args.created,
+                 args.area))
             print(cursor.lastrowid)
         elif args.command == "dep":
             conn.execute("INSERT INTO dep (item, blocker) VALUES (?,?)", (args.item, args.blocker))

@@ -33,12 +33,15 @@ Do not choose a different task with an invented ordering. If the pick looks
 wrong, correct the recorded severity, points or parents within the owner's
 instructions, then run `next` again. Mark the selected task `in_progress`.
 
-A session the owner gave areas works only in them: pass them on every pick,
-`next --area back` for one area or `--area back,front` for a list. No `--area`,
-or `all`, is every area; `unset` names tasks with no area. A parent in another
-area still counts once it is done, and started work outside the areas is not
-resumed. Sessions with different areas never get the same pick. The owner sets
-the areas; never choose them yourself.
+A loop is per session, and its loop file sets its board and areas: the file
+`.claude/<name>loop<...>.local.md` names the session (`session:`) and, when the
+owner gives them, its board (`board:`) and areas (`areas: back,ai`). The tool
+reads the loop file of the session running it on every command (from
+`CODEX_SESSION_ID`, or `CLAUDE_CODE_SESSION_ID` under Claude): `next` offers
+only those areas, `--area` can only narrow them, and starting a task outside
+them is refused. A parent in another area still counts once it is done; loops
+with different areas never get the same task. Without a loop file the tool
+works as before, and `next --area` picks freely.
 
 If no board exists, the tool refuses. Create one only through an authorized
 explicit `init --here` or `init <path>`; bare `init` also refuses. Never turn an
