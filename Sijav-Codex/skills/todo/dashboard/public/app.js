@@ -59,7 +59,8 @@ function updateClock(){
 function updateAmbient(){
   if(!relax.active)return;
   const openDetails=new Set([...$('ambient-pane').querySelectorAll('details[open][data-ambient-details]')].map(e=>e.dataset.ambientDetails));
-  if(!state.relaxModel&&!state.relaxWanted&&socket?.readyState===WebSocket.OPEN){state.relaxWanted=true;ask('relax').then(model=>{state.relaxWanted=false;state.relaxModel=model;updateAmbient();},()=>{state.relaxWanted=false;});}
+  // Asked only once greeted: a relay wants the sign-in first, and a #relax bookmark opens Relax before it.
+  if(!state.relaxModel&&!state.relaxWanted&&state.data&&socket?.readyState===WebSocket.OPEN){state.relaxWanted=true;ask('relax').then(model=>{state.relaxWanted=false;state.relaxModel=model;updateAmbient();},()=>{state.relaxWanted=false;});}
   $('ambient-pane').innerHTML=state.relaxModel?renderAmbientModel(state.relaxModel,{connected:socket?.readyState===WebSocket.OPEN,connectionLabel:$('connection-text').textContent,paused:state.paused}):'<div class="ambient-empty"><p>Loading…</p></div>';
   $('ambient-pane').querySelectorAll('details[data-ambient-details]').forEach(e=>e.open=openDetails.has(e.dataset.ambientDetails));
   updateClock();
@@ -361,7 +362,7 @@ function updateConnection(){
 }
 // The first message after (re)connecting gives each board's details and nothing per task; a change
 // gives the boards whose details changed, the keys of the tasks that changed and new history.
-function absorbHello(message){state.data=message;state.changes=[];state.changesComplete=false;state.changesLoaded=false;state.taskHistory={};state.lists.clear();state.summary=null;state.summaryWanted=null;state.records.clear();state.rows.clear();state.relaxModel=null;}
+function absorbHello(message){state.data=message;state.changes=[];state.changesComplete=false;state.changesLoaded=false;state.changesLoading=false;state.taskHistory={};state.lists.clear();state.summary=null;state.summaryWanted=null;state.records.clear();state.rows.clear();state.relaxModel=null;}
 function absorbChange(message){
   const {boards=[],keys=[],changes=[],type,...top}=message;Object.assign(state.data,top);
   for(const b of boards){const i=state.data.boards.findIndex(x=>x.id===b.id);if(i<0)state.data.boards.push(b);else state.data.boards[i]=b;}
@@ -375,7 +376,8 @@ function applyMessage(message){
 }
 function connectLive(){
   clearTimeout(reconnectTimer);
-  if(socket){socket.onclose=null;socket.onmessage=null;socket.close();}
+  // The old socket's questions are settled here, since its close handler is dropped.
+  if(socket){socket.onclose=null;socket.onmessage=null;socket.close();for(const asked of waiting.values())asked.reject(Error('The dashboard reconnected.'));waiting.clear();}
   // Reconnect after a refusal: the page signs in again (the host page forgot the refused token).
   if(state.refused){state.refused=state.offline=null;$('content').innerHTML='<div class="loading">Signing in…</div>';}
   socket=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+(published?.livePath||'/api/live'));
