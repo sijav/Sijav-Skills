@@ -29,6 +29,7 @@ test('the dashboard publishes through a relay with the token from its file: a gr
   const p = loopProject(), relay = await fakeRelay();
   const tokenFile = join(tempDir('publish token '), 'token.txt');
   writeFileSync(tokenFile, 'relay-token-for-the-test\n');
+  const untouched = sha(p.db); // before the dashboard starts
   const started = await startDashboard({ db: p.db, publish: relay.url, publishTokenFile: tokenFile }, { cwd: p.root, env: testEnv() });
   let before = null;
   try {
@@ -45,6 +46,7 @@ test('the dashboard publishes through a relay with the token from its file: a gr
     const greeting = (await relay.ask(4, { type: 'hello' })).data;
     assert.equal(greeting.type, 'hello', 'a relay that keeps nothing asks for the greeting of each page it signs in');
     assert.equal(greeting.boards[0].tasks, undefined);
+    assert.equal(sha(p.db), untouched, 'greeting the relay and answering its first questions never wrote the board');
     p.run('start', '6');
     await until(() => relay.messages.some(m => m.type === 'changed' && m.keys.includes('board:6')), 'the change pushed');
     before = sha(p.db); // the board as its own tool left it
