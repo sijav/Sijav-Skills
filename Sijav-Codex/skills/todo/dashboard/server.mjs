@@ -7,6 +7,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, resolve, dirname, basename } from 'node:path';
 import { ROOT, KINDS, defaults, encode, BoardError, resolveBoard, resolveDataDir, discoverPython, discoverTool, createMonitor, combineMonitors } from './lib/board.mjs';
+import { hello, answer, fingerprints, changedKeys, metaPrints } from './lib/views.mjs';
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 export const USAGE = `Read-only live dashboard for a project's to-do board: the to-do skill's
@@ -141,16 +142,45 @@ export function createApp(monitor, { WebSocketServer, WebSocket }, settings = de
   });
   const wss = new WebSocketServer({ noServer: true, clientTracking: true, maxPayload: settings.transport.maxMessageBytes });
   const sentUpTo = new WeakMap();
-  // A (re)connecting client gets the snapshot and the newest page of history.
-  // After that each push carries only the history entries it has not seen.
-  const send = (socket, snapshot, first) => {
+  const write = (socket, message) => {
     if (socket.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > settings.transport.maxBufferedBytes) { socket.terminate(); return; }
-    let changes, complete = null;
-    if (first) { changes = monitor.changes({ limit: page }); complete = changes.length >= snapshot.changeCount; }
-    else changes = monitor.changes({ after: sentUpTo.get(socket) ?? 0 });
-    sentUpTo.set(socket, snapshot.latestSeq);
-    socket.send(encode({ type: 'snapshot', reset: first, snapshot, changes, changesComplete: complete }));
+    socket.send(encode(message));
+  };
+  // A (re)connecting client gets each board's details, never a board whole.
+  const greet = socket => { const snapshot = monitor.snapshot(); sentUpTo.set(socket, snapshot.latestSeq); write(socket, hello(snapshot)); };
+  // The history the Changes view and a task's drawer ask for, as /api/changes gives it.
+  const history = ({ before = null, after = null, limit = page, item = null }) => {
+    const all = limit === 'all', size = all ? null : Number(limit) > 0 ? Number(limit) : page;
+    const changes = monitor.changes({ before, after, item, limit: size }), s = monitor.snapshot();
+    const total = item != null ? monitor.changes({ item }).length : s.changeCount;
+    return { changes, total, complete: size == null || changes.length < size, latestSeq: s.latestSeq };
+  };
+  // Every request is a typed question with an id; it gets one reply with that id: a page of a
+  // list, a task's record, a table's rows, a page of history, the report's totals or Relax's view.
+  const reply = (socket, text) => {
+    let request = null;
+    try { request = JSON.parse(String(text)); } catch {}
+    const id = request?.id ?? null;
+    try {
+      const data = request?.type === 'changes' ? history(request) : answer(monitor.snapshot(), request || {}, settings);
+      write(socket, { type: 'reply', id, data });
+    } catch (error) { write(socket, { type: 'reply', id, error: error.message }); }
+  };
+  // A change is pushed as what changed: the boards whose details changed, the keys of the tasks
+  // that changed, and the history entries this client has not seen.
+  let prints = fingerprints(monitor.snapshot()), metas = metaPrints(hello(monitor.snapshot()).boards);
+  const pushChange = snapshot => {
+    const nowPrints = fingerprints(snapshot), keys = changedKeys(prints, nowPrints);
+    const greeting = hello(snapshot), nowMetas = metaPrints(greeting.boards);
+    const boards = greeting.boards.filter(b => metas.get(b.id) !== nowMetas.get(b.id));
+    prints = nowPrints; metas = nowMetas;
+    const { boards: _all, type: _type, ...top } = greeting;
+    for (const socket of wss.clients) {
+      const changes = monitor.changes({ after: sentUpTo.get(socket) ?? 0 });
+      sentUpTo.set(socket, snapshot.latestSeq);
+      write(socket, { ...top, type: 'changed', boards, keys, changes });
+    }
   };
   server.on('upgrade', (req, socket, head) => {
     const site = req.headers['sec-fetch-site'];
@@ -159,8 +189,8 @@ export function createApp(monitor, { WebSocketServer, WebSocket }, settings = de
     }
     wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
   });
-  wss.on('connection', socket => { socket.on('error', () => {}); socket.on('message', () => socket.close(1008, 'Read-only stream')); send(socket, monitor.snapshot(), true); });
-  const unsubscribe = monitor.subscribe(snapshot => { for (const socket of wss.clients) send(socket, snapshot, false); });
+  wss.on('connection', socket => { socket.on('error', () => {}); socket.on('message', text => reply(socket, text)); greet(socket); });
+  const unsubscribe = monitor.subscribe(pushChange);
   server.on('listening', () => { const p = server.address().port; hosts = new Set([`127.0.0.1:${p}`, `localhost:${p}`, `[::1]:${p}`]); });
   const originalClose = server.close.bind(server);
   server.close = callback => { unsubscribe(); for (const socket of wss.clients) socket.terminate(); wss.close(); server.closeAllConnections?.(); return originalClose(callback); };

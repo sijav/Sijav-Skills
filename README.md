@@ -463,8 +463,9 @@ flowchart LR
 2. Install its one dependency once, inside its own folder: `npm ci --omit=dev --prefix "<todo skill>/dashboard"`. The Codex setup does the same with `--dashboard-deps`.
 3. Start it on a project: `node "<todo skill>/dashboard/server.mjs" --project "<project>" --port 8765`, then open the address it prints. Without `--port` it takes a free port, which changes on every start. For a loop board in a subfolder, start it from the project with `--db "<subfolder>/<board>.db"`; its tool is the `.py` named after the board file, beside it. Give `--db` more than once to show several boards on one page, each read with its own tool.
 4. Read it. **Full report** is the overview. **Full board** lists the tasks in the board tool's own next order. **Changes** shows each change with its fields before and after. **Database records** shows every stored row. Click a task for its full record. **Relax mode** is a calm full-screen view of the current and the next work. Long text and long lists of ids are folded: **Show more** opens them, **Show less** folds them again.
-5. Leave it open: it updates by itself when the board changes, with no reload. **Pause** holds the view; **Export full data** saves everything as one file.
-6. Stop it with Ctrl+C.
+5. It loads what you look at: each list shows five cards and loads five more as you scroll, and a task's full record loads when you open it, so even a board of hundreds of items opens at once.
+6. Leave it open: it updates by itself when the board changes, with no reload. **Pause** holds the view; **Export full data** saves everything as one file.
+7. Stop it with Ctrl+C.
 
 To try it without a real board, `node "<todo skill>/dashboard/tests/demo-fixture.mjs" --port 8765` builds a throwaway board in the system's temp folder and prints commands that change it while you watch. Ctrl+C deletes it.
 

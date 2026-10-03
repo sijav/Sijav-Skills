@@ -147,8 +147,8 @@ The page sets `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
 | Path | Content |
 | --- | --- |
 | `/` and static files | The page, with UI settings, project and board path embedded (inserted literally; `$` in paths is safe). |
-| `/api/live` | WebSocket. On connect or reconnect it sends `{type:"snapshot", reset:true, snapshot, changes:<newest page>, changesComplete}`. After each file-event change it sends `{reset:false, snapshot, changes:<only entries not yet sent>}`. History is never resent. Client messages close the socket. |
-| `/api/snapshot` | The current snapshot, with an ETag. |
+| `/api/live` | WebSocket, the page's only data path (see [Paged queries](#paged-queries)). On connect it sends `hello`: each board's details, nothing per task. The page then asks typed questions and gets one reply each. After each file-event change it pushes `changed`: the boards whose details changed, the keys of the tasks that changed, and the history entries not yet sent. History is never resent. |
+| `/api/snapshot` | The whole current snapshot, with an ETag, for tools and exports. The page never loads it. |
 | `/api/changes` | History, newest first. `?limit=<n>` (default one page) or `?limit=all`; `?before=<seq>` gives older pages; `?after=<seq>` gives newer entries; `?item=<task id>` gives one task's full history. Returns `{changes, total, complete, latestSeq}`. |
 | `/api/export` | Snapshot plus the full history, as a download. |
 | `/api/health` | `readOnly`, project, db, data dir, Python, todo.py and its hash, and watch state. |
@@ -309,6 +309,34 @@ node "<skills>/todo/dashboard/server.mjs" --db "<subfolder>/<loop board>.db" --d
 - **Where it writes:** only to the history folder, which is never inside the
   project or the skill.
 
+## Paged queries
+
+The page never gets a board whole: a board of 734 items was a 21.7 MB first
+message, and is now about 42 KB. On connect the socket sends `hello`, each
+board's details: counts, rules, the tool's order (ids only), the current pick,
+its tables' row counts. Everything else the page asks for, as a typed question
+`{id, type, ...}` that gets one `{type: "reply", id, data}` (or `error`):
+
+| `type` | Asks for |
+| --- | --- |
+| `list` | A list's next page, five at a time: `lane` (one board's status lane), `doing`, or `register` (every task in the chosen sort), with the page's filters. Returns the cards and the list's total. |
+| `summary` | The report's totals for the chosen boards and filters: counts by status, severity and board, testing, objectives, the filters' choices and the latest activity. |
+| `task` | One task's whole record, the tasks it links to, and the tool's evidence for its place in the order. |
+| `rows` | A page of one table's stored rows. |
+| `changes` | A page of history (`before`, `after`, `limit`, `item`), as `/api/changes` gives it. |
+| `relax` | Relax's view, built where every task is. |
+
+- **Lists load as they scroll:** each list shows its first five cards; more
+  load five at a time as its "Show more" comes into view (a click does it too).
+- **A card carries what it shows:** its story and why, its stored fields with
+  long ones cut, counts of its related rows and the tool's reasons for not
+  offering it. Opening it asks for the whole record.
+- **A change pushes what changed:** the page asks again only for the totals, the
+  list windows it shows and the open record.
+- **One ordering:** the server answers with the page's own ordering, filter,
+  testing and work-classification code (`lib/views.mjs` imports it), so a list
+  is in the same order whether the server or the page would sort it.
+
 ## Live updates
 
 - **Board watch:** `fs.watch` on the board's directory, filtered to the board
@@ -323,7 +351,7 @@ node "<skills>/todo/dashboard/server.mjs" --db "<subfolder>/<loop board>.db" --d
 - **Pushes:** several state changes in one event-loop turn are pushed once.
 - **No polling:** there are no timed rereads. The only browser timers are the
   Relax wall clock, the reconnect delay and the toast. On reconnect the
-  server sends one snapshot.
+  server sends `hello` again.
 - **Scope:** no other project is watched.
 
 ## Views
@@ -437,6 +465,7 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 | `board.test.mjs` | Board discovery and no file creation; per-user history keyed by board; reads checked against Python's `sqlite3` (every table, row and field); byte-identical board; nothing grouped without policy; old and unused boards; idle and active WAL; locked board fails explicitly; row diffs; torn journal recovery. |
 | `picker.test.mjs` | Exact real `next` text and pick at every step of working a board; started precedence and blocked started work; a blocked task with a done and an unfinished parent gets exact, probe-confirmed reasons that match how the real tool resolves them; legacy severities and statuses do not cost the pick; a changed `by_rule`/`choose` changes order, labels and groups; refused constants and start-up mutations; tool writes never reach the project; old and unused boards on a copy; missing Python explained. |
 | `live.test.mjs` | Installed copy from a subdirectory, with `$'`, `$&` and `$$` in the project path; host, origin, Sec-Fetch and frame headers; WAL push with a quiet period showing no polling; incremental history and pagination; read failure withdraws pick and order then recovers; broken or changed `todo.py` is watched; atomic replacement; CLI output, restart history, refusals, junction start, Node version gate; real `npm start` from the caller's directory; npm variables inherited from an unrelated npm process never select another (synthetic) board; installed helpers use the parent `todo.py`; demo refuses overrides. |
+| `views.test.mjs` | The paged queries on a loop board: the first message has no task in it, lists come five at a time in the tool's order with their totals and filters, a card carries its reasons and its story once, a record has its links and evidence, totals and table pages are answered, an unknown request is an error, and a change names only the tasks it touched. |
 | `ui.test.mjs` | Order only from a current result; labelled previous order while re-checking; no order on failure; no recency without policy; done most recent first; field line diffs; dates; recorded-only area; Relax states; theme and display controller; no browser polling; long text and id lists fold, open and fold again, escaped. |
 | `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, its areas on the cards and in the filter, the item's own fields in the drawer and Relax naming its tool; two boards on one page, each in its own tool's words, cards named by board, each drawer its own; no literal `${` in any view. |
 | `loop.test.mjs` | Two boards on one page: each read with its own tool and history, one numbering of changes, the same board given twice shown once, `--tool` refused for several loop boards. Loop boards made by a small test loop tool (`tests/loop-fixture`): told apart by their tables, and any other SQLite file refused, also by the CLI; found from their own folder and named after the project folder; items, blockers, parked notes and findings mapped; `loop_picker.py` gives the tool's own head, order, status groups and checked reasons, and refuses a tool whose order it cannot read; an older loop board without parked, exit or created columns; the live server through a change; the board never written and nothing created beside it. |

@@ -156,8 +156,12 @@ function boardView(board) {
 }
 
 /** Render only the live pane; fullscreen, theme and pause controls live outside it. */
-export function renderAmbient(snapshot, {connected = false, connectionLabel = '', paused = false} = {}) {
-  const model = buildAmbientModel(snapshot || {});
+export function renderAmbient(snapshot, options = {}) {
+  return renderAmbientModel(buildAmbientModel(snapshot || {}), options);
+}
+
+/** Relax drawn from a model the server built where every task is (lib/views.mjs relax). */
+export function renderAmbientModel(model, {connected = false, connectionLabel = '', paused = false} = {}) {
   const connection = connectionLabel || (connected ? 'Live connection' : 'Disconnected');
   return `<div class="ambient-wallboard${paused ? ' is-paused' : ''}${connected ? ' is-connected' : ' is-disconnected'}">
     <header class="ambient-top"><div><span class="ambient-kicker">${escape(model.boards[0]?.name || 'Project')} / live to-do board</span><h1>Current work &amp; what comes next</h1></div><div class="ambient-live-status"><span><i class="ambient-indicator"></i>${escape(connection)}${paused ? ' · View paused' : ''}</span><small>Last board read ${model.checkedAt ? escape(formatDate(model.checkedAt)) : 'not yet recorded'}</small></div></header>
