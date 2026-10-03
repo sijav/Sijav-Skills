@@ -287,7 +287,7 @@ async function loadTaskHistory(key){
 function comparison(c,withDate=false){return `<details data-diff="${escape(c.id)}"><summary class="compare-summary">${withDate?date(c.at)+' · '+escape(c.table)+' · ':''}Compare changed fields <span class="diff-legend"><span>− removed</span><span>+ added</span></span></summary>${renderFieldDiff(c.before,c.after,settings.ui)}</details>`;}
 function expandedDiffs(){return new Set([...document.querySelectorAll('[data-diff][open]')].map(el=>el.dataset.diff));}
 function restoreDiffs(ids){document.querySelectorAll('[data-diff]').forEach(el=>{el.open=ids.has(el.dataset.diff);});}
-function render(){if(state.offline){$('content').innerHTML=`<div class="banner error">${escape(state.offline)}</div>`;return;}if(!state.data)return;const expanded=expandedDiffs();const openedRecords=new Set([...document.querySelectorAll('[data-record][open]')].map(el=>el.dataset.record));const savedScroll=new Map([...document.querySelectorAll('[data-scroll]')].map(el=>[el.dataset.scroll,el.scrollTop]));const s=state.view==='changes'||state.view==='data'?state.summary?.data:summaryNow();
+function render(){if(state.offline){$('content').innerHTML=`<div class="banner error">${escape(state.offline)}</div>`;if(state.selected)renderDetail();return;}if(!state.data)return;const expanded=expandedDiffs();const openedRecords=new Set([...document.querySelectorAll('[data-record][open]')].map(el=>el.dataset.record));const savedScroll=new Map([...document.querySelectorAll('[data-scroll]')].map(el=>[el.dataset.scroll,el.scrollTop]));const s=state.view==='changes'||state.view==='data'?state.summary?.data:summaryNow();
   if(state.view==='changes'&&!state.changesLoaded&&!state.changesLoading){state.changesLoading=true;loadChanges().then(()=>{state.changesLoading=false;render();},error=>{state.changesLoading=false;toast(error.message);});}
   $('source-nav').innerHTML=state.data.boards.map(b=>`<button class="source-button active" data-source="${escape(b.id)}"><span class="source-icon">${escape(b.short)}</span><span class="source-text">${escape(b.name)}<small>${!b.available?'Read failed':b.total===0?'Empty board':'Read successfully'}</small></span><span class="source-number">${b.total}</span></button>`).join('');
   $('source-health').textContent=state.data.boards.filter(b=>b.available).length+'/'+state.data.boards.length;
@@ -324,7 +324,8 @@ const textSections=()=>isLoop()?[['story','Story'],['why','Why'],['exit_cmd','Ex
   :[['descr','Story / description'],['why','Why · who wants what'],['exit_cond','Exit condition'],['evidence','Evidence recorded at done'],['reason','Dropped because']];
 function longText(t){return `<div class="detail-section"><h3>Story &amp; conditions</h3>${textSections().filter(([key])=>Object.hasOwn(t.raw,key)).map(([key,label])=>`<section class="long-field"><h4>${escape(label)} <code>${escape(key)}</code></h4>${t.raw[key]==null||t.raw[key]===''?'<p class="muted">Not recorded.</p>':`<pre dir="auto">${clampText(t.raw[key],'detail:'+t.key+':'+key,state.expanded,{chars:1500})}</pre>`}</section>`).join('')}</div>`;}
 function relatedRecords(records,label,empty='None recorded.'){return `<div class="detail-section"><h3>${label} (${records.length})</h3><div class="related-records">${records.map((r,i)=>`<details ${records.length<=3?'open':''}><summary>${escape(r.round!=null?'Round '+r.round:'Record '+(i+1))}${r.at||r.since?' · '+escape(date(r.at??r.since)):''}${r.text?' · '+escape(String(r.text).substring(0,100)):r.reason?' · '+escape(String(r.reason).substring(0,100)):r.file?' · '+escape(r.file):''}</summary>${fields(r)}</details>`).join('')||`<p class="muted">${escape(empty)}</p>`}</div></div>`;}
-function renderDetail(){const key=state.selected;if(!key)return;const board=sourceFor(key.slice(0,key.indexOf(':')));return inBoard(board,()=>renderDetailIn(key,board));}
+// An open record says the boards are offline (or the account refused) for as long as they are, through every redraw.
+function renderDetail(){const key=state.selected;if(!key)return;const board=sourceFor(key.slice(0,key.indexOf(':')));const out=inBoard(board,()=>renderDetailIn(key,board));if(state.offline)$('detail-content').innerHTML=`<div class="banner error">${escape(state.offline)}</div>`+$('detail-content').innerHTML;return out;}
 function renderDetailIn(key,b){const expanded=expandedDiffs();const scroll=$('task-dialog').scrollTop;const entry=recordOf(key),rec=entry?.data;
   if(!rec){$('detail-content').innerHTML=`<div class="drawer-body"><h2 id="detail-title">${entry?.missing?'Task no longer present':entry?.error?'The task’s record could not be read':'Loading the task’s record…'}</h2><p class="muted">${entry?.missing?'Look in Changes for its previous record.':escape(entry?.error||'')}</p></div>`;return;}
   const t=rec.task;b=sourceFor(t.sourceId)||b;$('detail-source').textContent=b.name+' / '+showId(t);
@@ -356,7 +357,7 @@ function updateConnection(){
   if(state.paused){connection('View paused','paused');return;}
   if(!socket||socket.readyState!==WebSocket.OPEN){connection('Disconnected · reconnecting','offline');return;}
   if(state.offline){connection('Connected · boards offline','offline');return;}
-  if(!state.data){connection('Connected · loading');return;}
+  if(!state.data||socket!==greetedSocket){connection('Connected · loading');return;} // Live only once this socket is greeted
   const watching=state.data.watchState.board?.active,failures=state.data.boards.filter(b=>!b.available).length;
   connection(failures?'Board unreadable':watching?'Live · file watcher':'Not watching the board',failures||!watching?'offline':'');
   $('refresh-note').textContent=published?'Published · Read only · connected':'Local files · Read only · WebSocket connected';
@@ -387,7 +388,7 @@ function connectLive(){
   socket.onmessage=event=>{
     const message=JSON.parse(event.data);
     if(message.type==='reply'){const asked=waiting.get(message.id);waiting.delete(message.id);if(!asked)return;if(message.error)asked.reject(Error(message.error));else asked.resolve(message.data);return;}
-    if(message.type==='offline'){state.offline=message.reason||'The boards are offline.';render();if($('task-dialog').open)$('detail-content').innerHTML=`<div class="banner error">${escape(state.offline)}</div>`+$('detail-content').innerHTML;updateConnection();return;} // an open record says so too
+    if(message.type==='offline'){state.offline=message.reason||'The boards are offline.';render();updateConnection();return;} // an open record says so too (renderDetail)
     // Refused (this account may not see the boards): said once, with no reconnecting. The host page forgets
     // the refused token, so Reconnect (or a reload) signs in again, with another account if need be.
     if(message.type==='refused'){state.refused=state.offline=message.reason||'This account cannot see the boards.';render();socket.onclose=null;socket.close();window.dashboardAuth?.forget?.();updateConnection();return;}
