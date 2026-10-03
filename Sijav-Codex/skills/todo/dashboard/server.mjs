@@ -7,7 +7,8 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, resolve, dirname, basename } from 'node:path';
 import { ROOT, KINDS, defaults, encode, BoardError, resolveBoard, resolveDataDir, discoverPython, discoverTool, createMonitor, combineMonitors } from './lib/board.mjs';
-import { hello, answer, fingerprints, changedKeys, metaPrints } from './lib/views.mjs';
+import { createSession } from './lib/session.mjs';
+import { startPublisher } from './lib/publish.mjs';
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 export const USAGE = `Read-only live dashboard for a project's to-do board: the to-do skill's
@@ -32,11 +33,16 @@ export const USAGE = `Read-only live dashboard for a project's to-do board: the 
   --tool <file>      A loop board's own tool. Default: the .py named after the board
                      file, beside it (<name>.db -> <name>.py). With several loop
                      boards each uses its own, so --tool is refused there.
+  --publish <url>    Also publish the page through a relay (wss://...): one outbound
+                     socket that answers the relay's questions and pushes changes.
+  --publish-token-file <file>
+                     The file holding the relay's bearer token (never the token
+                     itself on the command line).
   --help             Show this text.`;
 
 export function parseArgs(argv) {
-  const options = { project: null, db: null, port: 0, host: '127.0.0.1', dataDir: null, python: null, todoPy: null, tool: null, help: false };
-  const names = { '--project': 'project', '--db': 'db', '--port': 'port', '--host': 'host', '--data-dir': 'dataDir', '--python': 'python', '--todo-py': 'todoPy', '--tool': 'tool' };
+  const options = { project: null, db: null, port: 0, host: '127.0.0.1', dataDir: null, python: null, todoPy: null, tool: null, publish: null, publishTokenFile: null, help: false };
+  const names = { '--project': 'project', '--db': 'db', '--port': 'port', '--host': 'host', '--data-dir': 'dataDir', '--python': 'python', '--todo-py': 'todoPy', '--tool': 'tool', '--publish': 'publish', '--publish-token-file': 'publishTokenFile' };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--help' || arg === '-h') { options.help = true; continue; }
@@ -141,45 +147,31 @@ export function createApp(monitor, { WebSocketServer, WebSocket }, settings = de
     } catch (error) { if (!res.headersSent) res.writeHead(500); res.end('Dashboard error: ' + error.message); }
   });
   const wss = new WebSocketServer({ noServer: true, clientTracking: true, maxPayload: settings.transport.maxMessageBytes });
-  const sentUpTo = new WeakMap();
+  const sentUpTo = new WeakMap(), session = createSession(monitor, settings);
   const write = (socket, message) => {
     if (socket.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > settings.transport.maxBufferedBytes) { socket.terminate(); return; }
     socket.send(encode(message));
   };
   // A (re)connecting client gets each board's details, never a board whole.
-  const greet = socket => { const snapshot = monitor.snapshot(); sentUpTo.set(socket, snapshot.latestSeq); write(socket, hello(snapshot)); };
-  // The history the Changes view and a task's drawer ask for, as /api/changes gives it.
-  const history = ({ before = null, after = null, limit = page, item = null }) => {
-    const all = limit === 'all', size = all ? null : Number(limit) > 0 ? Number(limit) : page;
-    const changes = monitor.changes({ before, after, item, limit: size }), s = monitor.snapshot();
-    const total = item != null ? monitor.changes({ item }).length : s.changeCount;
-    return { changes, total, complete: size == null || changes.length < size, latestSeq: s.latestSeq };
-  };
+  const greet = socket => { sentUpTo.set(socket, monitor.snapshot().latestSeq); write(socket, session.greeting()); };
   // Every request is a typed question with an id; it gets one reply with that id: a page of a
   // list, a task's record, a table's rows, a page of history, the report's totals or Relax's view.
   const reply = (socket, text) => {
     let request = null;
     try { request = JSON.parse(String(text)); } catch {}
     const id = request?.id ?? null;
-    try {
-      const data = request?.type === 'changes' ? history(request) : answer(monitor.snapshot(), request || {}, settings);
-      write(socket, { type: 'reply', id, data });
-    } catch (error) { write(socket, { type: 'reply', id, error: error.message }); }
+    try { write(socket, { type: 'reply', id, data: session.answerRequest(request) }); }
+    catch (error) { write(socket, { type: 'reply', id, error: error.message }); }
   };
   // A change is pushed as what changed: the boards whose details changed, the keys of the tasks
   // that changed, and the history entries this client has not seen.
-  let prints = fingerprints(monitor.snapshot()), metas = metaPrints(hello(monitor.snapshot()).boards);
   const pushChange = snapshot => {
-    const nowPrints = fingerprints(snapshot), keys = changedKeys(prints, nowPrints);
-    const greeting = hello(snapshot), nowMetas = metaPrints(greeting.boards);
-    const boards = greeting.boards.filter(b => metas.get(b.id) !== nowMetas.get(b.id));
-    prints = nowPrints; metas = nowMetas;
-    const { boards: _all, type: _type, ...top } = greeting;
+    const base = session.change(snapshot);
     for (const socket of wss.clients) {
       const changes = monitor.changes({ after: sentUpTo.get(socket) ?? 0 });
       sentUpTo.set(socket, snapshot.latestSeq);
-      write(socket, { ...top, type: 'changed', boards, keys, changes });
+      write(socket, { ...base, changes });
     }
   };
   server.on('upgrade', (req, socket, head) => {
@@ -214,6 +206,7 @@ export async function startDashboard(options = {}, { cwd = process.cwd(), env = 
   }
   const loops = boards.filter(b => b.kind === 'loop').length;
   if (boards.length > 1 && loops > 1 && options.tool) throw new BoardError('--tool names one loop board\'s tool, but several loop boards were given; each uses the .py named after its board file.');
+  const publish = readPublish(options, cwd); // refused before any board is watched
   const ws = await loadWs();
   // One monitor per board: its own id, history folder, tool and picker. A board shown alone keeps the id `board`.
   const pieces = boards.map((board, index) => {
@@ -233,8 +226,24 @@ export async function startDashboard(options = {}, { cwd = process.cwd(), env = 
   catch (error) { monitor.close(); throw error.code === 'EADDRINUSE' ? new BoardError(`Port ${options.port} is in use. Choose another --port, or 0 for any free port.`) : error; }
   const port = server.address().port, host = (options.host ?? '127.0.0.1') === '::1' ? '[::1]' : options.host ?? '127.0.0.1';
   const url = `http://${host}:${port}/`;
-  const close = () => new Promise(done => server.close(() => { monitor.close(); done(); }));
-  return { url, port, server, monitor, board, boards: pieces, dataDir, python, todo, pickerReason, close, fixedPort: (options.port ?? 0) !== 0 };
+  const WebSocketClass = ws.WebSocket ?? ws.default;
+  const publisher = publish ? startPublisher({ ...publish, monitor, settings: defaults, WebSocket: WebSocketClass, log: line => console.log('Publish:    ' + line) }) : null;
+  const close = () => new Promise(done => server.close(() => { publisher?.close(); monitor.close(); done(); }));
+  return { url, port, server, monitor, board, boards: pieces, dataDir, python, todo, pickerReason, publisher, close, fixedPort: (options.port ?? 0) !== 0 };
+}
+
+/** The relay to publish through, with its token read from a file; a plain ws:// only for a local relay. */
+function readPublish(options, cwd) {
+  if (!options.publish) return null;
+  let url;
+  try { url = new URL(options.publish); } catch { throw new BoardError(`--publish ${options.publish} is not a URL.`); }
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'wss:' && !(url.protocol === 'ws:' && local)) throw new BoardError('--publish needs a wss:// address (ws:// only for a relay on this machine).');
+  if (!options.publishTokenFile) throw new BoardError('--publish needs --publish-token-file <file>: the token is read from a file, never typed on the command line.');
+  let token;
+  try { token = readFileSync(resolve(cwd, options.publishTokenFile), 'utf8').trim(); } catch { throw new BoardError(`--publish-token-file ${options.publishTokenFile} cannot be read.`); }
+  if (!token) throw new BoardError(`--publish-token-file ${options.publishTokenFile} is empty.`);
+  return { url: url.href, token };
 }
 
 export function describe(started) {
@@ -258,6 +267,7 @@ export function describe(started) {
     `Live push:  WebSocket /api/live on file events · no polling`,
     `Boards:     ${pieces.length}, on one page`,
     ...pieces.flatMap(perBoard),
+    ...(started.publisher ? [`Publish:    ${started.publisher.url} · ${started.publisher.status().state}`] : []),
     'No task loop is started. Ctrl+C stops the dashboard.',
   ].join('\n');
   const queue = s.boards[0]?.queue;
@@ -272,6 +282,7 @@ export function describe(started) {
     `Live push:  WebSocket /api/live on file events · no polling`,
     `Picker:     ${started.pickerReason ? 'unavailable · ' + started.pickerReason : `${basename(started.todo.path)} ${started.todo.path} via ${started.python.command}` + (queue?.state ? ` · ${queue.state}` : '')}`,
     `History:    ${started.dataDir}`,
+    ...(started.publisher ? [`Publish:    ${started.publisher.url} · ${started.publisher.status().state}`] : []),
     'No task loop is started. Ctrl+C stops the dashboard.',
   ].join('\n');
 }

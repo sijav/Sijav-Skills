@@ -5,7 +5,6 @@
 // catches runtime errors, missing data and stale claims; it is not a visual check.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerHooks } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { renameSync } from 'node:fs';
@@ -14,7 +13,6 @@ import { richProject, loopProject, LONG_IDS, sha, tempDir, cleanup, todo, testEn
 
 test.after(cleanup);
 const PUBLIC = pathToFileURL(join(STAGE, 'public') + '/').href;
-registerHooks({ resolve: (specifier, context, next) => /^\/[\w-]+\.m?js$/.test(specifier) && context.parentURL?.startsWith(PUBLIC) ? next(PUBLIC + specifier.slice(1), context) : next(specifier, context) });
 const { WebSocket } = await import(pathToFileURL(join(STAGE, 'node_modules', 'ws', 'wrapper.mjs')).href);
 
 class Element {
@@ -31,38 +29,46 @@ const unescapeAttr = text => text.replaceAll('&quot;', '"').replaceAll('&#39;', 
 /**
  * Load app.js against the server's own page settings, its socket bridged to the live server.
  * Resolves once the page has been greeted and every question it asked has been answered.
+ * With `published`, the page is set up as a relay's host page sets it up, signed in with `token`.
  */
-async function renderApp(live, hash) {
+async function renderApp(live, hash, { published = null, token = null } = {}) {
   for (const socket of openSockets) socket.terminate();
   openSockets.clear();
   const elements = new Map(), bridges = [], listeners = {};
   const el = id => { if (!elements.has(id)) elements.set(id, new Element(id)); return elements.get(id); };
-  el('dashboard-settings').textContent = live.settingsJson;
+  el('dashboard-settings').textContent = published ? JSON.stringify({ ...JSON.parse(live.settingsJson), published }) : live.settingsJson;
   const errors = [];
   class Bridge {
     static OPEN = 1;
-    constructor() {
-      Object.assign(this, { readyState: 0, sent: 0, answered: 0, greeted: false, last: Date.now() });
+    constructor(url) {
+      // Published with a sign-in, it acts as the relay does: nothing reaches the page before the token.
+      Object.assign(this, { url, messages: [], greeting: null, held: published?.auth ? [] : null, readyState: 0, sent: 0, answered: 0, greeted: false, last: Date.now() });
       bridges.push(this);
       this.real = new WebSocket(live.wsUrl, { headers: { Origin: live.origin } });
       openSockets.add(this.real);
       this.real.on('open', () => { this.readyState = 1; this.onopen?.(); });
-      this.real.on('message', data => {
-        const text = String(data), message = JSON.parse(text);
-        if (message.type === 'reply') this.answered++;
-        if (message.type === 'hello') this.greeted = true;
-        this.last = Date.now();
-        try { this.onmessage?.({ data: text }); } catch (error) { errors.push(error); }
-      });
+      this.real.on('message', data => { if (this.held) this.held.push(String(data)); else this.receive(String(data)); });
       this.real.on('close', () => { this.readyState = 3; });
       this.real.on('error', () => {});
     }
-    send(text) { this.sent++; this.last = Date.now(); this.real.send(text); }
+    receive(text) {
+      const message = JSON.parse(text);
+      if (message.type === 'reply') this.answered++;
+      if (message.type === 'hello') { this.greeted = true; this.greeting = text; }
+      this.last = Date.now();
+      try { this.onmessage?.({ data: text }); } catch (error) { errors.push(error); }
+    }
+    send(text) {
+      const message = JSON.parse(text);
+      this.messages.push(message); this.last = Date.now();
+      if (message.type === 'auth' && this.held) { const held = this.held; this.held = null; for (const t of held) this.receive(t); return; } // the relay keeps the token
+      this.sent++; this.real.send(text);
+    }
     close() { this.real.terminate(); }
   }
   const globals = {
     document: { getElementById: el, querySelector: () => el('shell'), querySelectorAll: () => [], addEventListener: (type, fn) => (listeners[type] ??= []).push(fn), documentElement: { dataset: {} }, body: new Element('body'), activeElement: null, visibilityState: 'visible', fullscreenElement: null },
-    window: { matchMedia: () => ({ matches: false, addEventListener() {} }), addEventListener: (type, fn) => { if (type === 'pagehide') pageHides.push(fn); }, localStorage: { getItem: () => null, setItem() {} } },
+    window: { matchMedia: () => ({ matches: false, addEventListener() {} }), addEventListener: (type, fn) => { if (type === 'pagehide') pageHides.push(fn); }, localStorage: { getItem: () => null, setItem() {} }, dashboardAuth: token ? async () => token : undefined },
     location: { hash, protocol: 'http:', host: '127.0.0.1:1' }, history: { replaceState: (a, b, h) => { globalThis.location.hash = h; } },
     navigator: {}, WebSocket: Bridge,
   };
@@ -79,7 +85,9 @@ async function renderApp(live, hash) {
       await settled();
     }
   };
-  return { el, errors, settled, loadAll };
+  /** A message as the relay would send it. */
+  const deliver = message => bridges.at(-1).onmessage?.({ data: typeof message === 'string' ? message : JSON.stringify(message) });
+  return { el, errors, settled, loadAll, deliver, bridge: () => bridges.at(-1) };
 }
 
 /** A live dashboard on a fixture: its embedded page settings, and a client following its pushes. */
@@ -266,5 +274,37 @@ test('two boards on one page: each board in its own tool’s words, cards named 
     clean(loopDrawer); clean(todoDrawer);
     const ambient = (await renderApp(live, '#relax')).el('ambient-pane').innerHTML;
     assert.ok(ambient.includes('board.py’s board_order()') && ambient.includes('todo.py next'), 'Relax names each board’s own tool');
+  } finally { await live.close(); }
+});
+
+test('published through a relay: its socket path, the sign-in first, no local actions, and the offline and refused notices', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    const page = await renderApp(live, '#report', { published: { livePath: '/progress/live', auth: 'google' }, token: 'signed-in-token' });
+    assert.deepEqual(page.errors, []);
+    const bridge = page.bridge();
+    assert.equal(new URL(bridge.url).pathname, '/progress/live', 'the socket is the relay’s');
+    assert.deepEqual(bridge.messages[0], { type: 'auth', token: 'signed-in-token' }, 'the sign-in token is the first message');
+    assert.ok(page.el('export').hidden && page.el('print').hidden, 'no export or print');
+    assert.match(page.el('content').innerHTML, /data-recheck-queue="board" disabled hidden>/, '"Run next again" is not offered');
+    assert.equal(page.el('refresh-note').textContent, 'Published · Read only · connected');
+
+    page.deliver({ type: 'offline', reason: 'The boards are offline: the PC that has them is not connected.' });
+    assert.match(page.el('content').innerHTML, /banner error">The boards are offline: the PC that has them is not connected\.</);
+    assert.equal(page.el('connection-text').textContent, 'Connected · boards offline');
+    page.deliver(bridge.greeting); // the PC is back, and the relay greets the page again
+    await page.settled();
+    assert.match(page.el('content').innerHTML, /Next · the tool’s own pick/);
+    assert.doesNotMatch(page.el('content').innerHTML, /banner error/);
+
+    page.deliver({ type: 'refused', reason: 'This account cannot see the boards.' });
+    assert.match(page.el('content').innerHTML, /banner error">This account cannot see the boards\.</);
+    assert.equal(page.el('connection-text').textContent, 'This account cannot see the boards.');
+    await until(() => bridge.real.readyState === 3, 'the refused socket closed');
+    await new Promise(ok => setTimeout(ok, JSON.parse(live.settingsJson).transport.reconnectMs + 300));
+    assert.equal(page.bridge(), bridge, 'a refused page does not reconnect');
+    clean(page.el('content').innerHTML);
   } finally { await live.close(); }
 });

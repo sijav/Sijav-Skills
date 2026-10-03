@@ -88,6 +88,8 @@ directory junction or `subst` drive.
 | `--python <exe>` | Python for the picker. Default: `SIJAV_TODO_PYTHON`, then `python`, `py -3`, `python3` on Windows (`python3`, `python` elsewhere). |
 | `--todo-py <file>` | The `todo.py` whose order and policy are used. Default `../todo.py` beside the dashboard folder. |
 | `--tool <file>` | For a loop board: the tool whose order and policy are used. Default: the `.py` named after the board file, beside it (`<name>.db` → `<name>.py`). |
+| `--publish <url>` | Also publish the page through a relay, a `wss://` address (`ws://` only for a relay on this machine). See [Publishing through a relay](#publishing-through-a-relay). |
+| `--publish-token-file <file>` | The file holding the relay's bearer token. The token is never typed on the command line. |
 | `--help` | Usage. |
 
 **No board:** with no board at or above the start directory, the server
@@ -308,6 +310,9 @@ node "<skills>/todo/dashboard/server.mjs" --db "<subfolder>/<loop board>.db" --d
 - **If the first read fails:** only the error is shown, never zero counts.
 - **Where it writes:** only to the history folder, which is never inside the
   project or the skill.
+- **Publishing:** `--publish` adds one outbound socket and no write path. A
+  relay can only ask the same read-only questions the page asks; anything else
+  is answered with an error.
 
 ## Paged queries
 
@@ -325,6 +330,7 @@ its tables' row counts. Everything else the page asks for, as a typed question
 | `rows` | A page of one table's stored rows. |
 | `changes` | A page of history (`before`, `after`, `limit`, `item`), as `/api/changes` gives it. |
 | `relax` | Relax's view, built where every task is. |
+| `hello` | The greeting again, as on connect (a relay asks it for each page it signs in). |
 
 - **Lists load as they scroll:** each list shows its first five cards; more
   load five at a time as its "Show more" comes into view (a click does it too).
@@ -336,6 +342,32 @@ its tables' row counts. Everything else the page asks for, as a typed question
 - **One ordering:** the server answers with the page's own ordering, filter,
   testing and work-classification code (`lib/views.mjs` imports it), so a list
   is in the same order whether the server or the page would sort it.
+
+## Publishing through a relay
+
+To show the page somewhere else (a team page on a public site), start the
+dashboard with `--publish wss://<site>/<relay path> --publish-token-file <file>`.
+It keeps one outbound socket to the relay, with the token from the file as a
+bearer, and reconnects with a growing wait when it drops.
+
+- **The relay keeps nothing about the boards.** The dashboard greets it with
+  the same `hello` the local page gets, answers each question it passes on
+  (`{type: "ask", relay, request}` → `{type: "answer", relay, data | error}`)
+  with the same [paged queries](#paged-queries), and pushes `changed`.
+  `{type: "hello"}` is a question too: the relay asks it for each page it
+  signs in, so it never has to keep a greeting.
+- **When this PC is off,** the relay has nobody to ask, and tells its pages so.
+- **The page itself** is the same files. It can be served under any path, since
+  its paths are relative. The host page embeds `published: {livePath, auth}` in
+  the page settings:
+  - `livePath` is the relay's socket for pages;
+  - with `auth`, the page calls `window.dashboardAuth()` (the host page's
+    sign-in) and sends `{type: "auth", token}` first.
+
+  The relay can answer `{type: "offline"}` or `{type: "refused"}`. In this mode
+  Export, Print and "Run next again" are hidden.
+- **Nothing here can write a board:** a relay can only ask the read-only
+  questions.
 
 ## Live updates
 
@@ -465,9 +497,10 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 | `board.test.mjs` | Board discovery and no file creation; per-user history keyed by board; reads checked against Python's `sqlite3` (every table, row and field); byte-identical board; nothing grouped without policy; old and unused boards; idle and active WAL; locked board fails explicitly; row diffs; torn journal recovery. |
 | `picker.test.mjs` | Exact real `next` text and pick at every step of working a board; started precedence and blocked started work; a blocked task with a done and an unfinished parent gets exact, probe-confirmed reasons that match how the real tool resolves them; legacy severities and statuses do not cost the pick; a changed `by_rule`/`choose` changes order, labels and groups; refused constants and start-up mutations; tool writes never reach the project; old and unused boards on a copy; missing Python explained. |
 | `live.test.mjs` | Installed copy from a subdirectory, with `$'`, `$&` and `$$` in the project path; host, origin, Sec-Fetch and frame headers; WAL push with a quiet period showing no polling; incremental history and pagination; read failure withdraws pick and order then recovers; broken or changed `todo.py` is watched; atomic replacement; CLI output, restart history, refusals, junction start, Node version gate; real `npm start` from the caller's directory; npm variables inherited from an unrelated npm process never select another (synthetic) board; installed helpers use the parent `todo.py`; demo refuses overrides. |
+| `publish.test.mjs` | `--publish` against a fake relay: the token comes from its file, the relay is greeted with the boards' details only, its questions get the same answers as the page's (and an unknown one an error), the greeting is given on request, a board change is pushed, and nothing is created beside the board; a non-`wss://` address, a missing, unreadable or empty token file are refused. |
 | `views.test.mjs` | The paged queries on a loop board: the first message has no task in it, lists come five at a time in the tool's order with their totals and filters, a card carries its reasons and its story once, a record has its links and evidence, totals and table pages are answered, an unknown request is an error, and a change names only the tasks it touched. |
 | `ui.test.mjs` | Order only from a current result; labelled previous order while re-checking; no order on failure; no recency without policy; done most recent first; field line diffs; dates; recorded-only area; Relax states; theme and display controller; no browser polling; long text and id lists fold, open and fold again, escaped. |
-| `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, its areas on the cards and in the filter, the item's own fields in the drawer and Relax naming its tool; two boards on one page, each in its own tool's words, cards named by board, each drawer its own; no literal `${` in any view. |
+| `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, its areas on the cards and in the filter, the item's own fields in the drawer and Relax naming its tool; two boards on one page, each in its own tool's words, cards named by board, each drawer its own; published through a relay, the page uses the relay's socket path, sends its sign-in token first, offers no export, print or "Run next again", shows the relay's offline notice until it is greeted again, and after a refusal says so and stops reconnecting; no literal `${` in any view. |
 | `loop.test.mjs` | Two boards on one page: each read with its own tool and history, one numbering of changes, the same board given twice shown once, `--tool` refused for several loop boards. Loop boards made by a small test loop tool (`tests/loop-fixture`): told apart by their tables, and any other SQLite file refused, also by the CLI; found from their own folder and named after the project folder; items, blockers, parked notes and findings mapped; `loop_picker.py` gives the tool's own head, order, status groups and checked reasons, and refuses a tool whose order it cannot read; an older loop board without parked, exit or created columns; the live server through a change; the board never written and nothing created beside it. |
 
 `test-output.txt` holds the full last run.
@@ -483,6 +516,9 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
   board in TEMP and it passed. It covered fields, story, area and order, a
   WebSocket field diff after a real `todo.py` move, both themes, and Relax
   (`todo-dashboard-relax.png`).
+- **Publishing:** tested against a fake relay on this machine
+  (`publish.test.mjs`), and the page's published mode in `render.test.mjs`.
+  A real relay and its sign-in are tested where they are served.
 - **Visually unchecked since then:** the later changes are only
   covered by the headless tests above. They are the labelled previous-order
   and failure states, unknown-policy rendering, history loading and the "How

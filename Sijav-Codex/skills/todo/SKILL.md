@@ -152,6 +152,12 @@ file, beside it; pass `--tool "<file>"` when it is elsewhere. Its order is the l
 are not run. Any other SQLite file is refused. Long text and long id lists are
 folded on the page, with Show more and Show less.
 
+Give `--db` more than once to show several boards on one page, each read with
+its own tool. To show the page somewhere else, `--publish "wss://<relay>"
+--publish-token-file "<file>"` adds one outbound socket to that relay: it
+answers the relay's read-only questions and pushes changes, the relay keeps
+nothing, and the token is read from the file, never typed.
+
 For a visual check or live-update test, use the dashboard's disposable demo
 fixture under the OS temp directory. Installed demo/tests use the parent
 `todo.py`; in a separate staging folder, set `TODO_SKILL_DIR` to the intended
