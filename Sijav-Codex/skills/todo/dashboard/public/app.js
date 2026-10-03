@@ -8,7 +8,7 @@ const settings=JSON.parse($('dashboard-settings').textContent);
 // Published through a relay (a team page on a site): the socket's path comes from the host page, which may
 // require a sign-in token (window.dashboardAuth) as the socket's first message. The local-only actions go.
 const published=settings.published||null;
-if(published){for(const id of ['export','print'])if($(id))$(id).hidden=true;}
+if(published){for(const id of ['export','print'])if($(id))$(id).hidden=true;$('refresh-note').textContent='Published · Read only · Connecting';}
 const projectName=String(settings.project||'').split(/[\\/]/).filter(Boolean).at(-1)||'Project';
 document.title=projectName+' · To-do board · read only';
 $('brand-name').innerHTML=escape(projectName)+'<small>TO-DO BOARD MONITOR</small>';$('brand-mark').textContent=(projectName.match(/[\p{L}\p{N}]/u)?.[0]||'T').toUpperCase();
@@ -376,6 +376,8 @@ function applyMessage(message){
 function connectLive(){
   clearTimeout(reconnectTimer);
   if(socket){socket.onclose=null;socket.onmessage=null;socket.close();}
+  // Reconnect after a refusal: the page signs in again (the host page forgot the refused token).
+  if(state.refused){state.refused=state.offline=null;$('content').innerHTML='<div class="loading">Signing in…</div>';}
   socket=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+(published?.livePath||'/api/live'));
   const opened=socket;
   socket.onopen=()=>{updateConnection();if(published?.auth&&window.dashboardAuth)window.dashboardAuth().then(token=>{if(socket===opened&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'auth',token}));},error=>connection('Not signed in: '+error.message,'offline'));};
@@ -383,9 +385,10 @@ function connectLive(){
     const message=JSON.parse(event.data);
     if(message.type==='reply'){const asked=waiting.get(message.id);waiting.delete(message.id);if(!asked)return;if(message.error)asked.reject(Error(message.error));else asked.resolve(message.data);return;}
     if(message.type==='offline'){state.offline=message.reason||'The boards are offline.';render();updateConnection();return;}
-    // Refused (this account may not see the boards): said once, with no reconnecting; a reload asks again.
-    if(message.type==='refused'){state.refused=state.offline=message.reason||'This account cannot see the boards.';render();socket.onclose=null;socket.close();updateConnection();return;}
-    if(message.type==='hello'){state.offline=null;pendingState=null;} // a greeting replaces every change queued before it
+    // Refused (this account may not see the boards): said once, with no reconnecting. The host page forgets
+    // the refused token, so Reconnect (or a reload) signs in again, with another account if need be.
+    if(message.type==='refused'){state.refused=state.offline=message.reason||'This account cannot see the boards.';render();socket.onclose=null;socket.close();window.dashboardAuth?.forget?.();updateConnection();return;}
+    if(message.type==='hello'){state.offline=state.refused=null;pendingState=null;} // a greeting replaces every change queued before it
     if(message.type!=='hello'&&message.type!=='changed')return;
     if(state.paused&&message.type==='changed'){(pendingState??=[]).push(message);return;} // every change is kept and applied on resume
     applyMessage(message);
