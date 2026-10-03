@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { startDashboard, describe } from '../server.mjs';
-import { cleanup, listing, loopProject, STAGE, tempDir, testEnv, until } from './helpers.mjs';
+import { cleanup, listing, loopProject, sha, STAGE, tempDir, testEnv, until } from './helpers.mjs';
 
 test.after(cleanup);
 const { WebSocketServer } = await import(pathToFileURL(join(STAGE, 'node_modules', 'ws', 'wrapper.mjs')).href);
@@ -30,6 +30,7 @@ test('the dashboard publishes through a relay with the token from its file: a gr
   const tokenFile = join(tempDir('publish token '), 'token.txt');
   writeFileSync(tokenFile, 'relay-token-for-the-test\n');
   const started = await startDashboard({ db: p.db, publish: relay.url, publishTokenFile: tokenFile }, { cwd: p.root, env: testEnv() });
+  let before = null;
   try {
     const hello = await until(() => relay.messages.find(m => m.type === 'hello'), 'the greeting');
     assert.equal(relay.headers.authorization, 'Bearer relay-token-for-the-test', 'the token comes from the file');
@@ -46,8 +47,11 @@ test('the dashboard publishes through a relay with the token from its file: a gr
     assert.equal(greeting.boards[0].tasks, undefined);
     p.run('start', '6');
     await until(() => relay.messages.some(m => m.type === 'changed' && m.keys.includes('board:6')), 'the change pushed');
+    before = sha(p.db); // the board as its own tool left it
+    for (const [n, request] of [[5, { type: 'summary', board: 'all' }], [6, { type: 'task', key: 'board:6' }], [7, { type: 'relax' }]]) await relay.ask(n, request);
     assert.match(describe(started), /Publish: +ws:\/\/127\.0\.0\.1:\d+\/relay · published/);
   } finally { await started.close(); await relay.close(); }
+  assert.equal(sha(p.db), before, 'answering the relay never writes the board');
   assert.ok(listing(p.dir).every(name => ['board.db', 'board.py', 'tool'].includes(name)), 'nothing created beside the board');
 });
 

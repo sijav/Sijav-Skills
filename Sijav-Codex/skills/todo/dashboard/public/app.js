@@ -385,7 +385,7 @@ function connectLive(){
     if(message.type==='offline'){state.offline=message.reason||'The boards are offline.';render();updateConnection();return;}
     // Refused (this account may not see the boards): said once, with no reconnecting; a reload asks again.
     if(message.type==='refused'){state.refused=state.offline=message.reason||'This account cannot see the boards.';render();socket.onclose=null;socket.close();updateConnection();return;}
-    if(message.type==='hello')state.offline=null;
+    if(message.type==='hello'){state.offline=null;pendingState=null;} // a greeting replaces every change queued before it
     if(message.type!=='hello'&&message.type!=='changed')return;
     if(state.paused&&message.type==='changed'){(pendingState??=[]).push(message);return;} // every change is kept and applied on resume
     applyMessage(message);
