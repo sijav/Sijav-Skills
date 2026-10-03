@@ -437,13 +437,13 @@ On Codex, Claude's code and code reviews go through one helper, `claude_session.
 
 ## The board's dashboard
 
-A read-only web page for a project's board, the same `.claude/todo.db` both plugins use. It shows what is in progress, what the board tool picks next and in what order, what was done, every task's full record, and each change as it happens. It never writes the board and never starts work.
+A read-only web page for a project's board: the same `.claude/todo.db` both plugins use, or a loop board (an SQLite file with `item` and `dep` tables, driven by its own tool). It shows what is in progress, what the board tool picks next and in what order, what was done, every task's full record, and each change as it happens. It never writes the board and never starts work.
 
 ```mermaid
 flowchart LR
-  B["The board<br/>.claude/todo.db"] -->|read only, each change| D["The dashboard<br/>Node, on this machine only"]
+  B["The board<br/>.claude/todo.db, or --db"] -->|read only, each change| D["The dashboard<br/>Node, on this machine only"]
   D -->|pushed live| W["Your browser<br/>report, board, changes, Relax"]
-  B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py, run on the copy"]
+  B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py or the loop's tool, on a copy"]
   P -->|the next order| D
   D -->|kept| H["Change history<br/>your user cache folder"]
 ```
@@ -454,8 +454,8 @@ flowchart LR
 
 1. It needs Node 22.16 or newer on the 22 line, or Node 24 or newer, and Python 3.9 or newer for the board tool's order.
 2. Install its one dependency once, inside its own folder: `npm ci --omit=dev --prefix "<todo skill>/dashboard"`. The Codex setup does the same with `--dashboard-deps`.
-3. Start it on a project: `node "<todo skill>/dashboard/server.mjs" --project "<project>" --port 8765`, then open the address it prints. Without `--port` it takes a free port, which changes on every start.
-4. Read it. **Full report** is the overview. **Full board** lists the tasks in the board tool's own next order. **Changes** shows each change with its fields before and after. **Database records** shows every stored row. Click a task for its full record. **Relax mode** is a calm full-screen view of the current and the next work.
+3. Start it on a project: `node "<todo skill>/dashboard/server.mjs" --project "<project>" --port 8765`, then open the address it prints. Without `--port` it takes a free port, which changes on every start. For a loop board in a subfolder, start it from the project with `--db "<subfolder>/<board>.db"`; its tool is the `.py` named after the board file, beside it.
+4. Read it. **Full report** is the overview. **Full board** lists the tasks in the board tool's own next order. **Changes** shows each change with its fields before and after. **Database records** shows every stored row. Click a task for its full record. **Relax mode** is a calm full-screen view of the current and the next work. Long text and long lists of ids are folded: **Show more** opens them, **Show less** folds them again.
 5. Leave it open: it updates by itself when the board changes, with no reload. **Pause** holds the view; **Export full data** saves everything as one file.
 6. Stop it with Ctrl+C.
 
@@ -465,6 +465,7 @@ To try it without a real board, `node "<todo skill>/dashboard/tests/demo-fixture
 - **Local only:** it listens on this machine alone and answers only its own page.
 - **Done is not tested:** tested and e2e tested come only from the board's own fields; a board without them shows "not recorded".
 - **History:** the changes it sees are kept in your user cache folder, never in the project.
+- **Loop boards:** the order is the loop tool's own `board_order()`, run on a copy. The machine checks its `next` may add are not run, since they run commands. Any other database file is refused, never shown as an empty board.
 - It ships with the Codex plugin and works for any project with a board, Claude's too.
 
 ## Claude and Codex on one project
