@@ -30,8 +30,9 @@ const unescapeAttr = text => text.replaceAll('&quot;', '"').replaceAll('&#39;', 
  * Load app.js against the server's own page settings, its socket bridged to the live server.
  * Resolves once the page has been greeted and every question it asked has been answered.
  * With `published`, the page is set up as a relay's host page sets it up, signed in with `token`.
+ * With `hold`, the first socket never delivers the replies to those types of question.
  */
-async function renderApp(live, hash, { published = null, token = null } = {}) {
+async function renderApp(live, hash, { published = null, token = null, hold = [] } = {}) {
   for (const socket of openSockets) socket.terminate();
   openSockets.clear();
   const elements = new Map(), bridges = [], listeners = {};
@@ -43,6 +44,7 @@ async function renderApp(live, hash, { published = null, token = null } = {}) {
     constructor(url) {
       // Published with a sign-in, it acts as the relay does: nothing reaches the page before the token.
       Object.assign(this, { url, messages: [], greeting: null, held: published?.auth ? [] : null, readyState: 0, sent: 0, answered: 0, greeted: false, last: Date.now() });
+      this.holding = bridges.length === 0 ? new Set(hold) : new Set();
       bridges.push(this);
       this.real = new WebSocket(live.wsUrl, { headers: { Origin: live.origin } });
       openSockets.add(this.real);
@@ -54,6 +56,7 @@ async function renderApp(live, hash, { published = null, token = null } = {}) {
     receive(text) {
       const message = JSON.parse(text);
       if (message.type === 'reply') this.answered++;
+      if (message.type === 'reply' && this.holding.has(this.messages.find(m => m.id === message.id)?.type)) return; // held: never delivered
       if (message.type === 'hello') { this.greeted = true; this.greeting = text; }
       this.last = Date.now();
       try { this.onmessage?.({ data: text }); } catch (error) { errors.push(error); }
@@ -319,6 +322,40 @@ test('published through a relay: its socket path, the sign-in first, no local ac
     assert.equal(page.bridge().messages[0].type, 'auth', 'it signs in first again');
     assert.match(page.el('content').innerHTML, /Next · the tool’s own pick/);
     assert.notEqual(page.el('connection-text').textContent, 'This account cannot see the boards.');
+    assert.deepEqual(page.errors, []);
+  } finally { await live.close(); }
+});
+
+test('published, Relax opened from a bookmark signs in first and then shows Relax', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    const page = await renderApp(live, '#relax', { published: { livePath: '/progress/live', auth: 'google' }, token: 'signed-in-token' });
+    assert.deepEqual(page.errors, []);
+    assert.deepEqual(page.bridge().messages[0], { type: 'auth', token: 'signed-in-token' }, 'the sign-in goes first');
+    await until(() => page.bridge().messages.some(m => m.type === 'relax'), 'Relax asked for once greeted');
+    await page.settled();
+    assert.match(page.el('ambient-pane').innerHTML, /Small medium/);
+  } finally { await live.close(); }
+});
+
+test('Reconnect settles the questions in flight, and the Changes view loads its history again', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    todo(p.root, 'move', 'MP-004', 'in_progress');
+    await until(() => live.view()?.boards[0].queue.headId === 'MP-004', 'the change');
+    const page = await renderApp(live, '#changes', { hold: ['changes'] });
+    const first = page.bridge();
+    assert.ok(first.messages.some(m => m.type === 'changes'), 'the history was asked for, and its answer is held');
+    page.el('refresh').listeners.click[0](); // Reconnect while it waits
+    await page.settled();
+    assert.notEqual(page.bridge(), first, 'a new socket');
+    assert.equal(page.el('toast').textContent, 'The dashboard reconnected.', 'the waiting question was settled');
+    assert.ok(page.bridge().messages.some(m => m.type === 'changes'), 'the Changes view asked again on the new socket');
+    assert.match(page.el('content').innerHTML, /in_progress/);
     assert.deepEqual(page.errors, []);
   } finally { await live.close(); }
 });
