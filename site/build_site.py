@@ -831,12 +831,13 @@ a { color: var(--accent); }
     <li>Read it. <strong>Full report</strong> is the overview. <strong>Full board</strong> lists the tasks in the board tool's own next order. <strong>Changes</strong> shows each change with its fields before and after. <strong>Database records</strong> shows every stored row. Click a task for its full record. <strong>Relax mode</strong> is a calm full-screen view of the current and the next work. Long text and long lists of ids are folded: <strong>Show more</strong> opens them, <strong>Show less</strong> folds them again.</li>
     <li>It loads what you look at: each list shows five cards and loads five more as you scroll, and a task's full record loads when you open it, so even a board of hundreds of items opens at once.</li>
     <li>Leave it open: it updates by itself when the board changes, with no reload. <strong>Pause</strong> holds the view; <strong>Export full data</strong> saves everything as one file.</li>
+    <li>To show it on a site as well, add <code>--publish "wss://&lt;relay&gt;" --publish-token-file "&lt;file&gt;"</code>. It keeps one outbound connection to that relay, which passes the site page's questions to this machine and the answers back, and keeps nothing itself. The token is read from the file, never typed. The site decides who may look.</li>
     <li>Stop it with Ctrl+C.</li>
   </ol>
   <p>To try it without a real board, <code>node "&lt;todo skill&gt;/dashboard/tests/demo-fixture.mjs" --port 8765</code> builds a throwaway board in the system's temp folder and prints commands that change it while you watch. Ctrl+C deletes it.</p>
   <ul>
     <li><strong>Read only:</strong> the board is opened read-only, and the next order comes from the board tool's own code, run on a throwaway copy. It never creates a board where none exists.</li>
-    <li><strong>Local only:</strong> it listens on this machine alone and answers only its own page.</li>
+    <li><strong>Local only:</strong> it listens on this machine alone and answers only its own page. With <code>--publish</code> it also answers the relay you name, which can ask only the same read-only questions.</li>
     <li><strong>Done is not tested:</strong> tested and e2e tested come only from the board's own fields; a board without them shows "not recorded".</li>
     <li><strong>History:</strong> the changes it sees are kept in your user cache folder, never in the project.</li>
     <li><strong>Loop boards:</strong> the order is the loop tool's own <code>board_order()</code>, run on a copy. The machine checks its <code>next</code> may add are not run, since they run commands. Any other database file is refused, never shown as an empty board.</li>

@@ -1,10 +1,14 @@
-import {classifyWork,facetSupport} from '/work-context.mjs';
-import {renderAmbientModel} from '/ambient-ui.mjs';
-import {themeStorageKey,resolveTheme,toggleTheme,readThemePreference,storeThemePreference,createDisplayController} from '/display-mode.mjs';
-import {sortLane,firstOpen,nextTask,sortQueue,queuePosition,pickerOrder,pickerReady,finishedAt,formatDate,renderFieldDiff,testingState,testingSummary,matchesTestingFilter,supportsTesting,clampText} from '/board-ui.mjs';
+import {classifyWork,facetSupport} from './work-context.mjs';
+import {renderAmbientModel} from './ambient-ui.mjs';
+import {themeStorageKey,resolveTheme,toggleTheme,readThemePreference,storeThemePreference,createDisplayController} from './display-mode.mjs';
+import {sortLane,firstOpen,nextTask,sortQueue,queuePosition,pickerOrder,pickerReady,finishedAt,formatDate,renderFieldDiff,testingState,testingSummary,matchesTestingFilter,supportsTesting,clampText} from './board-ui.mjs';
 const $=id=>document.getElementById(id);
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const settings=JSON.parse($('dashboard-settings').textContent);
+// Published through a relay (a team page on a site): the socket's path comes from the host page, which may
+// require a sign-in token (window.dashboardAuth) as the socket's first message. The local-only actions go.
+const published=settings.published||null;
+if(published){for(const id of ['export','print'])if($(id))$(id).hidden=true;}
 const projectName=String(settings.project||'').split(/[\\/]/).filter(Boolean).at(-1)||'Project';
 document.title=projectName+' · To-do board · read only';
 $('brand-name').innerHTML=escape(projectName)+'<small>TO-DO BOARD MONITOR</small>';$('brand-mark').textContent=(projectName.match(/[\p{L}\p{N}]/u)?.[0]||'T').toUpperCase();
@@ -158,7 +162,7 @@ function policyReport(){
 function pickerReport(board){
   const queue=board.queue||{},ready=pickerReady(board),pick=board.head,first=board.firstOpen,pending=queue.state==='checking';
   const phase=queue.currentPhase;
-  return `<section class="picker-report"><div class="section-title"><h3>Next · the tool’s own pick</h3><button class="quiet-button" data-recheck-queue="${escape(board.id)}" ${pending||!board.picker?.configured?'disabled':''}>${pending?`Running ${escape(nextName())}…`:'Run next again'}</button></div>${pickerUnavailable(board)}${queueStateNote(board)}${ready&&queue.boardHadTaskTable===false?'<p class="banner error">This board file has no task table: it was created but nothing has been recorded. That is not evidence that work is finished.</p>':''}${ready?`<div class="picker-summary"><div><span class="story-label">${queue.headKind==='started'?'Resume · already started':'Next'}</span>${pick?link(pick):`<span class="muted">${escape(tool())} picks nothing (see its output)</span>`}</div><div><span class="story-label">${isLoop()?'First startable not started':'First eligible not-started'}</span>${first?link(first):'<span class="muted">None in this result</span>'}</div><div><span class="story-label">Next order</span><strong>${isLoop()?`${queue.startableIds.length} startable · ${queue.rankedIds.length-queue.startableIds.length} waiting`:`${(queue.startedIds||[]).length} started · ${(queue.eligibleIds||[]).length} eligible · ${queue.rankedIds.length-queue.startableIds.length} not pickable`}</strong><small>Checked ${date(queue.checkedAt)}</small></div><div><span class="story-label">Current objective</span>${(board.phases||[]).length?phase?`<strong>${escape(phase.name)}${phase.label?' · '+escape(phase.label):''}</strong><small dir="auto">${escape(phase.goal)}</small>`:'<span class="muted">current_phase() returns none</span>':'<span class="muted">No objectives recorded</span>'}</div></div><details class="next-output" open><summary>${isLoop()?`The order as ${escape(tool())}’s board_order() gives it`:`Exact output of ${escape(tool())} next`}</summary><pre dir="auto">${escape(queue.nextText||'(no output)')}</pre></details>${(queue.schemaAddedOnCopy||[]).length?`<p class="note-line">This board predates part of the tool’s schema (${queue.schemaAddedOnCopy.map(a=>escape(a.table+(a.existingTable?'.'+a.columns.join(', '+a.table+'.'):''))).join('; ')}). The tool would add it on its next write; the picker added it only to an isolated copy. The board file was not changed.</p>`:''}${Object.keys(queue.rankErrors||{}).length?`<p class="note-line">${escape(tool())}’s by_rule() cannot rank ${Object.keys(queue.rankErrors).map(escape).join(', ')} (legacy values); they are listed after ranked tasks and do not affect the pick.</p>`:''}`:''}${policyReport()}<div class="path">${escape(queue.tool?.path||board.picker?.todo||'')}${queue.tool?' · sha256 '+escape(queue.tool.sha256.slice(0,12))+' · Python '+escape(queue.tool.pythonVersion):''}</div></section>`;
+  return `<section class="picker-report"><div class="section-title"><h3>Next · the tool’s own pick</h3><button class="quiet-button" data-recheck-queue="${escape(board.id)}" ${pending||!board.picker?.configured||published?'disabled':''} ${published?'hidden':''}>${pending?`Running ${escape(nextName())}…`:'Run next again'}</button></div>${pickerUnavailable(board)}${queueStateNote(board)}${ready&&queue.boardHadTaskTable===false?'<p class="banner error">This board file has no task table: it was created but nothing has been recorded. That is not evidence that work is finished.</p>':''}${ready?`<div class="picker-summary"><div><span class="story-label">${queue.headKind==='started'?'Resume · already started':'Next'}</span>${pick?link(pick):`<span class="muted">${escape(tool())} picks nothing (see its output)</span>`}</div><div><span class="story-label">${isLoop()?'First startable not started':'First eligible not-started'}</span>${first?link(first):'<span class="muted">None in this result</span>'}</div><div><span class="story-label">Next order</span><strong>${isLoop()?`${queue.startableIds.length} startable · ${queue.rankedIds.length-queue.startableIds.length} waiting`:`${(queue.startedIds||[]).length} started · ${(queue.eligibleIds||[]).length} eligible · ${queue.rankedIds.length-queue.startableIds.length} not pickable`}</strong><small>Checked ${date(queue.checkedAt)}</small></div><div><span class="story-label">Current objective</span>${(board.phases||[]).length?phase?`<strong>${escape(phase.name)}${phase.label?' · '+escape(phase.label):''}</strong><small dir="auto">${escape(phase.goal)}</small>`:'<span class="muted">current_phase() returns none</span>':'<span class="muted">No objectives recorded</span>'}</div></div><details class="next-output" open><summary>${isLoop()?`The order as ${escape(tool())}’s board_order() gives it`:`Exact output of ${escape(tool())} next`}</summary><pre dir="auto">${escape(queue.nextText||'(no output)')}</pre></details>${(queue.schemaAddedOnCopy||[]).length?`<p class="note-line">This board predates part of the tool’s schema (${queue.schemaAddedOnCopy.map(a=>escape(a.table+(a.existingTable?'.'+a.columns.join(', '+a.table+'.'):''))).join('; ')}). The tool would add it on its next write; the picker added it only to an isolated copy. The board file was not changed.</p>`:''}${Object.keys(queue.rankErrors||{}).length?`<p class="note-line">${escape(tool())}’s by_rule() cannot rank ${Object.keys(queue.rankErrors).map(escape).join(', ')} (legacy values); they are listed after ranked tasks and do not affect the pick.</p>`:''}`:''}${policyReport()}<div class="path">${escape(queue.tool?.path||board.picker?.todo||'')}${queue.tool?' · sha256 '+escape(queue.tool.sha256.slice(0,12))+' · Python '+escape(queue.tool.pythonVersion):''}</div></section>`;
 }
 function queueEvidence(t,evidence){
   const board=sourceFor(t.sourceId),queue=board?.queue||{},position=queuePosition(t,board),ready=pickerReady(board);
@@ -168,7 +172,7 @@ function queueEvidence(t,evidence){
   const total=pickerOrder(board)?.index.size;
   return `<div class="detail-section"><h3>Next order (${escape(tool())})</h3>${pickerUnavailable(board)}${queueStateNote(board)}${position?`<p><strong>${position.head?(queue.headKind==='started'?'The current pick (resume)':'The current pick'):(position.current?'Position ':'Previous position ')+(position.index+1)+' of '+total}</strong> · ${escape(groupText[position.group])}</p>`:ready?'<p class="muted">Not in the current picker result.</p>':''}${Array.isArray(key)?`<p class="note-line">Sort key from ${isLoop()?'sort_key()':'by_rule()'}: ${key.map((v,i)=>`${labels?.[i]?`<code>${escape(labels[i])}</code>`:'component '+(i+1)} = ${escape(JSON.stringify(v))}`).join(' · ')}</p>`:key!=null?`<p class="note-line">Sort key from ${isLoop()?'sort_key()':'by_rule()'}: ${escape(JSON.stringify(key))}</p>`:''}${keyError?`<p class="note-line">by_rule() cannot rank this task: ${escape(keyError)}</p>`:''}${reasons.map(r=>`<p class="queue-reason${r.kind==='check'&&!r.verified?' unverified':''}">${escape(r.message)}</p>`).join('')}${ready?`<p class="note-line">Checked ${date(queue.checkedAt)}</p>`:''}</div>`;
 }
-async function recheckQueue(){try{const response=await fetch('/api/queue/recheck');if(!response.ok)throw Error('Check failed: '+response.status);const result=await response.json();const boards=result.boards||[];toast(boards.length>1?`Checked ${boards.length} boards again: ${boards.filter(b=>b.queue?.state==='ready').length} ready.`:boards[0]?.queue?.state==='ready'?`Ran ${nextName()} again.`:`${nextName()} is unavailable. See its reason.`);}catch(error){toast(error.message);}}
+async function recheckQueue(){try{const response=await fetch('api/queue/recheck');if(!response.ok)throw Error('Check failed: '+response.status);const result=await response.json();const boards=result.boards||[];toast(boards.length>1?`Checked ${boards.length} boards again: ${boards.filter(b=>b.queue?.state==='ready').length} ready.`:boards[0]?.queue?.state==='ready'?`Ran ${nextName()} again.`:`${nextName()} is unavailable. See its reason.`);}catch(error){toast(error.message);}}
 function recentWork(board,s){
   const r=rules(),transitions=(state.data.statusTransitions||[]),entered=r.known?transitions.find(c=>c.sourceId===board.id&&r.doingStatuses.includes(c.toStatus)):null;
   const closed=s?.perBoard?.[board.id]?.lastClosed;
@@ -281,7 +285,7 @@ async function loadTaskHistory(key){
 function comparison(c,withDate=false){return `<details data-diff="${escape(c.id)}"><summary class="compare-summary">${withDate?date(c.at)+' · '+escape(c.table)+' · ':''}Compare changed fields <span class="diff-legend"><span>− removed</span><span>+ added</span></span></summary>${renderFieldDiff(c.before,c.after,settings.ui)}</details>`;}
 function expandedDiffs(){return new Set([...document.querySelectorAll('[data-diff][open]')].map(el=>el.dataset.diff));}
 function restoreDiffs(ids){document.querySelectorAll('[data-diff]').forEach(el=>{el.open=ids.has(el.dataset.diff);});}
-function render(){if(!state.data)return;const expanded=expandedDiffs();const openedRecords=new Set([...document.querySelectorAll('[data-record][open]')].map(el=>el.dataset.record));const savedScroll=new Map([...document.querySelectorAll('[data-scroll]')].map(el=>[el.dataset.scroll,el.scrollTop]));const s=state.view==='changes'||state.view==='data'?state.summary?.data:summaryNow();
+function render(){if(state.offline){$('content').innerHTML=`<div class="banner error">${escape(state.offline)}</div>`;return;}if(!state.data)return;const expanded=expandedDiffs();const openedRecords=new Set([...document.querySelectorAll('[data-record][open]')].map(el=>el.dataset.record));const savedScroll=new Map([...document.querySelectorAll('[data-scroll]')].map(el=>[el.dataset.scroll,el.scrollTop]));const s=state.view==='changes'||state.view==='data'?state.summary?.data:summaryNow();
   if(state.view==='changes'&&!state.changesLoaded&&!state.changesLoading){state.changesLoading=true;loadChanges().then(()=>{state.changesLoading=false;render();},error=>{state.changesLoading=false;toast(error.message);});}
   $('source-nav').innerHTML=state.data.boards.map(b=>`<button class="source-button active" data-source="${escape(b.id)}"><span class="source-icon">${escape(b.short)}</span><span class="source-text">${escape(b.name)}<small>${!b.available?'Read failed':b.total===0?'Empty board':'Read successfully'}</small></span><span class="source-number">${b.total}</span></button>`).join('');
   $('source-health').textContent=state.data.boards.filter(b=>b.available).length+'/'+state.data.boards.length;
@@ -346,12 +350,14 @@ let toastTimer=null;
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,settings.ui.toastMs);}
 function connection(text,kind=''){$('connection-text').textContent=text;$('connection-dot').className='status-dot '+kind;updateAmbient();}
 function updateConnection(){
+  if(state.refused){connection(state.refused,'offline');return;}
   if(state.paused){connection('View paused','paused');return;}
   if(!socket||socket.readyState!==WebSocket.OPEN){connection('Disconnected · reconnecting','offline');return;}
+  if(state.offline){connection('Connected · boards offline','offline');return;}
   if(!state.data){connection('Connected · loading');return;}
   const watching=state.data.watchState.board?.active,failures=state.data.boards.filter(b=>!b.available).length;
   connection(failures?'Board unreadable':watching?'Live · file watcher':'Not watching the board',failures||!watching?'offline':'');
-  $('refresh-note').textContent='Local files · Read only · WebSocket connected';
+  $('refresh-note').textContent=published?'Published · Read only · connected':'Local files · Read only · WebSocket connected';
 }
 // The first message after (re)connecting gives each board's details and nothing per task; a change
 // gives the boards whose details changed, the keys of the tasks that changed and new history.
@@ -370,17 +376,22 @@ function applyMessage(message){
 function connectLive(){
   clearTimeout(reconnectTimer);
   if(socket){socket.onclose=null;socket.onmessage=null;socket.close();}
-  socket=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/api/live');
-  socket.onopen=updateConnection;
+  socket=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+(published?.livePath||'/api/live'));
+  const opened=socket;
+  socket.onopen=()=>{updateConnection();if(published?.auth&&window.dashboardAuth)window.dashboardAuth().then(token=>{if(socket===opened&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'auth',token}));},error=>connection('Not signed in: '+error.message,'offline'));};
   socket.onmessage=event=>{
     const message=JSON.parse(event.data);
     if(message.type==='reply'){const asked=waiting.get(message.id);waiting.delete(message.id);if(!asked)return;if(message.error)asked.reject(Error(message.error));else asked.resolve(message.data);return;}
+    if(message.type==='offline'){state.offline=message.reason||'The boards are offline.';render();updateConnection();return;}
+    // Refused (this account may not see the boards): said once, with no reconnecting; a reload asks again.
+    if(message.type==='refused'){state.refused=state.offline=message.reason||'This account cannot see the boards.';render();socket.onclose=null;socket.close();updateConnection();return;}
+    if(message.type==='hello')state.offline=null;
     if(message.type!=='hello'&&message.type!=='changed')return;
     if(state.paused&&message.type==='changed'){(pendingState??=[]).push(message);return;} // every change is kept and applied on resume
     applyMessage(message);
   };
   // Reconnecting is the only timed action; the server greets each (re)connect.
-  socket.onclose=()=>{for(const asked of waiting.values())asked.reject(Error('The dashboard disconnected.'));waiting.clear();updateConnection();$('refresh-note').textContent='Local files · Read only · WebSocket disconnected';reconnectTimer=setTimeout(connectLive,settings.transport.reconnectMs);};
+  socket.onclose=()=>{for(const asked of waiting.values())asked.reject(Error('The dashboard disconnected.'));waiting.clear();updateConnection();$('refresh-note').textContent=published?'Published · Read only · disconnected':'Local files · Read only · WebSocket disconnected';reconnectTimer=setTimeout(connectLive,settings.transport.reconnectMs);};
   socket.onerror=()=>connection('Connection failed','offline');
   updateConnection();
 }

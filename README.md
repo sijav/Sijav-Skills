@@ -465,12 +465,13 @@ flowchart LR
 4. Read it. **Full report** is the overview. **Full board** lists the tasks in the board tool's own next order. **Changes** shows each change with its fields before and after. **Database records** shows every stored row. Click a task for its full record. **Relax mode** is a calm full-screen view of the current and the next work. Long text and long lists of ids are folded: **Show more** opens them, **Show less** folds them again.
 5. It loads what you look at: each list shows five cards and loads five more as you scroll, and a task's full record loads when you open it, so even a board of hundreds of items opens at once.
 6. Leave it open: it updates by itself when the board changes, with no reload. **Pause** holds the view; **Export full data** saves everything as one file.
-7. Stop it with Ctrl+C.
+7. To show it on a site as well, add `--publish "wss://<relay>" --publish-token-file "<file>"`. It keeps one outbound connection to that relay, which passes the site page's questions to this machine and the answers back, and keeps nothing itself. The token is read from the file, never typed. The site decides who may look.
+8. Stop it with Ctrl+C.
 
 To try it without a real board, `node "<todo skill>/dashboard/tests/demo-fixture.mjs" --port 8765` builds a throwaway board in the system's temp folder and prints commands that change it while you watch. Ctrl+C deletes it.
 
 - **Read only:** the board is opened read-only, and the next order comes from the board tool's own code, run on a throwaway copy. It never creates a board where none exists.
-- **Local only:** it listens on this machine alone and answers only its own page.
+- **Local only:** it listens on this machine alone and answers only its own page. With `--publish` it also answers the relay you name, which can ask only the same read-only questions.
 - **Done is not tested:** tested and e2e tested come only from the board's own fields; a board without them shows "not recorded".
 - **History:** the changes it sees are kept in your user cache folder, never in the project.
 - **Loop boards:** the order is the loop tool's own `board_order()`, run on a copy. The machine checks its `next` may add are not run, since they run commands. Any other database file is refused, never shown as an empty board.

@@ -79,7 +79,7 @@ test('installed copy started from a project subdirectory serves the board read-o
   const html = await page.text();
   const settings = JSON.parse(html.match(/id="dashboard-settings"[^>]*>(.*?)<\/script>/s)[1]);
   assert.equal(settings.project, p.root, "a project path with $' $& and $$ is embedded literally");
-  assert.match(html, /<script type="module" src="\/app.js"><\/script><\/head>/, 'the rest of the page is intact');
+  assert.match(html, /<script type="module" src="app.js"><\/script><\/head>/, 'the rest of the page is intact (its paths relative, so it also works under a sub-path)');
   for (const [asset, type] of [['app.js', 'javascript'], ['board-ui.mjs', 'javascript'], ['ambient-ui.mjs', 'javascript'], ['display-mode.mjs', 'javascript'], ['work-context.mjs', 'javascript'], ['styles.css', 'css'], ['theme.css', 'css'], ['ambient.css', 'css'], ['favicon.svg', 'svg']]) {
     const response = await fetch(started.url + asset);
     assert.equal(response.status, 200, asset); assert.match(response.headers.get('content-type'), new RegExp(type));
