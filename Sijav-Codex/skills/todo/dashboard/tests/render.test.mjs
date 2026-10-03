@@ -66,9 +66,12 @@ async function renderApp(live, hash, { published = null, token = null } = {}) {
     }
     close() { this.real.terminate(); }
   }
+  // The host page's sign-in, as a relay's host page gives it: the token, and `forget` for a refused one.
+  const auth = token ? Object.assign(async () => token, { forgotten: 0 }) : undefined;
+  if (auth) auth.forget = () => { auth.forgotten++; };
   const globals = {
     document: { getElementById: el, querySelector: () => el('shell'), querySelectorAll: () => [], addEventListener: (type, fn) => (listeners[type] ??= []).push(fn), documentElement: { dataset: {} }, body: new Element('body'), activeElement: null, visibilityState: 'visible', fullscreenElement: null },
-    window: { matchMedia: () => ({ matches: false, addEventListener() {} }), addEventListener: (type, fn) => { if (type === 'pagehide') pageHides.push(fn); }, localStorage: { getItem: () => null, setItem() {} }, dashboardAuth: token ? async () => token : undefined },
+    window: { matchMedia: () => ({ matches: false, addEventListener() {} }), addEventListener: (type, fn) => { if (type === 'pagehide') pageHides.push(fn); }, localStorage: { getItem: () => null, setItem() {} }, dashboardAuth: auth },
     location: { hash, protocol: 'http:', host: '127.0.0.1:1' }, history: { replaceState: (a, b, h) => { globalThis.location.hash = h; } },
     navigator: {}, WebSocket: Bridge,
   };
@@ -87,7 +90,7 @@ async function renderApp(live, hash, { published = null, token = null } = {}) {
   };
   /** A message as the relay would send it. */
   const deliver = message => bridges.at(-1).onmessage?.({ data: typeof message === 'string' ? message : JSON.stringify(message) });
-  return { el, errors, settled, loadAll, deliver, bridge: () => bridges.at(-1) };
+  return { el, errors, settled, loadAll, deliver, auth, bridge: () => bridges.at(-1) };
 }
 
 /** A live dashboard on a fixture: its embedded page settings, and a client following its pushes. */
@@ -306,6 +309,17 @@ test('published through a relay: its socket path, the sign-in first, no local ac
     await new Promise(ok => setTimeout(ok, JSON.parse(live.settingsJson).transport.reconnectMs + 300));
     assert.equal(page.bridge(), bridge, 'a refused page does not reconnect');
     clean(page.el('content').innerHTML);
+
+    // Reconnect after a refusal signs in again (the host page forgot the refused token), and the
+    // greeting that follows clears the refusal.
+    assert.equal(page.auth.forgotten, 1, 'the refused token is forgotten');
+    page.el('refresh').listeners.click[0]();
+    await page.settled();
+    assert.notEqual(page.bridge(), bridge, 'a new socket');
+    assert.equal(page.bridge().messages[0].type, 'auth', 'it signs in first again');
+    assert.match(page.el('content').innerHTML, /Next · the tool’s own pick/);
+    assert.notEqual(page.el('connection-text').textContent, 'This account cannot see the boards.');
+    assert.deepEqual(page.errors, []);
   } finally { await live.close(); }
 });
 
