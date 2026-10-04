@@ -72,8 +72,10 @@ async function renderApp(live, hash, { published = null, token = null, hold = []
   // The host page's sign-in, as a relay's host page gives it: the token, and `forget` for a refused one.
   const auth = token ? Object.assign(async () => token, { forgotten: 0 }) : undefined;
   if (auth) auth.forget = () => { auth.forgotten++; };
+  // The page's kept <details> as the content's HTML has them: the only elements the stand-in parses.
+  const keptDetails = () => [...el('content').innerHTML.matchAll(/ data-keep="([^"]*)"( open)?/g)].map(m => ({ open: !!m[2], dataset: { keep: unescapeAttr(m[1]) } }));
   const globals = {
-    document: { getElementById: el, querySelector: () => el('shell'), querySelectorAll: () => [], addEventListener: (type, fn) => (listeners[type] ??= []).push(fn), documentElement: { dataset: {} }, body: new Element('body'), activeElement: null, visibilityState: 'visible', fullscreenElement: null },
+    document: { getElementById: el, querySelector: () => el('shell'), querySelectorAll: sel => sel === 'details[data-keep]' ? keptDetails() : [], addEventListener: (type, fn) => (listeners[type] ??= []).push(fn), documentElement: { dataset: {} }, body: new Element('body'), activeElement: null, visibilityState: 'visible', fullscreenElement: null },
     window: { matchMedia: () => ({ matches: false, addEventListener() {} }), addEventListener: (type, fn) => { if (type === 'pagehide') pageHides.push(fn); }, localStorage: { getItem: () => null, setItem() {} }, dashboardAuth: auth },
     location: { hash, protocol: 'http:', host: '127.0.0.1:1' }, history: { replaceState: (a, b, h) => { globalThis.location.hash = h; } },
     navigator: {}, WebSocket: Bridge,
@@ -95,7 +97,12 @@ async function renderApp(live, hash, { published = null, token = null, hold = []
   const deliver = message => bridges.at(-1).onmessage?.({ data: typeof message === 'string' ? message : JSON.stringify(message) });
   /** A click whose target is inside the elements `closest` names, e.g. { '[data-expand]': { dataset: { expand: 'x' } } }. */
   const click = closest => { for (const fn of listeners.click || []) fn({ target: { closest: sel => closest[sel] ?? null } }); };
-  return { el, errors, settled, loadAll, deliver, click, auth, bridge: () => bridges.at(-1) };
+  /** The reader opens or closes a kept <details>: its open attribute changes, as a click on its summary changes it. */
+  const toggle = (key, open) => {
+    const at = ` data-keep="${key}"`, html = el('content').innerHTML.replace(at + ' open', at);
+    el('content').innerHTML = open ? html.replace(at, at + ' open') : html;
+  };
+  return { el, errors, settled, loadAll, deliver, click, toggle, auth, bridge: () => bridges.at(-1) };
 }
 
 /** A live dashboard on a fixture: its embedded page settings, and a client following its pushes. */
@@ -228,6 +235,7 @@ test('a loop board renders in its own tool’s words, with long id lists folded 
       'First startable not started', 'Findings filed against items and not yet resolved', 'IDS: <span class="value-list"', '40 values', 'data-expand="board:6:why">Show more'])
       assert.ok(html.includes(text), 'report shows ' + text);
     assert.ok(!html.includes(LONG_IDS), 'the long id list is folded');
+    assert.ok(html.includes(' data-keep="order:board"><summary>The order as board.py’s board_order() gives it'), 'the tool’s order starts folded');
     assert.doesNotMatch(html, /todo\.py|waiting on parents/, 'no to-do skill words on a loop board');
     clean(html);
 
@@ -258,6 +266,29 @@ test('a loop board renders in its own tool’s words, with long id lists folded 
     clean(ambient);
   } finally { await live.close(); }
   assert.equal(sha(p.db), before, 'the board is never written');
+});
+
+test('the tool’s order and how it decides start folded, and stay as the reader leaves them through new cards and live changes', { timeout: 120000 }, async () => {
+  const p = richProject();
+  const live = await serve(p);
+  try {
+    await until(() => live.view()?.boards[0].queue.state === 'ready', 'picker');
+    const page = await renderApp(live, '#report');
+    assert.deepEqual(page.errors, []);
+    const html = () => page.el('content').innerHTML, order = ' data-keep="order:board"', decides = ' data-keep="decides:board"';
+    assert.ok(html().includes(order + '><summary>Exact output of todo.py next') && html().includes(decides + '><summary>How todo.py decides'), 'both start folded');
+    page.toggle('order:board', true);
+    assert.match(html(), /data-more-list=/, 'more cards are waiting');
+    await page.loadAll();
+    assert.doesNotMatch(html(), /data-more-list=/, 'the cards came, so the page was drawn again');
+    assert.ok(html().includes(order + ' open>') && html().includes(decides + '>'), 'more cards change neither');
+    page.toggle('order:board', false); page.toggle('decides:board', true);
+    assert.ok(!html().includes('Resume · already started'));
+    todo(p.root, 'move', 'MP-004', 'in_progress');
+    await until(() => html().includes('Resume · already started'), 'the change drawn on the page');
+    assert.ok(html().includes(order + '>') && html().includes(decides + ' open>'), 'a live change changes neither');
+    clean(html());
+  } finally { await live.close(); }
 });
 
 test('two boards on one page: each board in its own tool’s words, cards named by board, each drawer its own', { timeout: 120000 }, async () => {
