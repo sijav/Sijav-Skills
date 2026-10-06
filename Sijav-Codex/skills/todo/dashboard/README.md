@@ -507,11 +507,11 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 | `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, its areas on the cards and in the filter, the item's own fields in the drawer and Relax naming its tool; two boards on one page, each in its own tool's words, cards named by board, each drawer its own; published through a relay, the page uses the relay's socket path, sends its sign-in token first, offers no export, print or "Run next again", shows the relay's offline notice until it is greeted again, and after a refusal says so, forgets the refused sign-in and stops reconnecting until Reconnect signs in again; a greeting replaces the changes queued while the view was paused; Relax opened from a bookmark on a published page signs in first and asks for its view once greeted; Reconnect settles the questions in flight and the Changes view loads its history again; nothing is asked on a socket before its greeting, so a published page's Reconnect with Relax waiting signs in first; an open task record shows the offline notice through every redraw; the page says Live only once its current socket is greeted; no literal `${` in any view. |
 | `loop.test.mjs` | Two boards on one page: each read with its own tool and history, one numbering of changes, the same board given twice shown once, `--tool` refused for several loop boards. Loop boards made by a small test loop tool (`tests/loop-fixture`): told apart by their tables, and any other SQLite file refused, also by the CLI; found from their own folder and named after the project folder; items, blockers, parked notes and findings mapped; `loop_picker.py` gives the tool's own head, order, status groups and checked reasons, and refuses a tool whose order it cannot read; an older loop board without parked, exit or created columns; the live server through a change; the board never written and nothing created beside it. |
 
-`test-output.txt` holds the full last run.
+`npm test` from this folder runs them all.
 
 ## Status
 
-- **Fixture tests:** all pass; see `test-output.txt`.
+- **Fixture tests:** `npm test` runs them.
 - **Loop board view:** checked in the browser on a copy of a real loop board
   (728 items): the tool's own head and order, the item drawer, and a 250-id
   list folded to "250 values", opened with Show more and folded with Show

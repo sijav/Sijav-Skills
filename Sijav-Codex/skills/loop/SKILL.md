@@ -15,7 +15,7 @@ A live run in a disposable fixture on Codex 0.159.3 passed every check for the p
 
 A later run repeated that result, with the requested `gpt-6.1-sol`/`medium` verified as the thread default.
 
-The installed native-plugin form also passed all A/B/C checks on Codex 0.159.3 in a disposable TEMP fixture, with both handlers normally trusted and enabled. Codex expanded `${PLUGIN_ROOT}` to the installed package; the fixture had no project hook file. The public output is [installed-native-loop-proof.txt](../../validation/installed-native-loop-proof.txt). The earlier root portable `plugin.json` loaded no hooks, so the package uses `.codex-plugin/plugin.json`. Automatic mid-turn compaction remains empirically untested. No actual project loop has started. Report a loop as running only when its own hook events show it.
+The installed native-plugin form also passed all A/B/C checks on Codex 0.159.3 in a disposable TEMP fixture, with both handlers normally trusted and enabled. Codex expanded `${PLUGIN_ROOT}` to the installed package; the fixture had no project hook file. The earlier root portable `plugin.json` loaded no hooks, so the package uses `.codex-plugin/plugin.json`. Automatic mid-turn compaction remains empirically untested. No actual project loop has started. Report a loop as running only when its own hook events show it.
 
 Locate the project root and the exact law the owner intends this session to follow. Prefer an explicitly named law. Existing projects can keep their law under `.claude`; do not rename their board, rules or law solely because Codex is the caller. If several laws exist and the records do not identify the intended one, resolve that ambiguity before starting.
 

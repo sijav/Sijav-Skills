@@ -16,3 +16,18 @@ site/private-words.txt
 
 # coverage runs
 .coverage
+
+# Logs and run records stay local, out of git (the owner, 2026-10-06).
+/Sijav-Codex/validation/*
+!/Sijav-Codex/validation/*.py
+/Sijav-Codex/IMPLEMENTATION.md
+/Sijav-Codex/implementation-test-results.txt
+/Sijav-Codex/skills/todo/dashboard/test-output.txt
+/Sijav-Codex/skills/todo/dashboard/review-disposition.md
+/docs/tooling-failure-review-owner-approval-*.md
+
+# Development-only coverage tools, kept local (the owner, 2026-10-06).
+/dev/
+/.github/workflows/native-todo-coverage.yml
+/.gitattributes
+/Sijav-Codex/tests/test_planted_faults.py
