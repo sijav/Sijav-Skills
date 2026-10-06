@@ -278,8 +278,7 @@ html[data-theme="dark"] .diff-kind.removed {
   background: var(--danger-bg);
 }
 
-html[data-theme="dark"] .pill.medium,
-html[data-theme="dark"] .context-tag.derived {
+html[data-theme="dark"] .pill.medium {
   color: var(--info-ink);
   background: var(--info-bg);
 }
@@ -330,11 +329,6 @@ html[data-theme="dark"] .card-tag.warn {
 html[data-theme="dark"] .card-tag.next {
   color: var(--success-ink);
   background: var(--success-bg);
-}
-
-html[data-theme="dark"] .context-tag.derived {
-  color: var(--info-ink);
-  background: var(--info-bg);
 }
 
 html[data-theme="dark"] .context-tag.unknown,

@@ -97,20 +97,22 @@ export function diffLines(before,after,maxEdits=Infinity) {
   let prefix=0;while(prefix<a.length&&prefix<b.length&&a[prefix]===b[prefix])prefix++;
   let suffix=0;while(suffix<a.length-prefix&&suffix<b.length-prefix&&a[a.length-1-suffix]===b[b.length-1-suffix])suffix++;
   const left=a.slice(prefix,a.length-suffix),right=b.slice(prefix,b.length-suffix);
+  // Myers' diff. Every diagonal read at depth d was written at depth d-1, or is the seed v[1]=0 that d=0 reads,
+  // and the backtrack below reads the same snapshots, so no lookup can miss.
   const v=new Map([[1,0]]),trace=[];let operations=null;
   outer:for(let d=0;d<=Math.min(left.length+right.length,maxEdits);d++) {
     trace.push(new Map(v));
     for(let k=-d;k<=d;k+=2) {
-      const prev=k===-d||(k!==d&&(v.get(k-1)??-Infinity)<(v.get(k+1)??-Infinity));
-      let x=prev?(v.get(k+1)??0):(v.get(k-1)??0)+1,y=x-k;
+      const prev=k===-d||(k!==d&&v.get(k-1)<v.get(k+1));
+      let x=prev?v.get(k+1):v.get(k-1)+1,y=x-k;
       while(x<left.length&&y<right.length&&left[x]===right[y]){x++;y++;}
       v.set(k,x);
       if(x>=left.length&&y>=right.length) {
         let xx=left.length,yy=right.length;const reversed=[];
         for(let depth=trace.length-1;depth>=0;depth--) {
           const previous=trace[depth],diagonal=xx-yy;
-          const prevDiagonal=diagonal===-depth||(diagonal!==depth&&(previous.get(diagonal-1)??-Infinity)<(previous.get(diagonal+1)??-Infinity))?diagonal+1:diagonal-1;
-          const prevX=previous.get(prevDiagonal)??0,prevY=prevX-prevDiagonal;
+          const prevDiagonal=diagonal===-depth||(diagonal!==depth&&previous.get(diagonal-1)<previous.get(diagonal+1))?diagonal+1:diagonal-1;
+          const prevX=previous.get(prevDiagonal),prevY=prevX-prevDiagonal;
           while(xx>prevX&&yy>prevY){reversed.push({kind:'context',text:left[--xx]});yy--;}
           if(depth===0)break;
           if(xx===prevX)reversed.push({kind:'add',text:right[--yy]});else reversed.push({kind:'remove',text:left[--xx]});

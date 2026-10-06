@@ -8,6 +8,7 @@ The order lives in tool/board_order.py. Importing this file touches no database.
 import argparse
 import os
 import sqlite3
+from contextlib import closing
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -51,8 +52,12 @@ CREATE TABLE IF NOT EXISTS finding (
 
 def connect(path):
     conn = sqlite3.connect(path)
-    conn.executescript(SCHEMA)
-    return conn
+    try:
+        conn.executescript(SCHEMA)
+        return conn
+    except BaseException:
+        conn.close()
+        raise
 
 
 def main(argv=None):
@@ -92,8 +97,7 @@ def main(argv=None):
     commands.add_parser("next")
     args = parser.parse_args(argv)
 
-    conn = connect(args.db)
-    with conn:
+    with closing(connect(args.db)) as conn, conn:
         if args.command == "add":
             cursor = conn.execute(
                 "INSERT INTO item (title, why, story, severity, priority, exit_cmd, points, created_at, area)"
@@ -118,7 +122,6 @@ def main(argv=None):
         elif args.command == "next":
             startable = [row for row, ok in board_order(conn) if ok]
             print(f"NEXT {startable[0][0]} {startable[0][1]}" if startable else "nothing startable")
-    conn.close()
     return 0
 
 

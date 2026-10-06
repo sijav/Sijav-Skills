@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, statSync, renameSync, realpathSync, watch, openSync, readSync, closeSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, statSync, renameSync, realpathSync, watch as fsWatch, openSync, readSync, closeSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, basename, join, resolve, relative, isAbsolute } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
@@ -40,8 +40,9 @@ export function kindOf(tableColumns) {
   if (['id', 'title', 'status', 'severity', 'priority'].every(c => item.includes(c)) && ['item', 'blocker'].every(c => dep.includes(c))) return 'loop';
   return null;
 }
+// Called only once kindOf() said neither kind, which a file with no tables never is (kindOf reads it as an unused to-do board).
 export const notABoard = (path, tableColumns) => `${path} is not a to-do board this dashboard reads: it has neither the to-do skill's`
-  + ` task table nor a loop board's item and dep tables (its tables: ${Object.keys(tableColumns).join(', ') || 'none'}). Nothing is shown as a board.`;
+  + ` task table nor a loop board's item and dep tables (its tables: ${Object.keys(tableColumns).join(', ')}). Nothing is shown as a board.`;
 
 export function timestamp(value) {
   if (value == null || value === '') return null;
@@ -175,7 +176,8 @@ function isWalHeader(path) { try { return header(path)?.[18] === 2; } catch { re
 function plain(value) {
   if (typeof value === 'bigint') return value >= BigInt(-Number.MAX_SAFE_INTEGER) && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value.toString();
   if (value instanceof Uint8Array) return { $blob: Buffer.from(value).toString('hex') };
-  if (typeof value === 'number' && !Number.isFinite(value)) return { $float: Number.isNaN(value) ? 'nan' : value > 0 ? 'inf' : '-inf' };
+  // Only SELECT column values enter here: SQLite converts NaN to NULL before Node reads it.
+  if (typeof value === 'number' && !Number.isFinite(value)) return { $float: value > 0 ? 'inf' : '-inf' };
   return value;
 }
 const sortedTables = tables => Object.fromEntries(Object.keys(tables).sort().map(name => [name, tables[name]]));
@@ -193,9 +195,12 @@ export function readTables(path, { busyMs = 800 } = {}) {
     const before = fileSignature(path), idle = isIdleWal(path);
     let target = path;
     if (idle) { target = pathToFileURL(path); target.searchParams.set('immutable', '1'); }
-    const db = new DatabaseSync(target, { readOnly: true, timeout: busyMs });
+    const db = new DatabaseSync(target, { readOnly: true });
     let out;
     try {
+      // The busy wait is SQLite's own pragma, which every node:sqlite honours;
+      // the constructor's `timeout` option is newer than the versions served.
+      db.exec(`PRAGMA busy_timeout = ${Math.trunc(busyMs)}`);
       db.exec('PRAGMA query_only=ON');
       db.exec('BEGIN');
       const schema = db.prepare("SELECT name, sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(r => ({ name: r.name, sql: r.sql }));
@@ -209,6 +214,8 @@ export function readTables(path, { busyMs = 800 } = {}) {
         const keys = primaryKeys[table.name];
         let statement;
         try { statement = db.prepare(`SELECT * FROM ${quote(table.name)} ORDER BY ${keys.length ? keys.map(quote).join(',') : 'rowid'}`); }
+        // Ordering by the key needs something this reader lacks, such as the key column's
+        // application-defined collation; rows are then read in stored order.
         catch { statement = db.prepare(`SELECT * FROM ${quote(table.name)}`); }
         statement.setReadBigInts(true);
         tables[table.name] = statement.all().map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, plain(v)])));
@@ -258,11 +265,12 @@ export function readBoard(path, options = {}) {
  * What a status means is NOT decided here: it comes from the tool's own policy.
  */
 function loopTasks({ tables, tableColumns, schema }, sourceId = 'board') {
-  const byItem = rows => { const m = new Map(); for (const r of rows || []) { const k = String(r.item); if (!m.has(k)) m.set(k, []); m.get(k).push(r); } return m; };
+  // Only a loop board gets here, so item and dep are tables of this read, and readTables reads every table it lists.
+  const byItem = rows => { const m = new Map(); for (const r of rows) { const k = String(r.item); if (!m.has(k)) m.set(k, []); m.get(k).push(r); } return m; };
   const blockers = byItem(tables.dep), dependents = new Map();
-  for (const d of tables.dep || []) { const k = String(d.blocker); if (!dependents.has(k)) dependents.set(k, []); dependents.get(k).push(String(d.item)); }
+  for (const d of tables.dep) { const k = String(d.blocker); if (!dependents.has(k)) dependents.set(k, []); dependents.get(k).push(String(d.item)); }
   const own = Object.entries(tableColumns).filter(([name, cols]) => !['item', 'dep'].includes(name) && cols.includes('item')).map(([name]) => [name, byItem(tables[name])]);
-  const tasks = (tables.item || []).map(raw => {
+  const tasks = tables.item.map(raw => {
     const id = String(raw.id);
     const related = Object.fromEntries(own.map(([name, rows]) => [name, rows.get(id) || []]).filter(([, rows]) => rows.length));
     const createdAt = timestamp(raw.created_at), closedAt = timestamp(raw.closed_at);
@@ -338,7 +346,11 @@ export function classify(board, rules, queue = null) {
     const openChildren = rules.known ? t.children.filter(k => !has(rules.closed, byId.get(k)?.status)) : t.children;
     const reasons = ready ? queue.deferred?.[t.id] || [] : null;
     const isOpen = has(rules.openStatuses, t.status), isDoing = has(rules.doingStatuses, t.status);
-    const isWaiting = ready ? reasons.some(r => r.kind === 'parent') && !isDoing : isOpen && unresolved.length > 0;
+    // Started work waits on a parent only where the to-do tool itself passes it over for one: an unblocked
+    // started task its picker deferred with a parent reason. An older todo.py never defers one, and a
+    // blocked started task is shown as blocked, as before; a loop board's Doing items are unchanged.
+    const doingWaits = board.kind !== 'loop' && t.blocked.length === 0;
+    const isWaiting = ready ? reasons.some(r => r.kind === 'parent') && (!isDoing || doingWaits) : isOpen && unresolved.length > 0;
     return { ...t, unresolved, openChildren, openFindings: openChildren.length, isOpen, isDoing, isComplete,
       isFinished: has(rules.finishedStatuses, t.status), isDiscarded: has(rules.discardedStatuses, t.status),
       isExplicitlyBlocked: !isComplete && t.blocked.length > 0, isWaiting, isBlocked: (!isComplete && t.blocked.length > 0) || isWaiting };
@@ -440,13 +452,43 @@ const fileSha = path => { try { return createHash('sha256').update(readFileSync(
 
 // ---------------------------------------------------------------- monitor
 
-export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null, kind = 'todo', sourceId = 'board', areas = null }) {
+/**
+ * One board, read on every change of its files or its tool. `watch` is the file-watching
+ * boundary, Node's fs.watch unless a caller passes another with its signature: a watcher
+ * that fails later emits 'error', one the system refuses at once throws.
+ */
+// Cache reads are untrusted JSON. Check the fields diffBoard consumes, while
+// preserving older optional indexes, task labels, keys and tracking timestamps.
+function usableBaseline(value) {
+  const object = v => v != null && typeof v === 'object' && !Array.isArray(v);
+  const schema = rows => Array.isArray(rows) && rows.every(row => object(row)
+    && typeof row.name === 'string' && (typeof row.sql === 'string' || row.sql === null));
+  if (!object(value) || !Object.hasOwn(value, 'board') || (value.startedAt != null && typeof value.startedAt !== 'string')
+    || (value.dbPath != null && typeof value.dbPath !== 'string')) return false;
+  const saved = value.board;
+  if (saved == null) return true;
+  return object(saved) && typeof saved.hash === 'string' && object(saved.tables)
+    && Object.values(saved.tables).every(rows => Array.isArray(rows) && rows.every(object))
+    && schema(saved.schema) && (saved.indexes == null || schema(saved.indexes))
+    && (saved.primaryKeys == null || (object(saved.primaryKeys)
+      && Object.values(saved.primaryKeys).every(keys => Array.isArray(keys) && keys.every(key => typeof key === 'string'))))
+    && (saved.tasks == null || (Array.isArray(saved.tasks)
+      && saved.tasks.every(task => object(task) && typeof task.id === 'string')));
+}
+
+export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null, kind = 'todo', sourceId = 'board', areas = null, watch = fsWatch }) {
   const tool = todo ? basename(todo) : (KINDS[kind] || KINDS.todo).tool || "the board's tool"; // the board's own tool, named in every message
   mkdirSync(dataDir, { recursive: true });
   const statePath = join(dataDir, 'baseline.json'), journalPath = join(dataDir, 'changes.jsonl');
   const boardName = name || basename(projectRoot) || dbPath;
-  let baseline = { startedAt: new Date().toISOString(), dbPath, board: null }, persistenceError = null, journalWarning = null;
-  try { if (existsSync(statePath)) baseline = JSON.parse(readFileSync(statePath, 'utf8')); } catch (e) { persistenceError = 'Previous baseline could not be read; history continues from now: ' + e.message; }
+  let baseline = { startedAt: new Date().toISOString(), dbPath, board: null }, persistenceError = null, baselineWarning = null, journalWarning = null;
+  try {
+    if (existsSync(statePath)) {
+      const saved = JSON.parse(readFileSync(statePath, 'utf8'));
+      if (!usableBaseline(saved)) throw new Error('Invalid baseline snapshot shape.');
+      baseline = saved;
+    }
+  } catch (e) { baselineWarning = 'Previous baseline could not be read; history continues from now: ' + e.message; }
   const loaded = loadJournal(journalPath), journal = loaded.entries;
   // History written while this board was shown under another id (alone, or in another order) is still its own.
   for (const entry of journal) entry.sourceId = sourceId;
@@ -481,17 +523,17 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
     const latest = new Map();
     const rules = rulesFrom(currentPolicy(), policyReason());
     const shownQueue = publicQueue();
-    const classified = board ? classify(board, rules, shownQueue) : null;
+    const classified = classify(board, rules, shownQueue);
     for (let i = transitions.length - 1; i >= 0; i--) {
       const t = transitions[i], current = classified?.tasks.find(task => task.key === t.taskKey);
       if (current && t.toStatus === current.status && !latest.has(t.taskKey)) latest.set(t.taskKey, t.observedAt);
     }
-    const shown = classified ? { ...source, ...classified, rules, picker, queue: shownQueue, tasks: classified.tasks.map(t => ({ ...t, statusObservedAt: latest.get(t.key) ?? null })) } : null;
+    const shown = { ...source, ...classified, rules, picker, queue: shownQueue, tasks: classified.tasks.map(t => ({ ...t, statusObservedAt: latest.get(t.key) ?? null })) };
     return { app: 'Sijav to-do dashboard', readOnly: true, instanceId, revision, checkedAt, readCount, ignoredEvents, lastFileEventAt,
-      ui: settings.ui, rules, transport: settings.transport, watch: settings.watch, workClassification: {}, watchState,
+      ui: settings.ui, rules, transport: settings.transport, watch: settings.watch, watchState,
       server: { project: projectRoot, db: dbPath, dataDir, readOnly: true, python: picker.python, todo: picker.todo, tool, kind, toolSha },
-      trackingSince: baseline.startedAt, persistenceError: [persistenceError, journalWarning].filter(Boolean).join(' ') || null,
-      boards: shown ? [shown] : [], statusTransitions: transitions.slice().reverse(), changeCount: journal.length, latestSeq: journal.at(-1)?.seq ?? 0 };
+      trackingSince: baseline.startedAt, persistenceError: [baselineWarning, persistenceError, journalWarning].filter(Boolean).join(' ') || null,
+      boards: [shown], statusTransitions: transitions.slice().reverse(), changeCount: journal.length, latestSeq: journal.at(-1)?.seq ?? 0 };
   };
   // Several state changes in one turn of the event loop produce one push.
   const notify = () => {
@@ -544,8 +586,9 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
     }
     notify();
   }
+  // Every caller has already returned once the monitor is closed (readNow, and each watch callback and error
+  // handler), and close() clears the timer this sets.
   function schedule(force = false) {
-    if (closed) return;
     forced ||= force;
     clearTimeout(debounce);
     debounce = setTimeout(() => {
@@ -569,7 +612,7 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
           const generation = queue.requested;
           if (!board?.available) { queue.processed = generation; queue.previous = null; queue.state = 'unavailable'; queue.error = 'The board could not be read, so its next pick is unknown. ' + (board?.error || ''); continue; }
           try {
-            const sha = todo ? fileSha(todo) : null;
+            const sha = fileSha(todo); // the loop runs only for a configured picker, which has its tool
             const result = await runPicker({ python, todo, dbPath, settings: settings.picker, kind, areas });
             if (closed) return;
             if (generation !== queue.requested) continue;
@@ -605,28 +648,50 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
   // Watch the board's directory, not the file: the watch survives atomic
   // replacement, and WAL/SHM/journal files come and go beside it.
   const names = SUFFIXES.map(s => basename(dbPath) + s);
+  // libuv reports a deleted Windows watched directory as rename with its
+  // full path; other runtimes can emit EPERM. Inspect before child-name filtering.
+  const directoryGone = (boundary, folder, handle) => {
+    if (existsSync(folder)) return false;
+    watchState[boundary] = { ...watchState[boundary], active: false, error: `Watched directory removed: ${folder}` };
+    handle?.close();
+    notify();
+    return true;
+  };
   try {
     const watcher = watch(dirname(dbPath), (event, filename) => {
       if (closed) return;
+      if (directoryGone('board', dirname(dbPath), watcher)) { schedule(false); return; }
       const file = filename == null ? null : basename(String(filename));
       if (file !== null && !names.some(n => sameName(n, file))) return;
       lastFileEventAt = new Date().toISOString();
       schedule(false);
     });
-    watcher.on('error', e => { watchState.board = { ...watchState.board, active: false, error: e.message }; notify(); });
+    // Some runtimes report a removed watched folder as an error (EPERM): the folder's absence is recorded
+    // as such and read as the change path does; any other error keeps its own message.
+    watcher.on('error', e => {
+      if (closed) return;
+      if (directoryGone('board', dirname(dbPath), watcher)) { schedule(false); return; }
+      watchState.board = { ...watchState.board, active: false, error: e.message }; notify();
+    });
     watchers.push(watcher); watchState.board.active = true;
   } catch (e) { watchState.board.error = e.message; }
   // The tool decides order and status meaning: any change to it is read again.
   if (picker.configured) {
     try {
       const watcher = watch(dirname(todo), (event, filename) => {
-        if (closed || (filename != null && !sameName(basename(String(filename)), basename(todo)))) return;
+        if (closed) return;
+        if (directoryGone('tool', dirname(todo), watcher)) { requestQueue(); return; }
+        if (filename != null && !sameName(basename(String(filename)), basename(todo))) return;
         const sha = fileSha(todo);
         if (sha === toolSha && queue.state === 'ready') return;
         toolSha = sha;
         if (board?.available) requestQueue(); else notify();
       });
-      watcher.on('error', e => { watchState.tool = { ...watchState.tool, active: false, error: e.message }; notify(); });
+      watcher.on('error', e => {
+        if (closed) return;
+        if (directoryGone('tool', dirname(todo), watcher)) { requestQueue(); return; }
+        watchState.tool = { ...watchState.tool, active: false, error: e.message }; notify();
+      });
       watchers.push(watcher); watchState.tool.active = true;
     } catch (e) { watchState.tool.error = e.message; }
   }

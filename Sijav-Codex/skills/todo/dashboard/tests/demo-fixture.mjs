@@ -26,5 +26,8 @@ console.log(`\nDisposable fixture project: ${p.root}`);
 console.log('Make a live change (watch it arrive without reloading), for example:');
 console.log(`  cd "${p.root}" && python "${TODO_PY}" move MP-004 in_progress`);
 console.log(`  cd "${p.root}" && python "${TODO_PY}" move MP-007 done --evidence "Seen in the browser"`);
-const stop = () => started.close().then(() => { cleanup(); process.exit(0); });
-process.on('SIGINT', stop); process.on('SIGTERM', stop);
+// Ctrl+C, a stop signal, or a parent that started it with an IPC channel letting go of it
+// (on Windows a signal from another process is a forced kill). It stops once.
+let stopping = null;
+const stop = () => (stopping ??= started.close().then(() => { cleanup(); process.exit(0); }));
+process.on('SIGINT', stop); process.on('SIGTERM', stop); process.on('disconnect', stop);

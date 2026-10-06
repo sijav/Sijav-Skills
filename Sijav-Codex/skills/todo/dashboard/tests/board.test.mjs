@@ -4,7 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
-import { resolveBoard, resolveDataDir, userDataRoot, boardKey, readBoard, classify, rulesFrom, diffBoard, findBoard, loadJournal, createMonitor, BoardError, SKILL_DIR } from '../lib/board.mjs';
+import { resolveBoard, resolveDataDir, userDataRoot, boardKey, readBoard, classify, rulesFrom, diffBoard, findBoard, loadJournal, createMonitor, BoardError, SKILL_DIR, defaults } from '../lib/board.mjs';
+import { testingState, testingSummary, changedFields, formatDate } from '../public/board-ui.mjs';
 import { project, richProject, tempDir, cleanup, todo, sha, listing, PYTHON } from './helpers.mjs';
 
 test.after(cleanup);
@@ -59,10 +60,12 @@ test('reading preserves every table, row and field exactly as Python sqlite3 rea
   // An independent reader: Python's sqlite3, not node:sqlite.
   const dump = JSON.parse(execFileSync(PYTHON, ['-c', `
 import json, sqlite3, sys
-c = sqlite3.connect('file:' + sys.argv[1] + '?mode=ro', uri=True); c.row_factory = sqlite3.Row
-out = {}
-for (name,) in c.execute("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'"):
-    out[name] = [dict(r) for r in c.execute('SELECT * FROM "%s"' % name)]
+from contextlib import closing
+with closing(sqlite3.connect('file:' + sys.argv[1] + '?mode=ro', uri=True)) as c:
+    c.row_factory = sqlite3.Row
+    out = {}
+    for (name,) in c.execute("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'"):
+        out[name] = [dict(r) for r in c.execute('SELECT * FROM "%s"' % name)]
 print(json.dumps(out))`, p.db.replaceAll('\\', '/')], { encoding: 'utf8' }));
   assert.deepEqual(Object.keys(board.tables).sort(), Object.keys(dump).sort(), 'every table is read');
   const canon = rows => rows.map(r => JSON.stringify(Object.fromEntries(Object.entries(r).sort()))).sort();
@@ -143,6 +146,29 @@ test('row-level diffs name the task and every changed field', () => {
   const note = changes.find(c => c.table === 'note');
   assert.equal(note.kind, 'added'); assert.equal(note.after.text, 'Added later');
   assert.deepEqual(diffBoard(b, b), []);
+});
+
+test('test states are shown as todo.py recorded them: no column is not recorded, 0 is not tested, 1 is tested; reading writes nothing', () => {
+  const p = richProject();
+  const counts = c => testingSummary(c, c.tasks, defaults.ui.testingFlags).flags.map(f => [f.key, f.label, f.supported, f.passed, f.pending, f.unknown]);
+  const before = classify(readBoard(p.db), rulesFrom(POLICY));
+  assert.deepEqual(counts(before), [['tested', 'Tested', false, 0, 0, 2], ['e2e_tested', 'E2E tested', false, 0, 0, 2]],
+    'a board that never recorded a test claims nothing about its two done tasks');
+  assert.equal(testingState(before.tasks.find(t => t.id === 'MP-010'), 'tested'), 'unknown');
+  todo(p.root, 'tested', 'MP-010', '--evidence', 'Ran the area suite: 12 passed');
+  const sum = sha(p.db), files = listing(dirname(p.db));
+  const after = classify(readBoard(p.db), rulesFrom(POLICY));
+  assert.equal(sha(p.db), sum); assert.deepEqual(listing(dirname(p.db)), files, 'reading a board with test states writes nothing');
+  assert.deepEqual(counts(after), [['tested', 'Tested', true, 1, 1, 0], ['e2e_tested', 'E2E tested', true, 0, 2, 0]]);
+  const t = id => after.tasks.find(x => x.id === id);
+  assert.equal(testingState(t('MP-010'), 'tested'), 'passed'); assert.equal(t('MP-010').raw.tested_how, 'Ran the area suite: 12 passed');
+  assert.equal(testingState(t('MP-006'), 'tested'), 'pending', 'done is not tested');
+  assert.equal(testingState(t('MP-010'), 'e2e_tested'), 'pending', 'tested is not e2e tested');
+  assert.equal(testingState(t('MP-004'), 'tested'), 'pending', 'an unfinished task on a board that records tests reads not tested, not unknown');
+  const update = diffBoard({ ...before, name: 'x' }, { ...after, name: 'x' }, '2026-10-01T00:00:00.000Z').find(c => c.table === 'task' && c.itemId === 'MP-010');
+  assert.deepEqual(update.fields.sort(), ['e2e_at', 'e2e_how', 'e2e_tested', 'tested', 'tested_at', 'tested_how', 'updated']);
+  const stamped = changedFields(update.before, update.after, Infinity, defaults.ui.dateFields).find(f => f.key === 'tested_at');
+  assert.deepEqual(stamped.rows.map(r => r.text), [formatDate(update.after.tested_at)], 'when it was tested reads as a date, like every other moment');
 });
 
 test('a journal with a torn or corrupt line keeps every valid entry and appends cleanly after it', () => {

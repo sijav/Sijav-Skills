@@ -1,10 +1,10 @@
 // Disposable fixtures only: every board here is created in the OS temp
 // directory by the real todo.py, and every directory is removed afterwards.
-import { mkdtempSync, mkdirSync, cpSync, existsSync, rmSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, cpSync, existsSync, rmSync, readFileSync, copyFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { findBoard } from '../lib/board.mjs';
 
@@ -144,6 +144,49 @@ export function duplicateBoard(db) {
   return root;
 }
 
+/**
+ * A controlled real picker child: a Python bridge, given as the monitor's interpreter, that counts its
+ * invocations in `count`, marks each start in `marker` and then runs the real tool with the picker's own
+ * arguments. In a "wait" mode the invocation numbered `hold` waits (at most 20 s) for the `release` file;
+ * in "wait-error" and "wait-stale-error" that invocation then fails with exit 7. "rows" and "tool" change
+ * the board or the tool on every run. Labelled controlled evidence, not a native observation.
+ */
+export function nativeBridge(mode, dir, { hold = 1 } = {}) {
+  const path = join(dir, 'bridge.py'), marker = join(dir, 'started'), release = join(dir, 'release'), count = join(dir, 'count');
+  writeFileSync(path, [
+    'import os,sys,sqlite3,subprocess,time',
+    'from contextlib import closing',
+    'args=sys.argv[1:]',
+    'db=args[args.index("--db")+1]',
+    'tool=args[args.index("--todo")+1]',
+    'mode=' + JSON.stringify(mode),
+    'marker=' + JSON.stringify(marker),
+    'release=' + JSON.stringify(release),
+    'count=' + JSON.stringify(count),
+    'hold=' + Number(hold),
+    'try:',
+    '    with open(count) as source: invocation=int(source.read())+1',
+    'except FileNotFoundError: invocation=1',
+    'with open(count,"w") as out: out.write(str(invocation))',
+    'open(marker,"w").close()',
+    'if mode=="rows":',
+    '    with closing(sqlite3.connect(db)) as conn, conn:',
+    '        conn.execute("UPDATE task SET title=title || \'!\' WHERE id=\'MP-001\'")',
+    'if mode=="tool":',
+    '    with open(tool,"a",encoding="utf-8") as out: out.write("\\n# genuine confined tool-change fixture\\n")',
+    'if mode.startswith("wait") and invocation==hold:',
+    '    deadline=time.monotonic()+20',
+    '    while not os.path.exists(release):',
+    '        if time.monotonic()>deadline: raise RuntimeError("parent did not release native fixture child")',
+    '        time.sleep(.01)',
+    'if mode in ("wait-error","wait-stale-error") and invocation==hold:',
+    '    print("native delayed child deliberately fails",file=sys.stderr)',
+    '    raise SystemExit(7)',
+    'raise SystemExit(subprocess.run([sys.executable,*args]).returncode)',
+  ].join('\n') + '\n');
+  return { path, marker, release, count };
+}
+
 export const sha = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 export const listing = dir => readdirSync(dir).sort();
 
@@ -157,6 +200,55 @@ export function install() {
   if (!WS_DIR) throw new Error('The ws package is needed for server tests: run npm ci in the dashboard folder or set TODO_DASHBOARD_WS_DIR.');
   cpSync(WS_DIR, join(dash, 'node_modules', 'ws'), { recursive: true });
   return { skill, dash, server: join(dash, 'server.mjs'), serverUrl: pathToFileURL(join(dash, 'server.mjs')).href };
+}
+
+/**
+ * Start a Node script as its own process with an IPC channel, as a parent that will ask it to
+ * stop starts it. Resolves once its output matches `ready`, or once it exits.
+ */
+export function launch(script, args, { cwd, env = testEnv(), ready = /Ctrl\+C/ } = {}) {
+  return new Promise(resolveLaunch => {
+    const child = spawn(process.execPath, [script, ...args], { cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+    let out = '', err = '', settled = false;
+    const settle = value => { if (!settled) { settled = true; resolveLaunch(value); } };
+    child.stdout.on('data', d => { out += d; if (ready.test(out)) settle({ child, out, err, url: out.match(/^URL:\s+(\S+)/m)?.[1] }); });
+    child.stderr.on('data', d => { err += d; });
+    child.on('exit', code => settle({ child, code, out, err }));
+  });
+}
+
+/** Ends a process at once, its whole tree on Windows: nothing it would do on exit happens. */
+export function forceKill(child) {
+  try { if (process.platform === 'win32') execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); else child.kill('SIGKILL'); } catch {}
+}
+
+/**
+ * Ask a launched process to stop by letting go of its IPC channel, and wait for it to exit by
+ * itself. One still running after `ms` is killed, and that is a failure: what it does on exit,
+ * its clean-up and its coverage among them, is lost. Resolves with its exit code.
+ */
+export async function stopGracefully(child, ms = 20000) {
+  if (child.exitCode != null || child.signalCode != null) return child.exitCode;
+  const exited = new Promise(done => child.once('exit', code => done(code)));
+  let timer;
+  const late = new Promise(done => { timer = setTimeout(done, ms, 'late'); });
+  if (child.connected) child.disconnect();
+  const code = await Promise.race([exited, late]);
+  clearTimeout(timer);
+  if (code !== 'late') return code;
+  forceKill(child);
+  await exited;
+  throw new Error(`process ${child.pid} did not exit within ${ms} ms of its IPC channel closing; it was killed, so its own exit work and coverage are lost`);
+}
+
+/**
+ * The coverage files a process wrote, when this run is measured (NODE_V8_COVERAGE set, which
+ * every child started with testEnv() inherits); null when nothing is measured. Node names
+ * each file after the process that wrote it, so a missing one is that process's data lost.
+ */
+export function coverageFilesOf(pid, env = process.env) {
+  if (!env.NODE_V8_COVERAGE) return null;
+  return existsSync(env.NODE_V8_COVERAGE) ? readdirSync(env.NODE_V8_COVERAGE).filter(name => name.startsWith(`coverage-${pid}-`)) : [];
 }
 
 /** Test-side wait for an asynchronous condition; the dashboard itself has no timers that poll. */

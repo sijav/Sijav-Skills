@@ -139,6 +139,27 @@ test('a committed WAL change is pushed by the file watcher; pushes carry only ne
   assert.ok(mine.changes.length >= 1 && mine.changes.every(c => c.itemId === 'MP-004'));
 });
 
+test('a test state recorded by todo.py is pushed live and counted under its label; before it, the board says not recorded', async t => {
+  const p = richProject(), untouched = sha(p.db);
+  const started = await startDashboard({ project: p.root }, { cwd: tempDir(), env: testEnv() });
+  const client = live(started.url);
+  t.after(async () => { client.close(); await started.close(); });
+  await client.opened;
+  await until(() => ready(client.latest()), 'initial view');
+  const flags = async () => (await client.ask('summary')).perBoard[board0(client.latest()).id].testing.flags.map(f => [f.label, f.supported, f.passed, f.pending, f.unknown]);
+  assert.deepEqual(await flags(), [['Tested', false, 0, 0, 2], ['E2E tested', false, 0, 0, 2]], 'not recorded, never "not tested"');
+  assert.equal(sha(p.db), untouched, 'the dashboard wrote nothing');
+  const seen = client.messages.length;
+  todo(p.root, 'tested', 'MP-010', '--evidence', 'Ran the area suite: 12 passed');
+  await until(() => client.messages.slice(seen).some(m => m.type === 'changed' && m.keys.includes('board:MP-010')) && ready(client.latest()), 'pushed test state');
+  const record = (await client.ask('task', { key: 'board:MP-010' })).task;
+  assert.equal(record.raw.tested, 1); assert.equal(record.raw.tested_how, 'Ran the area suite: 12 passed'); assert.equal(record.raw.e2e_tested, 0);
+  assert.deepEqual(await flags(), [['Tested', true, 1, 1, 0], ['E2E tested', true, 0, 2, 0]], 'done is not tested; tested is not e2e tested');
+  const recorded = sha(p.db);
+  await client.ask('task', { key: 'board:MP-006' });
+  assert.equal(sha(p.db), recorded, 'reading the change wrote nothing');
+});
+
 test('a failed board read withdraws the pick and order; reading again restores them (H1, M1)', async t => {
   const p = richProject();
   const started = await startDashboard({ db: p.db }, { cwd: tempDir(), env: testEnv() });

@@ -21,11 +21,12 @@ const task=(id,status='backlog',extra={})=>({id:String(id),key:'board:'+id,sourc
 const columns=['id','title','descr','why','severity','points','status','exit_cond','area','created','parent_task','phase','evidence','closed','reason','updated'];
 function snapshot(extra={}) {
   const tasks=[task(1,'in_progress'),task(2,'wait_for_roast'),task(3),task(4),task(5),task(6),task(7,'done',{closedAt:'2026-09-20T00:00:00.000Z'})];
-  const board={id:'board',name:'Fixture project',available:true,stale:false,error:null,picker:{configured:true},rules,tasks,taskTable:'task',tableColumns:{task:columns},tables:{phase:[]},
+  // A controlled model in the monitor's own board shape (lib/board.mjs snapshot): every field it always carries.
+  const board={id:'board',name:'Fixture project',tool:'todo.py',boardKind:'todo',kind:'todo',available:true,stale:false,error:null,picker:{configured:true},rules,tasks,taskTable:'task',tableColumns:{task:columns},tables:{phase:[]},
     queue:{state:'ready',stale:false,checkedAt:'2026-09-30T12:00:00Z',error:null,headId:'2',headKind:'started',
       startedIds:['2','1'],eligibleIds:['5','3'],startableIds:['2','1','5','3'],rankedIds:['2','1','5','3','6','4'],
       deferred:{'6':[{kind:'blocked',message:'Blocked: owner decision'}],'4':[{kind:'parent',message:'Waits on 6 (backlog): Task 6'}]},nextText:'ALREADY STARTED, finish this first\n\n2  ...\n',currentPhase:null}};
-  return {checkedAt:'2026-09-30T12:00:00Z',boards:[board],rules,ui:{...defaults.ui,activityLimit:1},workClassification:{},statusTransitions:[],watchState:{board:{active:true,error:null}},persistenceError:null,...extra};
+  return {checkedAt:'2026-09-30T12:00:00Z',boards:[board],rules,ui:{...defaults.ui,activityLimit:1},statusTransitions:[],watchState:{board:{active:true,error:null}},persistenceError:null,...extra};
 }
 
 test('unfinished lanes follow only the picker result; without one they keep ID order',()=>{
@@ -127,11 +128,22 @@ test('the board’s own date formats are shown human-readably, in diffs too',()=
 
 test('work area/type come only from stored fields; absent fields are reported, never derived',()=>{
   const t=task(1,'backlog',{raw:{area:'api',descr:'A frontend widget for the backend server'}});
-  const context=classifyWork(t,{});
+  const context=classifyWork(t);
   assert.deepEqual(context.areas.map(a=>[a.label,a.origin]),[['api','recorded']]);
   assert.deepEqual(context.types,[],'no type field: nothing derived from text');
   assert.deepEqual(facetSupport(columns),{areas:['area'],types:[],topics:[]});
-  assert.deepEqual(classifyWork(task(2),{}).areas,[]);
+  assert.deepEqual(classifyWork(task(2)).areas,[]);
+  assert.deepEqual(classifyWork(null),{areas:[],types:[],topics:[]},'no task: nothing recorded');
+});
+
+test('recorded work fields: a JSON list in a TEXT column, numbers and repeated labels, each with its exact evidence',()=>{
+  const context=classifyWork({raw:{tags:'["ui", "API", 7]',domains:'[broken json',area:'  ',work_area:'api',category:12,type:Infinity,work_type:['Ops','ops']}});
+  assert.deepEqual(context.topics.map(x=>[x.label,x.evidence]),[
+    ['ui',[{field:'tags',text:'["ui", "API", 7]'}]],['API',[{field:'tags',text:'["ui", "API", 7]'}]],['7',[{field:'tags',text:'["ui", "API", 7]'}]],
+    ['[broken json',[{field:'domains',text:'[broken json'}]]],'a JSON list is split; text that only looks like one stays one recorded value');
+  assert.deepEqual(context.areas.map(x=>x.label),['api'],'blank text records nothing');
+  assert.deepEqual(context.types.map(x=>[x.label,x.evidence]),[['Ops',[{field:'work_type',text:'["Ops","ops"]'}]],['12',[{field:'category',text:'12'}]]],
+    'a non-finite number records nothing; one label differing only in case is kept once, its evidence once');
 });
 
 test('Relax: started pick is a resume, first eligible backlog shown separately, every Doing visible',()=>{
@@ -171,7 +183,6 @@ test('Relax: latest finished uses the stored closure time; unsafe text is escape
   data.boards[0].tasks[0]=task(1,'in_progress',{title:'<img src=x onerror="unsafe()">',raw:{descr:'<script>unsafe()</script> & literal',area:'<iframe src="x">'}});
   const html=renderAmbient(data,{connected:false,connectionLabel:'<script>Disconnected</script>',paused:true});
   assert.doesNotMatch(html,/<script>|<img src=x|<iframe src=/);assert.match(html,/&lt;script&gt;unsafe\(\)&lt;\/script&gt; &amp; literal/);
-  assert.equal(typeof renderAmbient({boards:[]}),'string');
 });
 
 test('theme preference validates stored values, follows OS fallback and tolerates unavailable storage',()=>{
@@ -205,6 +216,18 @@ test('exiting Relax releases a wake lock acquired after cancellation',async()=>{
   assert.equal(controller.active,false);assert.equal(document.fullscreenElement,null);assert.equal(releases,1);
 });
 
+test('the browser leaving its own fullscreen ends Relax, and a fullscreen it entered is still its own',async()=>{
+  const document=displayDocument(),changes=[];
+  const element={async requestFullscreen(){document.fullscreenElement=element;}};
+  const controller=createDisplayController({element,document,wakeLock:null,onChange:value=>changes.push(value)});
+  await controller.enter();
+  controller.fullscreenChanged();
+  assert.equal(controller.active,true,'entering fullscreen keeps Relax');
+  document.fullscreenElement=null;controller.fullscreenChanged();
+  assert.equal(controller.active,false,'Esc or the browser leaving fullscreen exits Relax');
+  assert.deepEqual(changes,[true,false]);
+});
+
 test('browser code has no data polling: only the Relax clock and reconnect use timers',()=>{
   const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
   const intervals=[...app.matchAll(/setInterval\(([^,]+),/g)].map(m=>m[1]);
@@ -233,4 +256,78 @@ test('long text folds to its start, a long list of ids folds to a count, and Sho
   assert.ok(cut.startsWith('word word')&&cut.includes('…')&&cut.length<200,'cut at a word, with an ellipsis');
   assert.doesNotMatch(clampText(long,'',null,{chars:100,toggle:false}),/button/,'no button where nothing can open it');
   assert.match(clampText(long,'a"b',new Set(),{chars:100}),/data-expand="a&quot;b"/,'the key is escaped');
+});
+
+// Public ordering/diff/model inputs below are deliberately controlled.
+// Optional exported-API fallbacks are not described as normal monitor omissions.
+test('new rows absent from an older checking order and tied legacy IDs remain visible',()=>{
+  const tasks=[task('legacy-b'),task('3'),task('legacy-a'),task('2')];
+  const board={rules,available:true,queue:{state:'checking',previous:{rankedIds:['2'],checkedAt:'2026-10-01T00:00:00Z'}}};
+  assert.deepEqual(sortQueue(tasks,board).map(t=>t.id),['2','legacy-a','legacy-b','3']);
+  assert.equal(queuePosition(tasks[0],board),null,'a newly observed row has no previous-rank badge');
+  assert.deepEqual(queuePosition(tasks[3],board),{index:0,current:false,group:'previous',head:false});
+  const closed=[task('legacy-a','done',{closedAt:'2026-10-01T00:00:00Z'}),task('legacy-b','done',{closedAt:'2026-10-01T00:00:00Z'})];
+  assert.deepEqual(sortLane(closed,'done',{rules}).map(t=>t.id),['legacy-b','legacy-a'],'equal undigitized IDs use the recorded lexical tie-break');
+  assert.deepEqual(tasks.map(t=>t.id),['legacy-b','3','legacy-a','2'],'source rows are unchanged');
+});
+
+// Stored row values as the reader gives them (lib/board.mjs plain): text, numbers, NULL, and the
+// {$blob} and {$float} objects for a BLOB and a non-finite REAL. Nothing else reaches a diff.
+test('stored values of every kind, quoted keys, blank/CR lines and equal-text type changes stay lossless',()=>{
+  const before={value:'a\r\n\nold',payload:{$blob:'00ff'},'quoted"key':0,count:5,limit:{$float:'inf'}};
+  const after={value:'a\r\n\nnew\n',payload:{$blob:'0100'},'quoted"key':null,count:'5',limit:{$float:'-inf'},added:''};
+  const fields=changedFields(before,after,0);
+  const lines=fields.find(f=>f.key==='value').rows;
+  assert.equal(lines.filter(r=>r.kind!=='add').map(r=>r.text).join('\n'),before.value);
+  assert.equal(lines.filter(r=>r.kind!=='remove').map(r=>r.text).join('\n'),after.value);
+  assert.deepEqual(fields.find(f=>f.key==='count').rows.map(r=>r.kind),['remove','add']);
+  assert.ok(fields.some(f=>f.key.startsWith('payload')),'a changed BLOB is a changed field');
+  assert.ok(fields.some(f=>f.key.startsWith('limit')),'a changed infinity is a changed field');
+  const html=renderFieldDiff(before,after,{...defaults.ui,diffMaxEdits:0,diffContextLines:2});
+  assert.match(html,/␍/);assert.match(html,/empty-line/);assert.match(html,/&quot;key/);
+  assert.doesNotMatch(html,/<script>/);
+  assert.match(renderFieldDiff({value:'old\none\nkeep\nthree'},{value:'new\none\nkeep\nfour'},{...defaults.ui,diffContextLines:0}),/2 unchanged lines/);
+  assert.match(renderFieldDiff({value:'old\nkeep\nold'},{value:'new\nkeep\nnew'},{...defaults.ui,diffContextLines:0}),/1 unchanged line</);
+  const values=Array.from({length:12},(_,i)=>'value-'+String(i).padStart(8,'0')).join(', ');
+  assert.match(clampText('x'.repeat(20)+' '+values+' trailing','fold',null,{chars:4,toggle:false}),/^xxxx….*12 values/);
+});
+
+test('phase-bearing to-do Relax cards preserve nullable recorded fields and coherent ready order',()=>{
+  const data=snapshot(),b=data.boards[0];
+  b.tasks=b.tasks.filter(t=>['3','5','7'].includes(t.id));
+  b.tasks[0].phase='MVP';b.tasks[0].raw={id:'3',descr:null,why:'',area:'api'};
+  b.tasks[1].raw={id:'5',descr:'0',why:'0',area:null};
+  b.tables={phase:[{name:'MVP',label:'',goal:'Deliver the public page'}]};
+  b.queue={state:'ready',stale:false,headId:'3',headKind:'eligible',startedIds:[],eligibleIds:['3','5'],startableIds:['3','5'],rankedIds:['3','5'],
+    deferred:{},currentPhase:{name:'MVP',label:'',goal:'Deliver the public page'},checkedAt:null,nextText:'3 is next\n',boardHadTaskTable:true};
+  const model=buildAmbientModel(data),shown=model.boards[0],html=renderAmbient(data);
+  assert.equal(shown.headRole,'next');assert.equal(shown.head.id,'3');assert.equal(shown.head.story,null);
+  assert.equal(shown.queued[0].story,'0');assert.equal(shown.queued[0].reason,'0');
+  assert.equal(shown.queuePreview.length,1);assert.equal(shown.hasPhases,true);
+  assert.match(html,/No story recorded/);assert.match(html,/Deliver the public page/);assert.match(html,/No tasks are currently recorded Doing/);
+});
+
+test('labelled Fullscreen contracts retain ownership across duplicate enter, exit and reentry',async()=>{
+  const document=displayDocument(),changes=[],statuses=[];
+  let resolveFirst,requests=0;
+  const element={requestFullscreen(){
+    requests++;
+    if(requests===1)return new Promise(resolve=>{resolveFirst=resolve;});
+    document.fullscreenElement=element;return Promise.resolve();
+  }};
+  const c=createDisplayController({element,document,wakeLock:null,onChange:v=>changes.push(v),onStatus:v=>statuses.push(v)});
+  await c.requestFullscreen();assert.equal(requests,0,'an inactive explicit request does nothing');
+  const first=c.enter();await c.enter();assert.equal(requests,1,'duplicate enter does not acquire again');
+  await c.exit();await c.enter();assert.equal(requests,2);assert.equal(c.active,true);assert.equal(statuses.at(-1).fullscreen,'full');
+  resolveFirst();await first;
+  assert.equal(c.active,true,'the previous session cannot cancel the new session');
+  assert.equal(document.fullscreenElement,element);assert.equal(statuses.at(-1).fullscreen,'full');
+  await c.exit();assert.deepEqual(changes,[true,false,true,false]);
+  let late;
+  const deniedDocument=displayDocument();
+  const deniedElement={requestFullscreen:()=>new Promise(resolve=>{late=resolve;})};
+  deniedDocument.exitFullscreen=()=>Promise.reject(new Error('labelled owned exit rejection'));
+  const rejected=createDisplayController({element:deniedElement,document:deniedDocument,wakeLock:null});
+  const entering=rejected.enter();await rejected.exit();deniedDocument.fullscreenElement=deniedElement;late();await entering;
+  assert.equal(rejected.active,false,'rejected late owned exit never revives Relax');
 });

@@ -6,7 +6,9 @@
 //
 // Every answer is computed from the monitor's snapshot with the page's own
 // ordering, testing and work-classification code, so the server and the page
-// can never order or count a list differently.
+// can never order or count a list differently. That snapshot is this server's
+// own (lib/board.mjs): it always has a boards array, and each board its queue
+// and rules, so nothing here guards against their absence.
 import { sortLane, sortQueue, pickerReady, nextTask, firstOpen, testingSummary, testingState, supportsTesting, matchesTestingFilter } from '../public/board-ui.mjs';
 import { classifyWork } from '../public/work-context.mjs';
 import { buildAmbientModel } from '../public/ambient-ui.mjs';
@@ -61,10 +63,10 @@ export function card(t, b) {
 
 /** The whole record of one task, with the tool's evidence for its place in the order and its links. */
 export function record(snapshot, key) {
-  for (const b of snapshot.boards || []) {
+  for (const b of snapshot.boards) {
     const t = b.tasks.find(x => x.key === key);
     if (!t) continue;
-    const q = b.queue || {}, ready = pickerReady(b);
+    const q = b.queue, ready = pickerReady(b);
     const known = id => brief(b.tasks.find(x => x.id === id)) || { id, missing: true };
     return { task: t, links: Object.fromEntries([...new Set([...t.dependencies, ...t.dependents, ...t.children, ...(t.parentTask ? [String(t.parentTask)] : [])])].map(id => [id, known(id)])),
       evidence: ready ? { rankKey: q.rankKeys?.[t.id] ?? null, rankError: q.rankErrors?.[t.id] ?? null, deferred: q.deferred?.[t.id] || [], children: q.children?.[t.id] ?? null } : null };
@@ -72,7 +74,7 @@ export function record(snapshot, key) {
   return null;
 }
 
-const workContext = t => classifyWork(t, {});
+const workContext = t => classifyWork(t);
 
 /** The page's filters as one test on a full task. */
 export function matcher(filters = {}) {
@@ -86,8 +88,8 @@ export function matcher(filters = {}) {
     && (!query || JSON.stringify({ id: t.id, raw: t.raw, notes: t.notes, roasts: t.roasts, blocked: t.blocked, related: t.related, dependencies: t.dependencies, children: t.children }).toLocaleLowerCase().includes(query));
 }
 
-const chosen = (snapshot, board) => (snapshot.boards || []).filter(b => board == null || board === 'all' || b.id === board);
-const severityRank = (b, s) => { const list = b.rules?.severities || []; const i = list.indexOf(s); return i < 0 ? list.length : i; };
+const chosen = (snapshot, board) => snapshot.boards.filter(b => board == null || board === 'all' || b.id === board);
+const severityRank = (b, s) => { const list = b.rules.severities; const i = list.indexOf(s); return i < 0 ? list.length : i; };
 
 /** One list's tasks in the page's order, before paging. */
 function ordered(snapshot, { list, board, status, filters = {} }) {
@@ -158,7 +160,7 @@ export function summary(snapshot, { board = 'all', filters = {} } = {}, { activi
 
 /** A page of a table's stored rows. */
 export function rows(snapshot, { board, table, offset = 0, limit = 100 }) {
-  const b = (snapshot.boards || []).find(x => x.id === board);
+  const b = snapshot.boards.find(x => x.id === board);
   const all = b?.tables?.[table] || [], start = Math.max(0, Number(offset) || 0), size = Math.min(500, Math.max(1, Number(limit) || 100));
   return { rows: all.slice(start, start + size), total: all.length, offset: start, primaryKeys: b?.primaryKeys?.[table] || [] };
 }
@@ -168,7 +170,7 @@ export const relax = snapshot => buildAmbientModel(snapshot);
 
 /** Each task's fingerprint per board, to tell a client which tasks a change touched. */
 export function fingerprints(snapshot) {
-  return Object.fromEntries((snapshot.boards || []).map(b => [b.id, new Map(b.tasks.map(t => [t.key, digest(t)]))]));
+  return Object.fromEntries(snapshot.boards.map(b => [b.id, new Map(b.tasks.map(t => [t.key, digest(t)]))]));
 }
 /** The keys of tasks that are new, changed or gone between two fingerprint sets. */
 export function changedKeys(before, after) {

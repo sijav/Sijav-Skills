@@ -71,13 +71,18 @@ test('in-progress precedence, waiting parents and a blocked started task follow 
   const p = richProject();
   todo(p.root, 'move', 'MP-008', 'in_progress');
   todo(p.root, 'move', 'MP-004', 'wait_for_roast');
-  todo(p.root, 'move', 'MP-003', 'in_progress');
+  todo(p.root, 'move', 'MP-003', 'in_progress'); // its parent MP-001 is still backlog
   todo(p.root, 'move', 'MP-1000', 'in_progress');
   todo(p.root, 'move', 'MP-1000', 'blocked', '--reason', 'Paused by owner');
   const result = await pick(p.db);
   assert.equal(result.nextText, todo(duplicateBoard(p.db), 'next'));
-  assert.deepEqual(result.startedIds, ['MP-003', 'MP-004', 'MP-008']);
-  assert.equal(result.headId, 'MP-003'); assert.equal(result.headKind, 'started');
+  // RE-317: started work is resumed only once every parent is done, so MP-003 waits, as the tool says.
+  assert.deepEqual(result.startedIds, ['MP-004', 'MP-008']);
+  assert.equal(result.headId, 'MP-004'); assert.equal(result.headKind, 'started');
+  assert.match(result.nextText, /  MP-003 is in_progress and waits on MP-001 \(backlog\); next does not resume it until every parent is done\./);
+  assert.deepEqual(result.deferred['MP-003'].map(r => r.kind), ['parent', 'check']);
+  assert.match(result.deferred['MP-003'][0].message, /^Waits on MP-001 \(backlog\)/);
+  assert.equal(result.deferred['MP-003'][1].verified, true, 'the tool resumes it once its parent is done');
   assert.ok(result.rankedIds.includes('MP-1000') && !result.startableIds.includes('MP-1000'));
   assert.match(result.deferred['MP-1000'][0].message, /Paused by owner/);
 });

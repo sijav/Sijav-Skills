@@ -72,9 +72,10 @@ export function parseArgs(argv) {
 }
 
 /**
- * node:sqlite's `timeout` (busy wait) option arrived in v22.16.0 and v24.0.0 (not in any 23.x),
- * URL paths in v22.15.0 / v23.10.0 (Node API docs, sqlite "History"). Older versions would
- * silently ignore the busy timeout, so they are refused rather than run with weaker reads.
+ * The declared range, unchanged: 22.16 or later on the 22 line, or 24 or later; anything else is
+ * refused at start. A board is opened by URL so an idle WAL board can be read immutable, which
+ * node:sqlite accepts from v22.15.0 and v23.10.0 (Node API docs, sqlite "History"). The busy wait
+ * is SQLite's PRAGMA busy_timeout (lib/board.mjs), which needs no particular Node version.
  */
 export function nodeSupported(version = process.versions.node) {
   const [major, minor] = version.split('.').map(Number);
@@ -122,9 +123,11 @@ export function createApp(monitor, { WebSocketServer, WebSocket }, settings = de
     const site = req.headers['sec-fetch-site'];
     if (site && !['same-origin', 'none'].includes(site)) { res.writeHead(403); res.end('Same-origin access only.'); return; }
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }); res.end('Read-only dashboard.'); return; }
-    const url = new URL(req.url, 'http://' + req.headers.host);
     const json = value => { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(req.method === 'HEAD' ? '' : encode(value)); };
     try {
+      // Inside the try: a request target Node's HTTP parser accepts but URL rejects is answered as an error,
+      // never left as an unhandled rejection that would end the dashboard.
+      const url = new URL(req.url, 'http://' + req.headers.host);
       if (url.pathname === '/api/health') { const s = monitor.snapshot(); return json({ app: s.app, readOnly: true, ...s.server, watchState: s.watchState }); }
       if (url.pathname === '/api/snapshot') {
         const snapshot = monitor.snapshot(), etag = '"' + snapshot.instanceId + ':' + snapshot.revision + '"';
@@ -147,7 +150,7 @@ export function createApp(monitor, { WebSocketServer, WebSocket }, settings = de
         let body = readFileSync(join(ROOT, 'public', file));
         if (file === 'index.html') {
           const s = monitor.snapshot();
-          const embedded = encode({ ui: settings.ui, transport: settings.transport, workClassification: {}, project: s.server.project, db: s.server.db }).replaceAll('<', '\\u003c');
+          const embedded = encode({ ui: settings.ui, transport: settings.transport, project: s.server.project, db: s.server.db }).replaceAll('<', '\\u003c');
           // A function replacement: `$&`, `$'` and `$$` in a path are inserted literally.
           body = body.toString().replace('__DASHBOARD_SETTINGS__', () => embedded);
         }
@@ -185,8 +188,10 @@ export function createApp(monitor, { WebSocketServer, WebSocket }, settings = de
     }
   };
   server.on('upgrade', (req, socket, head) => {
-    const site = req.headers['sec-fetch-site'];
-    if (req.method !== 'GET' || !hosts.has(req.headers.host) || req.headers.origin !== 'http://' + req.headers.host || (site && !['same-origin', 'none'].includes(site)) || new URL(req.url, 'http://' + req.headers.host).pathname !== '/api/live') {
+    const site = req.headers['sec-fetch-site'], base = 'http://' + req.headers.host;
+    // A target URL cannot parse is refused like any other, never thrown from this listener.
+    if (req.method !== 'GET' || !hosts.has(req.headers.host) || req.headers.origin !== base || (site && !['same-origin', 'none'].includes(site))
+      || !URL.canParse(req.url, base) || new URL(req.url, base).pathname !== '/api/live') {
       socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return;
     }
     wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
@@ -219,28 +224,40 @@ export async function startDashboard(options = {}, { cwd = process.cwd(), env = 
   if (boards.length > 1 && loops > 1 && options.tool) throw new BoardError('--tool names one loop board\'s tool, but several loop boards were given; each uses the .py named after its board file.');
   const publish = readPublish(options, cwd); // refused before any board is watched
   const ws = await loadWs();
-  // One monitor per board: its own id, history folder, tool and picker. A board shown alone keeps the id `board`.
-  const pieces = boards.map((board, index) => {
-    const sourceId = index === 0 ? 'board' : `board-${index + 1}`;
-    const dataDir = resolveDataDir({ cwd, dataDir: options.dataDir == null ? null : boards.length === 1 ? options.dataDir : join(resolve(cwd, options.dataDir), sourceId), dbPath: board.dbPath, env });
-    const todo = discoverTool({ explicit: (board.kind === 'loop' ? options.tool : options.todoPy) ?? null, cwd, kind: board.kind, dbPath: board.dbPath });
-    const python = todo.path ? discoverPython(options.python ?? null, env) : { command: null, reason: null };
-    const pickerReason = todo.reason || python.reason || null;
-    const name = boards.length === 1 ? null : `${basename(board.projectRoot)} · ${board.kind === 'loop' ? basename(board.dbPath).replace(/\.[^.]*$/, '') : 'to-do'}`;
-    const monitor = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason, kind: board.kind, sourceId, name, areas: board.areas });
-    return { board, sourceId, dataDir, todo, python, pickerReason, monitor };
-  });
-  const monitor = combineMonitors(pieces.map(p => p.monitor));
-  const [{ board, dataDir, todo, python, pickerReason }] = pieces;
-  const server = createApp(monitor, ws.default ? { WebSocketServer: ws.WebSocketServer ?? ws.default.WebSocketServer, WebSocket: ws.WebSocket ?? ws.default } : ws);
-  try { await new Promise((ok, fail) => { server.once('error', fail); server.listen(options.port ?? 0, options.host ?? '127.0.0.1', ok); }); }
-  catch (error) { monitor.close(); throw error.code === 'EADDRINUSE' ? new BoardError(`Port ${options.port} is in use. Choose another --port, or 0 for any free port.`) : error; }
-  const port = server.address().port, host = (options.host ?? '127.0.0.1') === '::1' ? '[::1]' : options.host ?? '127.0.0.1';
-  const url = `http://${host}:${port}/`;
-  const WebSocketClass = ws.WebSocket ?? ws.default;
-  const publisher = publish ? startPublisher({ ...publish, monitor, settings: defaults, WebSocket: WebSocketClass, log: line => console.log('Publish:    ' + line) }) : null;
-  const close = () => new Promise(done => server.close(() => { publisher?.close(); monitor.close(); done(); }));
-  return { url, port, server, monitor, board, boards: pieces, dataDir, python, todo, pickerReason, publisher, close, fixedPort: (options.port ?? 0) !== 0 };
+  // Retain each acquired monitor immediately: a later board or server setup can fail.
+  const pieces = [];
+  let monitor, server, publisher;
+  try {
+    for (const [index, board] of boards.entries()) {
+      const sourceId = index === 0 ? 'board' : `board-${index + 1}`;
+      const dataDir = resolveDataDir({ cwd, dataDir: options.dataDir == null ? null : boards.length === 1 ? options.dataDir : join(resolve(cwd, options.dataDir), sourceId), dbPath: board.dbPath, env });
+      const todo = discoverTool({ explicit: (board.kind === 'loop' ? options.tool : options.todoPy) ?? null, cwd, kind: board.kind, dbPath: board.dbPath });
+      const python = todo.path ? discoverPython(options.python ?? null, env) : { command: null, reason: null };
+      const pickerReason = todo.reason || python.reason || null;
+      const name = boards.length === 1 ? null : `${basename(board.projectRoot)} · ${board.kind === 'loop' ? basename(board.dbPath).replace(/\.[^.]*$/, '') : 'to-do'}`;
+      const owned = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason, kind: board.kind, sourceId, name, areas: board.areas });
+      pieces.push({ board, sourceId, dataDir, todo, python, pickerReason, monitor: owned });
+    }
+    monitor = combineMonitors(pieces.map(p => p.monitor));
+    const [{ board, dataDir, todo, python, pickerReason }] = pieces;
+    // The pinned ws (package.json) maps `import` to its wrapper.mjs, which names both classes.
+    const { WebSocketServer, WebSocket } = ws;
+    server = createApp(monitor, { WebSocketServer, WebSocket });
+    try { await new Promise((ok, fail) => { server.once('error', fail); server.listen(options.port ?? 0, options.host ?? '127.0.0.1', ok); }); }
+    catch (error) { throw error.code === 'EADDRINUSE' ? new BoardError(`Port ${options.port} is in use. Choose another --port, or 0 for any free port.`) : error; }
+    const port = server.address().port, host = (options.host ?? '127.0.0.1') === '::1' ? '[::1]' : options.host ?? '127.0.0.1';
+    const url = `http://${host}:${port}/`;
+    // The last step that can fail: when it throws, there is no publisher to close below.
+    publisher = publish ? startPublisher({ ...publish, monitor, settings: defaults, WebSocket, log: line => console.log('Publish:    ' + line) }) : null;
+    const close = () => new Promise(done => server.close(() => { publisher?.close(); monitor.close(); done(); }));
+    return { url, port, server, monitor, board, boards: pieces, dataDir, python, todo, pickerReason, publisher, close, fixedPort: (options.port ?? 0) !== 0 };
+  } catch (error) {
+    // Every acquired resource gets a cleanup attempt; a secondary error never replaces startup's error.
+    // A publisher is never acquired here: starting it is the try's last step that can throw.
+    try { server?.close(() => {}); } catch {}
+    for (const piece of pieces) { try { piece.monitor.close(); } catch {} }
+    throw error;
+  }
 }
 
 /** The relay to publish through, with its token read from a file; a plain ws:// only for a local relay. */
@@ -308,8 +325,12 @@ if (isEntry(process.argv[1])) {
   if (options.help) { console.log(USAGE); process.exit(0); }
   startDashboard(options, { cwd: callerDirectory() }).then(started => {
     console.log(describe(started));
-    const shutdown = () => started.close().then(() => process.exit(0));
-    process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
+    // Ctrl+C, a stop signal, or a parent that started it with an IPC channel letting go of it.
+    // On Windows a signal sent by another process is a forced kill, so the channel is how a
+    // parent there asks for an ordinary exit. However many arrive, it shuts down once.
+    let stopping = null;
+    const shutdown = () => (stopping ??= started.close().then(() => process.exit(0)));
+    process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown); process.on('disconnect', shutdown);
   }, error => {
     console.error(error instanceof BoardError ? error.message : 'The dashboard could not start: ' + error.message);
     process.exit(error instanceof BoardError ? 2 : 1);

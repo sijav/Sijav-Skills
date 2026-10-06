@@ -17,7 +17,7 @@ Installed layout:
 
 ```
 <skills>/todo/
-  todo.py, todo.mjs, SKILL.md      the unchanged board tools
+  todo.py, todo.mjs, SKILL.md      the board tools and skill guide
   dashboard/
     server.mjs                     CLI, HTTP and WebSocket
     lib/board.mjs                  board lookup, read-only reader, watcher, change history
@@ -37,14 +37,17 @@ shipped.
 
 ## Requirements and install
 
-- **Node 22.16+ on the 22 line, or Node 24+.** `node:sqlite`'s busy `timeout`
-  option was added in v22.16.0 and v24.0.0 (no 23.x release has it), and URL
-  paths in v22.15.0. Sources: the Node API docs, `sqlite.md` "History" for
-  `new DatabaseSync()`, PR #57752. Older versions are refused at start.
+- **Node 22.16+ on the 22 line, or Node 24+.** This declared floor is unchanged.
+  Opening SQLite by URL requires the API added in v22.15.0 and v23.10.0.
+  The busy wait uses `PRAGMA busy_timeout=800`; it does not require the
+  constructor `timeout` option, added in v22.18.0 and v24.0.0. Older versions
+  are refused at start.
 - **Python 3.9+**, which `todo.py` needs too. Without it the board is still
   shown in full, but the page says the next order and status meaning are
   unknown, lists tasks by ID, and groups nothing as Doing or Done. Nothing is
   guessed.
+  Both direct picker CLIs retain the same Python requirement through the
+  shared `require_python()` policy.
 - **The `ws` package**, pinned in `package-lock.json`. Install it once, inside
   the dashboard folder only:
 
@@ -132,6 +135,16 @@ It holds two files:
 - `baseline.json`: the last successful read.
 - `changes.jsonl`: one change per line.
 
+**Damaged baseline:** saved JSON is checked against the fields used by diff and
+persistence: a baseline object with a board slot, and a saved board's hash,
+table row collections and schema, plus well-shaped optional indexes, keys and
+task labels. Null, arrays, scalars and malformed nested records are recovered
+from the next fresh read. The page retains “history continues from now”; a
+successful replacement baseline does not erase that notice. Well-shaped caches
+can omit consumer-optional fields; the owned edited-shape scenario makes no
+claim about an older producer. Only the owned cache is replaced; board
+bytes are never written.
+
 **Damaged lines:** an unreadable or torn line (for example after a crash) is
 skipped and reported on the page. Every other entry is kept, and new entries
 start on a fresh line. The path is printed at start and shown on the page.
@@ -146,6 +159,12 @@ return 403:
 - `Sec-Fetch-Site: cross-site`.
 
 The page sets `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+
+A request target that Node's HTTP parser accepts but a URL cannot be parsed
+from is answered inside the request's own error handling (500, "Dashboard
+error"), and an upgrade with such a target is refused 403 like any other; it
+is never thrown out of a listener, which would end the dashboard. A target
+Node's parser refuses first is answered 400 by Node itself.
 
 | Path | Content |
 | --- | --- |
@@ -206,9 +225,26 @@ expression, and docstrings are shown as the tool's own description.
 rolled-back probe then checks that resolving those reasons makes the task
 pickable, and the page says whether that check passed.
 
-**Legacy rows:** a row `by_rule()` cannot rank (for example an old severity
-on a board without a CHECK constraint) is listed after ranked tasks with the
-error. It never costs the pick, just as the real tool ignores it.
+**Started work waiting on a parent:** `todo.py` resumes a started task only
+once every parent is done, so a started task given a parent that is not done
+leaves its started order and is deferred with that parent as its reason. On a
+to-do board the page marks such a task, still recorded Doing, as waiting on
+its parents; a started task that is also blocked stays shown as blocked. Only
+the tool's own picker result decides this: an older `todo.py` that still
+resumes such a task never defers it, so its pages show it as before, and the
+drawer says the tool still resumes it. Loop boards keep their own Doing and
+waiting display unchanged.
+
+**Legacy rows:** an unknown severity on an old board without a CHECK constraint
+is reported as unrankable. A row outside the tool's actual next candidates,
+for example one explicitly blocked, can remain readable without preventing a
+valid pick. If the real tool must rank that row, its native refusal becomes a
+picker error and no current pick is claimed. Blocking an offered unrankable row
+can recover a ready result; the row's stored data and diagnostic remain visible.
+Offered legacy text or NULL points likewise refuse the actual picker with
+`UnrankablePoints`. A blocked or unranked bad-points row can retain a raw rank
+key containing `null` or `'two'`; the existing comparison `TypeError` fallback
+keeps it readable rather than inventing a valid rank or a severity diagnostic.
 
 **Old schema:** the tool's additive schema runs only on the copy, and the
 page says so.
@@ -220,6 +256,13 @@ page says so.
 | Board changed, check running | The previous order, labelled "was #n · re-checking". No pick, no Next badge. |
 | Picker failed, or board unreadable | No order, no pick and no `next` text. Tasks in ID order, with the reason. |
 | `todo.py` changed | The policy is read again; until then nothing is grouped. |
+
+The Node and Python readers normally order rows by primary key or rowid.
+If that ordering needs an application-defined collation unavailable to the
+reader, both retain their ordinary `SELECT` fallback and read stored order.
+A synthetic collation schema and an ordinary primary-key schema exercise
+digest agreement in `storage-contract.test.mjs`; current native proof of that
+recovery remains pending.
 
 Node and Python each digest the rows they read; a result for a different
 snapshot is discarded and recomputed.
@@ -372,8 +415,23 @@ bearer, and reconnects with a growing wait when it drops.
   are hidden.
 - **Nothing here can write a board:** a relay can only ask the read-only
   questions.
+- **Pages and servers of different releases.** An open page reconnects by
+  itself after the dashboard restarts or is updated, and a host page is a copy
+  of the page files, so a page can read another release's frames. The page
+  keeps its guards on frame fields for that. Every release since the typed page
+  protocol began has sent the same greeting, board details, cards and
+  answers; a frame without one of those fields would come from a release that
+  does not exist yet, or from another server, and is handled without being
+  claimed as tested. Guards on values the page computes itself, after its own
+  greeting check, were removed.
 
 ## Live updates
+
+Startup resolves the requested boards, then retains each monitor as it is
+acquired. If a later monitor or server setup fails, it closes the publisher,
+server and already acquired monitors, attempting each cleanup even if another
+cleanup throws. The caller receives the original setup error. The successful
+startup and close flow remains the same; no board is written during cleanup.
 
 - **Board watch:** `fs.watch` on the board's directory, filtered to the board
   file and its `-wal`, `-shm` and `-journal`
@@ -382,12 +440,32 @@ bearer, and reconnects with a growing wait when it drops.
   interval. A notification that left the size, mtime and identity of the board
   and its sidecars unchanged since the last read is lock housekeeping, and is
   counted and ignored.
+- **Events without a filename, and after close:** Node does not promise a
+  filename with every event; one without it is taken as the board's own. An
+  event delivered after the monitor closed changes nothing. The picker loop
+  restarts itself if a new check was asked for just as it finished. These are
+  shown by unit evidence through the monitor's `watch` option (a labelled
+  double), not as native watcher results.
 - **Tool watch:** the board's tool (`todo.py`, or a loop board's own) is watched too. A
   change to it reruns the picker and re-derives the policy.
 - **Pushes:** several state changes in one event-loop turn are pushed once.
 - **No polling:** there are no timed rereads. The only browser timers are the
   Relax wall clock, the reconnect delay and the toast. On reconnect the
   server sends `hello` again.
+- **Watch failures:** a synchronous refusal or a later native watcher error
+  marks the affected board/tool watch inactive, preserving its actual error
+  and descriptive metadata in the description and `/api/health`. On current
+  Windows libuv, deleting a watched directory can instead produce a genuine
+  rename notification carrying its full path. Before filtering a child
+  filename, the monitor checks whether its watched directory disappeared,
+  closes that watch, marks it inactive and rechecks the board or tool.
+  The service remains read-only; restart it to restore a lost watch.
+  This follows [Node's bundled native handler](https://github.com/nodejs/node/blob/v24.16.0/deps/uv/src/win/fs-event.c#L537-L558);
+  that release's [libuv version header](https://github.com/nodejs/node/blob/v24.16.0/deps/uv/include/uv/version.h)
+  identifies 1.52.1. The future native scenario records actual Node/libuv
+  versions and raw change/error/close events. A raw native error and a
+  directory-removal notification remain distinct; labelled EMFILE doubles
+  establish only boundary behavior.
 - **Scope:** no other project is watched.
 
 ## Views
@@ -442,9 +520,16 @@ bearer, and reconnects with a growing wait when it drops.
   NULL or empty reads "Not recorded".
 - **Work area/type:** only from stored `area`/`work_area` and
   `type`/`work_type`/`category` columns.
-- **Tested / E2E tested:** only from stored `tested` / `e2e_tested` fields,
-  which today's `todo.py` does not have, so the page shows "Not recorded: this
-  board has no tested field". Done never implies tested.
+- **Topics and labels:** recorded values only, including JSON-list TEXT and
+  numeric values. Task wording and rule patterns supply no extra classification.
+- **Doing:** the tool's interpretation of recorded status, not observation
+  that a worker or process is active. A started task the tool holds back for
+  an unfinished parent is shown as Doing and waiting on its parents.
+- **Tested / E2E tested:** only from stored `tested` / `e2e_tested` state.
+  The board tools provide additive test-state commands on the existing board;
+  their states default to false. Legacy or other boards without those fields
+  are shown as unrecorded. Done never implies tested, and the dashboard does
+  not create proof or opt a board into test state.
 - **Dates:** local human form with the time zone, with the stored value kept.
 - **Unused boards:** a board with no task table is never called "finished".
 
@@ -493,40 +578,32 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 - Child processes start with npm's `npm_*` and `INIT_CWD` variables removed,
   so `npm test` cannot steer them to a caller's board.
 - History goes to a temp folder (`SIJAV_TODO_DASHBOARD_HOME`).
-- Every spawned process is killed, with its whole process tree on Windows.
 - Server tests run from a temp "plugin cache/skills/todo" install.
 
 | File | Covers |
 | --- | --- |
 | `board.test.mjs` | Board discovery and no file creation; per-user history keyed by board; reads checked against Python's `sqlite3` (every table, row and field); byte-identical board; nothing grouped without policy; old and unused boards; idle and active WAL; locked board fails explicitly; row diffs; torn journal recovery. |
-| `picker.test.mjs` | Exact real `next` text and pick at every step of working a board; started precedence and blocked started work; a blocked task with a done and an unfinished parent gets exact, probe-confirmed reasons that match how the real tool resolves them; legacy severities and statuses do not cost the pick; a changed `by_rule`/`choose` changes order, labels and groups; refused constants and start-up mutations; tool writes never reach the project; old and unused boards on a copy; missing Python explained. |
+| `picker.test.mjs` | Exact real `next` text and pick at every step of working a board; started precedence, a started task waiting on an unfinished parent (deferred with that parent and a confirmed check) and blocked started work; a blocked task with a done and an unfinished parent gets exact, probe-confirmed reasons that match how the real tool resolves them; legacy severities and statuses do not cost the pick; a changed `by_rule`/`choose` changes order, labels and groups; refused constants and start-up mutations; tool writes never reach the project; old and unused boards on a copy; missing Python explained. |
 | `live.test.mjs` | Installed copy from a subdirectory, with `$'`, `$&` and `$$` in the project path; host, origin, Sec-Fetch and frame headers; WAL push with a quiet period showing no polling; incremental history and pagination; read failure withdraws pick and order then recovers; broken or changed `todo.py` is watched; atomic replacement; CLI output, restart history, refusals, junction start, Node version gate; real `npm start` from the caller's directory; npm variables inherited from an unrelated npm process never select another (synthetic) board; installed helpers use the parent `todo.py`; demo refuses overrides. |
 | `publish.test.mjs` | `--publish` against a fake relay: the token comes from its file, the relay is greeted with the boards' details only, its questions get the same answers as the page's (and an unknown one an error), the greeting is given on request, a board change is pushed, the board's bytes are untouched from before the dashboard starts until the board's own tool changes it, and again after the later questions, and nothing is created beside the board; a non-`wss://` address, a missing, unreadable or empty token file are refused. |
-| `views.test.mjs` | The paged queries on a loop board: the first message has no task in it, lists come five at a time in the tool's order with their totals and filters, a card carries its reasons and its story once, a record has its links and evidence, totals and table pages are answered, an unknown request is an error, and a change names only the tasks it touched. |
-| `ui.test.mjs` | Order only from a current result; labelled previous order while re-checking; no order on failure; no recency without policy; done most recent first; field line diffs; dates; recorded-only area; Relax states; theme and display controller; no browser polling; long text and id lists fold, open and fold again, escaped. |
-| `render.test.mjs` | The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, its areas on the cards and in the filter, the item's own fields in the drawer and Relax naming its tool; two boards on one page, each in its own tool's words, cards named by board, each drawer its own; published through a relay, the page uses the relay's socket path, sends its sign-in token first, offers no export, print or "Run next again", shows the relay's offline notice until it is greeted again, and after a refusal says so, forgets the refused sign-in and stops reconnecting until Reconnect signs in again; a greeting replaces the changes queued while the view was paused; Relax opened from a bookmark on a published page signs in first and asks for its view once greeted; Reconnect settles the questions in flight and the Changes view loads its history again; nothing is asked on a socket before its greeting, so a published page's Reconnect with Relax waiting signs in first; an open task record shows the offline notice through every redraw; the page says Live only once its current socket is greeted; no literal `${` in any view. |
+| `views.test.mjs` | Two real undated SQL rows keep stable recent order; a typed request for a missing selected board has no borrowed policy.  The paged queries, always over a real monitor's snapshot: on a loop board the first message has no task in it, lists come five at a time in the tool's order with their totals and filters, a card carries its reasons and its story once, a record has its links and evidence, totals and table pages are answered, an unknown request is an error, and a change names only the tasks it touched; a task removed with `todo rm` is named; session history pages of any size, all, a bad size and a null question (as `JSON.parse('null')` gives it); a 505-row keyless table read through the monitor with numeric-string and out-of-range bounds and unknown tables and boards; a stored field cut at 1200 characters on a card and whole in its record; the severity sort without the tool's policy. |
+| `ui.test.mjs` | Order only from a current result; labelled previous order while re-checking; no order on failure; no recency without policy; done most recent first; field line diffs; dates; recorded-only area; Relax states; theme and display controller; no browser polling; long text and id lists fold, open and fold again, escaped. Newly observed legacy ids while checking, nullable phase cards, lossless diffs of every stored value kind (text, numbers, NULL, BLOB and non-finite REAL objects) and labelled deferred Fullscreen generations. Its models are controlled ones in the monitor's own board shape. |
+| `render.test.mjs` | Legacy eligible rows wait for a terminal picker result with its error diagnostic; a real offered unknown severity recovers error→block→ready.  The real `public/app.js` with the real server's embedded settings and real WebSocket messages: every view, drawer and Relax; after a failed read, no stale pick, badge or text; without Python, no claimed groups or counts; a loop board in its own tool's words, with a long id list folded, its areas on the cards and in the filter, the item's own fields in the drawer and Relax naming its tool; two boards on one page, each in its own tool's words, cards named by board, each drawer its own; published through a relay, the page uses the relay's socket path, sends its sign-in token first, offers no export, print or "Run next again", shows the relay's offline notice until it is greeted again, and after a refusal says so, forgets the refused sign-in and stops reconnecting until Reconnect signs in again; a greeting replaces the changes queued while the view was paused; Relax opened from a bookmark on a published page signs in first and asks for its view once greeted; Reconnect settles the questions in flight and the Changes view loads its history again; nothing is asked on a socket before its greeting, so a published page's Reconnect with Relax waiting signs in first; an open task record shows the offline notice through every redraw; the page says Live only once its current socket is greeted; no literal `${` in any view. Labelled reply-error and delayed-reply controls retain real request ids and data, checking stale list cache and selected-drawer protection. Real pushes while paused (a failed read, then a good one) are discarded by a Reconnect's greeting, and queued changes are applied on resume; a task removed with `todo rm` while its card is still shown opens as no longer present; a board locked from its first read, served through the public monitor and app, shows no zero counts and recovers on a real write, and beside a readable board says it cannot be read. A started task waiting on a parent named after it started is shown waiting, a blocked one blocked, and an older `todo.py` copy that resumes it is described as doing so. Reader schedules (Relax from a bare page and over a record, keys outside Relax, expand and fold, a second "Show more" while loading, objective, source and status buttons, held refreshes, a close with a question waiting, the history buttons) use only rendered targets. Real odd board shapes (legacy stamps, empty and missing fields, phases tied or gone, links to absent tasks, related and keyless tables, BLOB and infinity rows, an unused board beside), legacy rows with a live WAL, modified tool copies (unlabelled and scalar sort keys, a failing tool, nothing satisfying a parent, two boards rechecked), fresh loop boards and native removal of the board's folder on the host that runs it. Labelled host and browser contracts: a host page with no project, refused storage, a recheck refused for a cross-site header, offline and refused notices without a reason, a close while published, and sign-ins that wait or fail; none is relay, account or browser evidence. An owned old SQL board without CHECKs (a NULL testing value, a drop dated only by `updated_at`, dated and undated done rows, a started row with no title or severity, an epoch creation time); an objective with no label, then met; on two watched boards, the Changes view's per-board filter, a removed, an added and a no-item row, search over loaded history and a second page (a lower `changePageSize` through `createApp`'s public settings, labelled caller settings); database records with an empty table, rows named by name, more than a page of rows and a board locked from its first read; a parked loop item's undated block; the previous order, the new row after it and no tool-children claim while a real second picker run is held (a controlled child, `helpers.mjs`'s `nativeBridge`); the page banner and Relax naming the native directory-removed reason for an owned tool folder and the board's folder (another reason, such as EPERM, fails it); a host page served over `https:` opening `wss:` on its live path (a labelled host contract; real TLS and relay unverified). All of this is DOM stand-in evidence over the real server, not native rendering. |
+| `test_pickers.py` | Direct JSON/native-exit CLI contracts; shared Python-version policy; five failed idle-WAL copy attempts; tool-shape refusals, recorded probe errors and unknown groups; non-JSON/incomparable keys; missing parents; loop schema defaults/severities, authoritative order without a sort key, and open/blocker probe errors. Schema-only and blocked-choice fixtures preserve valid dispatch and isolate their named guard; confirmation-loop exhaustion restores its savepoint. Variants stay in synthetic tool copies. |
+| `storage-contract.test.mjs` | Canonical Node/Python digest agreement for BLOBs, infinite REALs and integers above 2^53; real application-defined collation recovery alongside normal primary-key ordering; byte-identical synthetic board and sidecars. |
+| `refusals.test.mjs` | Canonical server help and argument/host/port failures; real pinned old-Node refusal; missing `ws` through normal module resolution; publish token/URL failures; raw WebSocket upgrade refusals; canonical demo refusals and queue recheck; a startup failure that is not a refusal (history asked for under a file) exits 1 as one the dashboard could not get past. Partial startup acquires real watchers, then refuses an owned history obstruction and settles naturally; separately labelled cleanup doubles (a monitor close, and the pinned ws server's close behind a real port-in-use refusal) check that the original error is the one reported and remaining cleanup runs. |
+| `watchers.test.mjs` | Distinct board/tool watch refusal doubles; real Windows watched-directory removal with raw native rename/error/close events and actual runtime versions; unchanged-hash tool events; an actual tool event while its synthetic board is unreadable; read-only health and board bytes. Directory or contained-file rename names stay raw. No native result is attributed to a double. |
+| `publisher-clock.test.mjs` | Normal publisher events with standard `node:test` timer controls: reconnect growth/cap/reset, close cancellation, keepalive readiness and malformed/unknown relay questions; a labelled already-dispatched scheduler callback after close cannot reconnect. These fixtures do not establish real relay or native-timer-race proof. |
+| `measured-paths.test.mjs` | Real native Python children with changed rows/tools, bounded retries, current failure and native recovery, stale generations and late success/failure after shutdown; a genuine worker changing only synthetic file identity during five idle-WAL reads; actual-host cache/PATH policy; combined native monitors. Picker order, lanes, testing states and diffs, query filters and totals, and Relax states, all from real monitor snapshots of picked, failed, unconfigured, unreadable and loop boards and owned legacy SQL boards; diffs of real reads across dropped and added keyless tables. Unit evidence through a labelled `watch` double: an event without a filename, a housekeeping event, and events after close. Real legacy relation/NULL reads, native history-write obstruction and a current native Python syntax failure retain unchanged owned input bytes. Relax drawn by its own renderer from the server's model: a board locked from its first read, a refused history save, and a started task waiting on a parent named after it started. Owned consumer-shape baselines, not old producers: a saved `board: null`, and dateless caches combined. Through the labelled `watch` double, with real folder removals: a watcher error after an owned tool folder was removed (the directory-removed reason, then the real picker child's own error), with that folder present (its EPERM kept), and after the board's folder was removed (the reason, then an unavailable board); errors after close change nothing. |
+| `http-paths.test.mjs` | Real GET/HEAD snapshot/health/export/static reads, history pagination and invalid integer inputs, conditional cache response, missing paths and manual recheck; requests from a foreign host, a cross-site origin or a cross-site fetch refused over raw HTTP; request targets URL cannot parse answered over plain HTTP and the upgrade without ending the dashboard (whether Node's parser lets each through is Node's own); unchanged synthetic board bytes. Real malformed/unknown typed questions retain request ids; labelled closed/backpressure socket contracts establish only their controlled boundary. |
+| `families.test.mjs` | Exported board functions, the public monitor and canonical startup: a directory given as the board, a missing configured Python and loop tool, a loop board without a finding table or tool, a corrupt baseline, more than ten torn journal lines, a folder named without Latin letters, a loop finding change named for its item, a picker timeout, a tool that changes and then fails to load, a board file replaced by a loop board, a fixed port on the IPv6 loopback, several boards with a relay and a toolless loop board described, a labelled listen failure from an address the CLI refuses, and Relax with nothing after the pick or no area field. |
 | `loop.test.mjs` | Two boards on one page: each read with its own tool and history, one numbering of changes, the same board given twice shown once, `--tool` refused for several loop boards. Loop boards made by a small test loop tool (`tests/loop-fixture`): told apart by their tables, and any other SQLite file refused, also by the CLI; found from their own folder and named after the project folder; items, blockers, parked notes and findings mapped; `loop_picker.py` gives the tool's own head, order, status groups and checked reasons, and refuses a tool whose order it cannot read; an older loop board without parked, exit or created columns; the live server through a change; the board never written and nothing created beside it. |
 
-`npm test` from this folder runs them all.
-
-## Status
-
-- **Fixture tests:** `npm test` runs them.
-- **Loop board view:** checked in the browser on a copy of a real loop board
-  (728 items): the tool's own head and order, the item drawer, and a 250-id
-  list folded to "250 values", opened with Show more and folded with Show
-  less.
-- **Browser QA:** the root ran the earlier build against a synthetic 12-task
-  board in TEMP and it passed. It covered fields, story, area and order, a
-  WebSocket field diff after a real `todo.py` move, both themes, and Relax
-  (`todo-dashboard-relax.png`).
-- **Publishing:** tested against a fake relay on this machine
-  (`publish.test.mjs`), and the page's published mode in `render.test.mjs`.
-  A real relay and its sign-in are tested where they are served.
-- **Visually unchecked since then:** the later changes are only
-  covered by the headless tests above. They are the labelled previous-order
-  and failure states, unknown-policy rendering, history loading and the "How
-  todo.py decides" panel.
+A watcher that reports a removed folder through its `error` event (some
+runtimes give EPERM) is handled like the change event for that folder: when the
+folder is gone the watch records "Watched directory removed" and the board is
+read again (or the tool checked again); any other error keeps its own message.
+Both handlers return at once once the monitor is closed.
 
 ## Known limits
 
@@ -560,7 +637,15 @@ staging folder, run it with `TODO_SKILL_DIR=<folder holding todo.py>`.
 - **Windows renames:** SQLite opens files without `FILE_SHARE_DELETE`, so a
   rename over the board fails while the dashboard or picker has it open
   (briefly). Tools that replace the board should retry.
-- **Parent directory removal:** if the board's `.claude` directory itself is
-  removed and recreated, the watcher reports an error. Restart the dashboard.
+- **Parent directory removal:** native error callbacks and native directory
+  removal/rename notifications can differ by runtime. A disappeared watched
+  folder is shown as inactive before child-name filtering. Recreating the
+  folder does not restore its old native watch; restart the dashboard.
 - **Same-tick writes:** change detection relies on file size, mtime (ns) and
   identity. SQLite commits update the mtime.
+
+The private row serializer is called only for actual node:sqlite SELECT
+columns with wide integers enabled. SQLite maps NaN to NULL before Node
+creates a column value, so the redundant private NaN alternative was removed.
+NULL, positive/negative infinity and integers beyond JavaScript's safe range
+keep their existing behavior.

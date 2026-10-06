@@ -28,7 +28,8 @@ that copy:
   * reasons for tasks next does not offer are block_of() and parent statuses,
     each checked by a rolled-back probe.
 
-Output is one JSON object on stdout. Failures are {"error": "..."}, exit 1.
+Output is one JSON object on stdout. Failures are {"error": "..."}, exit 1;
+run directly on a Python older than 3.9, that error says so.
 """
 
 from __future__ import annotations
@@ -54,6 +55,14 @@ os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 REQUIRED = ("all_tasks", "choose", "by_rule", "block_of", "current_phase", "all_phases", "children", "open_children")
 SAFE_INTEGER = 2 ** 53 - 1
 PROBE = "__dashboard_probe_"
+MINIMUM_PYTHON = (3, 9)
+
+
+def require_python(version_info=sys.version_info):
+    """Refuse a Python older than todo.py needs. The dashboard never starts a picker on one;
+    run directly, a picker gives this as its JSON error instead of failing deep inside."""
+    if tuple(version_info[:2]) < MINIMUM_PYTHON:
+        raise RuntimeError(f"Python 3.9 or newer is needed, as for todo.py; this is {version_info[0]}.{version_info[1]}.")
 
 
 class JsonArguments(argparse.ArgumentParser):
@@ -146,7 +155,9 @@ def table_rows(conn):
         try:
             rows = conn.execute(f"SELECT * FROM {quoted} ORDER BY {order}").fetchall()
         except sqlite3.OperationalError:
-            rows = conn.execute(f"SELECT * FROM {quoted}").fetchall()  # WITHOUT ROWID and no key
+            # Ordering by the key needs something this reader lacks, such as the key column's
+            # application-defined collation; rows are then read in stored order.
+            rows = conn.execute(f"SELECT * FROM {quoted}").fetchall()
         tables[name] = [[canonical(value) for value in row] for row in rows]
     return tables
 
@@ -569,8 +580,7 @@ def main():
     parser.add_argument("--todo", required=True)
     try:
         args = parser.parse_args()
-        if sys.version_info < (3, 9):
-            raise RuntimeError("Python 3.9 or newer is needed, as for todo.py.")
+        require_python()
         result = read_picker(args.db, args.todo)
         exit_code = 0
     except Exception as error:  # every failure is reported as data, never as a guessed order

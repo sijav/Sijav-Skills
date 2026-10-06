@@ -19,7 +19,9 @@ export function createDisplayController({element,document,wakeLock,onChange=()=>
   const release=lock=>{try{return Promise.resolve(lock?.release()).catch(()=>{});}catch{return Promise.resolve();}};
   const exitOwnedFullscreen=()=>{
     if(document.fullscreenElement!==element)return Promise.resolve();
-    try{return Promise.resolve(document.exitFullscreen?.()).catch(()=>{});}catch{return Promise.resolve();}
+    // A document whose fullscreen element is ours implements the Fullscreen API, exitFullscreen included;
+    // any throw, a missing method's TypeError too, is caught here.
+    try{return Promise.resolve(document.exitFullscreen()).catch(()=>{});}catch{return Promise.resolve();}
   };
   const acquireWake=()=>{
     if(!active||document.visibilityState==='hidden'||sentinel||wakeRequest)return;

@@ -35,7 +35,8 @@ could start in another area (or with no area, unless the areas hold "-") is
 listed after the offered ones, with its area as the reason.
 
 Output is one JSON object on stdout, the shape picker.py prints. Failures are
-{"error": "..."}, exit 1.
+{"error": "..."}, exit 1; run directly on a Python older than 3.9, that error
+says so.
 """
 
 from __future__ import annotations
@@ -58,7 +59,8 @@ sys.dont_write_bytecode = True
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from picker import JsonArguments, Probe, ToolChanged, compact_json, plain, schema_of, snapshot_to, table_rows  # noqa: E402
+from picker import (JsonArguments, Probe, ToolChanged, compact_json, plain, require_python, schema_of,  # noqa: E402
+                    snapshot_to, table_rows)
 
 PROBE_TITLE = "__dashboard_probe__"
 NEEDED = ("open_items", "sort_key")
@@ -364,8 +366,7 @@ def main():
     parser.add_argument("--areas")
     try:
         args = parser.parse_args()
-        if sys.version_info < (3, 9):
-            raise RuntimeError("Python 3.9 or newer is needed.")
+        require_python()
         result = read_picker(args.db, args.tool, areas_given(args.areas))
         exit_code = 0
     except Exception as error:  # every failure is reported as data, never as a guessed order

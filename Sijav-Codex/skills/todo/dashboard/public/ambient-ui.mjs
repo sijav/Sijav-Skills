@@ -8,35 +8,40 @@ const taskId = task => /^\d+$/.test(task.id) ? `#${task.id}` : task.id;
 const countKeys = ['total', 'open', 'doing', 'done', 'discarded', 'other'];
 
 function recordedText(task, ...fields) {
-  const raw = task.raw || {};
+  const raw = task.raw;
   for (const field of fields) {
     if (Object.hasOwn(raw, field)) return raw[field] == null || raw[field] === '' ? null : String(raw[field]);
   }
   return null;
 }
 
-function presentTask(task, board, definitions) {
+function presentTask(task, board) {
   return {
     id: String(task.id), key: task.key, title: String(task.title ?? ''),
     status: task.status, severity: task.severity, points: task.points, phase: task.phase ?? null,
     story: recordedText(task, 'descr', 'story'), reason: recordedText(task, 'why'),
     closedAt: task.closedAt ?? null, statusObservedAt: task.statusObservedAt ?? null,
-    context: classifyWork(task, definitions), support: facetSupport(board.tableColumns?.[board.taskTable] || Object.keys(task.raw || {})),
+    // Only a board with tasks gets here, and it was read with its task table's columns.
+    context: classifyWork(task), support: facetSupport(board.tableColumns[board.taskTable]),
     queueReasons: board.queue?.deferred?.[String(task.id)] || [],
   };
 }
 
-/** A view of recorded rows and the tool's measured pick; no independent picker. */
+/**
+ * A view of recorded rows and the tool's measured pick; no independent picker.
+ * Built on the server (lib/views.mjs relax) from its own monitor snapshot, whose
+ * boards always carry their rules, tasks, queue, tool, kind and table columns;
+ * a page draws the model with renderAmbientModel and never builds it.
+ */
 export function buildAmbientModel(snapshot = {}) {
-  const definitions = snapshot.workClassification || {};
   const limit = snapshot.ui?.activityLimit;
   const queuePreviewLimit = Number.isInteger(limit) && limit > 0 ? limit : null;
   const errors = [];
   if (snapshot.persistenceError) errors.push(String(snapshot.persistenceError));
-  const boards = (snapshot.boards || []).map(board => {
-    const rules = board.rules || snapshot.rules || {known: false, openStatuses: [], doingStatuses: [], finishedStatuses: [], discardedStatuses: []};
-    const tasks = board.tasks || [];
-    const queue = board.queue || {};
+  const boards = snapshot.boards.map(board => {
+    const rules = board.rules;
+    const tasks = board.tasks;
+    const queue = board.queue;
     const available = board.available !== false;
     const stale = !!board.stale;
     const boardErrors = [];
@@ -45,7 +50,7 @@ export function buildAmbientModel(snapshot = {}) {
     const watcher = snapshot.watchState?.board;
     if (watcher?.error) boardErrors.push(`Board watcher: ${watcher.error}`);
     if (queue.error) boardErrors.push(String(queue.error));
-    let queueState = !board.picker?.configured ? 'unconfigured' : !available ? 'unavailable' : queue.state || 'checking';
+    let queueState = !board.picker?.configured ? 'unconfigured' : !available ? 'unavailable' : queue.state;
     if (queueState === 'ready' && (stale || queue.stale)) queueState = 'stale';
     let ready = queueState === 'ready';
     const selected = ready ? nextTask(board) : null;
@@ -55,7 +60,7 @@ export function buildAmbientModel(snapshot = {}) {
     }
     const ordered = sortQueue(tasks, board);
     const doingTasks = ordered.filter(task => rules.doingStatuses.includes(task.status));
-    const eligible = ready ? (queue.eligibleIds || []).map(id => tasks.find(task => task.id === String(id))).filter(Boolean) : [];
+    const eligible = ready ? queue.eligibleIds.map(id => tasks.find(task => task.id === String(id))).filter(Boolean) : [];
     const doneTasks = tasks.filter(task => rules.finishedStatuses.includes(task.status));
     const closed = doneTasks.filter(task => task.closedAt).sort((a, b) => finishedAt(b).localeCompare(finishedAt(a)))[0] || null;
     const known = value => rules.known ? value : null;
@@ -69,24 +74,24 @@ export function buildAmbientModel(snapshot = {}) {
       startable: ready ? queue.startableIds.length : null,
       deferred: ready ? Math.max(0, queue.rankedIds.length - queue.startableIds.length) : null,
     };
-    const head = selected ? presentTask(selected, board, definitions) : null;
+    const head = selected ? presentTask(selected, board) : null;
     const open = ready ? firstOpen(board, rules) : null;
-    const queued = eligible.filter(task => String(task.id) !== head?.id).map(task => presentTask(task, board, definitions));
+    const queued = eligible.filter(task => String(task.id) !== head?.id).map(task => presentTask(task, board));
     errors.push(...boardErrors.map(error => `${board.name || board.id}: ${error}`));
     const phase = ready ? queue.currentPhase : null;
     return {
       id: board.id, name: board.name || board.id, available, stale, error: board.error || null,
-      tool: board.tool || snapshot.server?.tool || 'todo.py',
-      next: (board.boardKind ?? snapshot.server?.kind) === 'loop' ? `${board.tool || snapshot.server?.tool || 'the board’s tool'}’s board_order()` : `${board.tool || snapshot.server?.tool || 'todo.py'} next`,
-      doing: doingTasks.map(task => presentTask(task, board, definitions)),
+      tool: board.tool,
+      next: board.boardKind === 'loop' ? `${board.tool}’s board_order()` : `${board.tool} next`,
+      doing: doingTasks.map(task => presentTask(task, board)),
       head, headRole: !head ? 'none' : queue.headKind === 'started' ? 'resume' : 'next',
-      firstOpen: open ? presentTask(open, board, definitions) : null,
-      latestClosed: closed ? presentTask(closed, board, definitions) : null,
+      firstOpen: open ? presentTask(open, board) : null,
+      latestClosed: closed ? presentTask(closed, board) : null,
       counts,
       queue: {state: queueState, ready, checkedAt: queue.checkedAt ?? null, error: queue.error || board.picker?.reason || null,
         nextText: ready ? queue.nextText ?? null : null, emptyBoard: ready && queue.boardHadTaskTable === false},
       phase, hasPhases: (board.tables?.phase || []).length > 0,
-      statusNames: {open: (rules.openStatuses || []).join(', '), doing: (rules.doingStatuses || []).join(', '), done: (rules.finishedStatuses || []).join(', ')},
+      statusNames: {open: rules.openStatuses.join(', '), doing: rules.doingStatuses.join(', '), done: rules.finishedStatuses.join(', ')},
       queued, queuePreview: queuePreviewLimit == null ? queued : queued.slice(0, queuePreviewLimit),
       errors: boardErrors,
     };
