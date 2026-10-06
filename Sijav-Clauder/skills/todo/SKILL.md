@@ -24,9 +24,11 @@ A skill kept inside one repository can only ever serve that repository.
 **Every project that uses this skill keeps working on its own board.** The
 owner's directive, 2026-09-14: "I care about ALL PROJECTS compatibility". So a
 change to this skill only ever adds: a new table, a new column, a new command.
-A board made before the change gains the new tables on its first run and prints
-exactly what it printed until something uses them. Check a change against a
-copy of every board on the machine, never against the boards themselves.
+For test state, an old board opts in on its first valid test-state claim;
+legacy reads and invalid claims do not migrate it or change its old output.
+The new state stays on the same `.claude/todo.db`, with no second board. Check
+a change against a copy of every board on the machine, never against the
+boards themselves.
 
 **More than one session can be pointed at the same directory.** Two of them
 writing one board will clobber each other. Before starting work, check that no
@@ -43,8 +45,10 @@ zero did.
   Nothing to download, no `sqlite3` binary, no native build step.
 - **No `npm install` is needed for the board.** The script imports only Node
   built-ins, so it works in a repository with no `node_modules` at all.
-- **The tables create themselves** the first time a board is opened. There is no
-  migration step to run by hand.
+- **Base tables create themselves** when the board is opened; there is no
+  migration step to run by hand. Test-state tables on an old board are added
+  only by its first valid test-state claim, never by legacy reads or invalid
+  claims.
 
 `node:sqlite` has been unflagged since **22.13 and 23.4**. Before those it
 exists behind `--experimental-sqlite`, and older still it is absent. The script
@@ -67,15 +71,18 @@ scripts import only their runtime's built-ins, so they work in a checkout with
 no `node_modules` and no virtualenv. They can be run against the same board in
 any order.
 
-That they agree is tested rather than hoped for. `test-parity.py` drives 90
-commands through BOTH halves, against a fresh board each, and compares stdout,
-stderr and the exit code as bytes:
+The earlier parity check drove 90 commands through BOTH halves, against a
+fresh board each, and compared stdout, stderr and the exit code as bytes.
+That is historical evidence, not a current case count or a passing result for
+the test-state changes. Run the current parity check with:
 
 ```bash
 python "${CLAUDE_SKILL_DIR}/test-parity.py"
 ```
 
-**If you change one half, change the other and run that.** Two implementations
+**If you change one half, change the other and verify parity.** When the owner
+invokes the global development-round procedure, run that verification in its
+test pass after the area's source and test source are built. Two implementations
 of one tool drift silently, and the drift shows up as a board that reads
 differently depending on which runtime happened to be installed. It has: Python
 on Windows printed `\r\n` where Node printed `\n`, and the test, reading pipes
@@ -138,6 +145,20 @@ severity, then fewest story points, then lowest id, never one whose parent is
 unfinished and never one that is blocked.** Anything already `in_progress` comes
 first, so work in flight gets finished before anything new starts.
 
+That holds for work in flight too. A started task (`in_progress` or
+`wait_for_roast`) one of whose parents is not done, a parent added after it
+started say, is not resumed: `next` offers other work and names the task, with
+each parent's status, since a `dropped` parent or one no longer on the board
+never becomes done. It resumes once every parent is done. With nothing to
+pick, such a task counts among those waiting on unfinished parents, and `next`
+never says "Nothing left" while one waits.
+
+The lowest id is a number made of every ASCII digit in the id, joined, and
+compared exactly at any length: `P2-010` is 2010 and `SB-1e3` is 13. Equal
+numbers fall back to the id itself, character by character by Unicode code
+point, so `X1` comes before `x1`. Arabic-Indic, fullwidth and other non-ASCII
+digits are not part of the number. Both halves order the same way.
+
 **A loop is per session, and its loop file sets its board and areas.** The
 file is `.claude/<name>loop<...>.local.md`, naming the session (`session:`),
 optionally its board (`board: .claude/todo.db`) and its areas (`areas: back,ai`),
@@ -177,21 +198,57 @@ todo add \
 - `severity`: `critical`, `high`, `medium`, `low`
 - `points`: 1, 2, 3, 5, 8, 13
 - `parent`: comma separated ids that must be `done` first; omit if nothing blocks it
-- `status`: a task goes to `done` the moment it is finished and proven, which
-  means its tests pass, lint and typecheck are clean, the build succeeds and it
-  was actually run. The roast fires **after** that, in the background. The
-  owner set this order on 2026-09-10: _"you finish the task first (with test and
-  everything and you make sure it works, THEN and only THEN you put it in done
-  and roast the task ... in background)"_. `wait_for_roast` is a leftover from
-  before that rule and nothing should use it: a task is never closed pending a
-  roast, and never held open waiting for one
+- `status`: record completed work as `done` under the project's closure rules,
+  with observed completion evidence. The roast fires **after** that, in the
+  background. The 2026-09-10 instruction to test before closing describes the
+  earlier cadence; when the owner invokes the global development-round
+  procedure, the three-pass cadence below applies. `wait_for_roast` is a
+  leftover: a task is never closed pending a roast, and never held open waiting
+  for one
 - `exit`: checkable by someone who did not do the work. "It works" is not an exit
   condition. "The header renders at the design height in fa-IR dark" is.
 
-**Ids keep the board's own prefix.** Leave `--id` out and the next id follows
-the highest one on the board, so a KN board gets KN-483 and an SB board SB-181.
-An empty board takes the capitals of its project folder's name (MyProject gives
-`MP`), or the first two letters when there are fewer than two.
+**Ids keep the board's own prefix.** Leave `--id` out, or give it empty, and the
+next id follows the highest one on the board, so a KN board gets KN-483 and an
+SB board SB-181. The highest is the id whose trailing run of ASCII digits is the
+largest number; that number goes up by one exactly, however long it is, padded
+to at least three digits (`SB-0099` gives `SB-100`). An id that does not end in
+an ASCII digit is passed over. An empty board takes the capitals of its project
+folder's name (MyProject gives `MP`), or the first two letters when there are
+fewer than two.
+
+## Done, tested and E2E tested
+
+`done`, `tested` and `e2e_tested` are separate records. Test states default to
+false; completing a task or passing its close exit does not create test or
+real-user evidence.
+
+When the owner invokes the global development-round procedure, build the
+area's tasks and findings with their test source first, running none except a
+project-prescribed close exit. Mark completed work done with its observed
+completion evidence, then roast it in the background. After the area's source
+work is built, run its full test suite and reach 100% passing before recording
+successful test proof. Only after all required work is tested does the later
+real-user pass record E2E proof. This cadence applies to that invoked procedure;
+outside it, follow the project's existing closure and verification rules.
+
+Use either installed runtime:
+
+    todo tested <id> --evidence <text>
+    todo e2e <id> --evidence <text>
+    todo untest <id> --reason <text>
+    todo untest <id> e2e --reason <text>
+    todo tests [--area <area>]
+
+`tests` is read-only. Claims require real evidence; E2E proof requires prior
+`tested` proof and an eligible completed task. On an old board, the first valid
+test-state claim opts it into the additive state. Legacy reads and invalid
+claims do not migrate it or change its old output.
+
+Meaningful status, description, exit or open-finding changes invalidate the
+affected proof and record a note. Title edits, appended notes, roast records
+and no-op changes preserve proof; none creates it. Parent and child proof are
+independent: proof on one does not prove the other.
 
 ## A roast's findings are CHILDREN of the task they came out of
 
@@ -271,8 +328,9 @@ when nothing is left to pick, names what is blocked and why; `list` shows it
 under BLOCKED with its reason; `show` prints the reason; `render` gives it a
 column.
 
-**Evidence and reasons are recorded when given, never demanded.** `show` prints
-them, with the notes, under the card.
+**Closure evidence and dropped reasons are recorded when given.** `show`
+prints them, with the notes, under the card. Test-state claims require real
+`--evidence`; test-state resets require `--reason`, as described above.
 
 **Two moves warn and still move.** Moving a task out of `done` says that a finding
 is a new card rather than a reopened one, which is the owner's rule for the loop;
@@ -310,7 +368,39 @@ todo edit SB-005 --parent ""            clears it, nothing blocks this task
 It refuses an id that does not exist, a parent that does not exist, and a parent
 that would make a cycle, naming the path. A cycle is worse than a wrong parent:
 every task in it waits forever, and `next` reports them as blocked rather than
-as broken.
+as broken. Giving a started task a parent that is not done holds it out of
+`next` until that parent is done.
+
+Flags are read in pairs, as both halves read them: a flag at the end with no
+value, `todo edit SB-005 --parent`, is ignored and changes nothing; `edit` with
+nothing else to change says so and exits 1. Only an explicit empty value,
+`--parent ""`, clears.
+
+`list` keeps the board's stored SQL ID order. `next` and rendered lanes use
+their ranking keys. Before sorting, each filtered candidate is checked in stored
+ID order: severity first, then points. An old row with an unknown severity or
+points outside 1, 2, 3, 5, 8, 13 refuses that ranking with native exit 1 and names
+the first offending task; text and NULL points are not coerced into a rank.
+Started, eligible and held groups are checked in that order. Render checks its
+next pick before every ranked status column: in progress, waiting for a roast,
+blocked, backlog, done and dropped. An unblocked row in another status stays
+outside those ranked columns. Blocked and other-status rows can stay outside
+`next` while `list` and `show` remain readable; NULL ranking fields use the same
+explicit `NULL` label in both ports, and a BLOB shows as `<non-text>` (severity)
+or `<non-number>` (points), the labels `validate` uses. An old REAL points column
+reads 2 back as 2.0: both ports show an integral number as the integer (up to
+2**53) and rank it as before; a non-integral one shows as stored (2.5). The two
+ports may still write a REAL outside 1e-4..1e16, or an integral REAL beyond
+2**53, differently. A stored INTEGER beyond 2**53 in any column the engine reads
+(points, or for example a legacy epoch `created`) is a different case: the Node
+half reads integers with node:sqlite's default number mapping, so that board is
+unreadable to it, while the Python half reads it exactly. node:sqlite's exact
+behaviour for such a value is not verified here; nothing the engine accepts is
+narrowed for it. Non-number points, including text or NULL,
+make aggregate totals unknown rather than inventing a number. Stored numeric
+points remain summable even when outside the supported ranking domain. `validate` reports every unknown
+severity and unsupported points value; starvation comparisons involving unknown
+severities are skipped. Modern board constraints are unchanged.
 
 **`validate`** reports what `edit` cannot stop from happening over time: a blocker
 or a phase that no longer exists, a cycle, a blocker less severe than the open

@@ -29,6 +29,18 @@ at backlog, and parent is optional.
 Selection rule, the owner's: highest severity, then fewest story points, then
 lowest id, and never a task whose parent is unfinished. Anything already in
 progress comes first, so work in flight gets finished.
+
+Done is not tested, and tested is not tested by a real user. Each is recorded
+on its own, with what proved it:
+  todo tested SB-003 --evidence "..."        the area's tests ran and passed
+  todo e2e SB-003 --evidence "..."           a real user's path was checked, after tested
+  todo untest SB-003 [e2e] --reason "..."    clear it by hand; what it had stays in a note
+  todo tests [--area back]                   which done tasks are tested, which are not
+A board gains the columns and the guards that keep them honest on its first
+`tested` that passes every check, and not before: until then it reads and
+prints exactly what it did. A status change, a changed description or exit
+condition, and an open finding each clear a test state, keeping what it had
+in a note.
 """
 
 import os
@@ -50,6 +62,127 @@ for _stream in (sys.stdout, sys.stderr):
 SEVERITIES = ["critical", "high", "medium", "low"]
 STATUSES = ["backlog", "in_progress", "wait_for_roast", "done", "dropped"]
 POINTS = [1, 2, 3, 5, 8, 13]
+
+# Test states, the owner's: done, tested and tested by a real user are three
+# separate facts. They are six columns on `task` that a board gains on its first
+# `tested`, never on opening, so a board that does not use them keeps its bytes.
+TEST_STATE_COLUMNS = (
+    ("tested", "INTEGER NOT NULL DEFAULT 0"),
+    ("tested_how", "TEXT"),
+    ("tested_at", "TEXT"),
+    ("e2e_tested", "INTEGER NOT NULL DEFAULT 0"),
+    ("e2e_how", "TEXT"),
+    ("e2e_at", "TEXT"),
+)
+
+# What counts as blank in a test state's evidence or a reason for clearing one:
+# every character either runtime's own trimming treats as space, and the byte
+# order mark. Python's strip() and JavaScript's trim() each miss some of the
+# other's, so both halves and the board's guards use this one set instead.
+BLANK = "\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0                　﻿"
+
+# The guards live in the board, not in either half, because every writer runs
+# them: this tool, the other half, and an older copy of either that has never
+# heard of test states. A claim without a done task and what proved it is
+# refused whoever writes it, and so is a claim newly made while a finding of
+# the task is open; one that already stood is not, so clearing e2e alone still
+# works. Whatever changes the story a test proved clears it, keeping what it had
+# in a note. None of them refuses a status change, so an older copy moving a
+# tested task still works and leaves no stale claim behind. The blank set in
+# the guards is BLANK's, by code point. The text is the same, character for
+# character, in todo.mjs.
+TEST_STATE_TRIGGERS = (
+    """CREATE TRIGGER IF NOT EXISTS todo_test_claim BEFORE UPDATE OF tested, tested_how, e2e_tested, e2e_how ON task
+WHEN NEW.tested NOT IN (0, 1) OR NEW.e2e_tested NOT IN (0, 1)
+  OR (NEW.tested = 1 AND (NEW.status IS NOT 'done' OR trim(coalesce(NEW.tested_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR (NEW.e2e_tested = 1 AND (NEW.tested IS NOT 1 OR trim(coalesce(NEW.e2e_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR (((NEW.tested = 1 AND OLD.tested IS NOT 1) OR (NEW.e2e_tested = 1 AND OLD.e2e_tested IS NOT 1))
+    AND EXISTS (SELECT 1 FROM task WHERE parent_task = NEW.id AND status NOT IN ('done', 'dropped')))
+BEGIN
+  SELECT RAISE(ABORT, 'a test state needs a done task with no open finding and what proved it, and e2e needs tested first');
+END""",
+    """CREATE TRIGGER IF NOT EXISTS todo_test_claim_insert BEFORE INSERT ON task
+WHEN NEW.tested NOT IN (0, 1) OR NEW.e2e_tested NOT IN (0, 1)
+  OR (NEW.tested = 1 AND (NEW.status IS NOT 'done' OR trim(coalesce(NEW.tested_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR (NEW.e2e_tested = 1 AND (NEW.tested IS NOT 1 OR trim(coalesce(NEW.e2e_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR ((NEW.tested = 1 OR NEW.e2e_tested = 1)
+    AND EXISTS (SELECT 1 FROM task WHERE parent_task = NEW.id AND status NOT IN ('done', 'dropped')))
+BEGIN
+  SELECT RAISE(ABORT, 'a test state needs a done task with no open finding and what proved it, and e2e needs tested first');
+END""",
+    """CREATE TRIGGER IF NOT EXISTS todo_test_status_clears AFTER UPDATE OF status ON task
+WHEN OLD.status IS NOT NEW.status
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.id AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: status ' || OLD.status || ' -> ' || NEW.status || '; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.id;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.id;
+END""",
+    """CREATE TRIGGER IF NOT EXISTS todo_test_story_clears AFTER UPDATE OF descr, exit_cond ON task
+WHEN (OLD.descr IS NOT NEW.descr OR OLD.exit_cond IS NOT NEW.exit_cond)
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.id AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: '
+      || CASE WHEN OLD.descr IS NOT NEW.descr AND OLD.exit_cond IS NOT NEW.exit_cond THEN 'its description and exit condition changed'
+        WHEN OLD.descr IS NOT NEW.descr THEN 'its description changed' ELSE 'its exit condition changed' END
+      || '; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.id;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.id;
+END""",
+    """CREATE TRIGGER IF NOT EXISTS todo_test_finding_added AFTER INSERT ON task
+WHEN NEW.parent_task IS NOT NULL AND NEW.status NOT IN ('done', 'dropped')
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.parent_task AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: ' || NEW.id || ' is an open finding of it; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.parent_task;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.parent_task;
+END""",
+    """CREATE TRIGGER IF NOT EXISTS todo_test_finding_reopened AFTER UPDATE OF status ON task
+WHEN NEW.parent_task IS NOT NULL AND OLD.status IN ('done', 'dropped') AND NEW.status NOT IN ('done', 'dropped')
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.parent_task AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: ' || NEW.id || ', a finding of it, is open again; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.parent_task;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.parent_task;
+END""",
+    """CREATE TRIGGER IF NOT EXISTS todo_test_finding_attached AFTER UPDATE OF parent_task ON task
+WHEN NEW.parent_task IS NOT NULL AND OLD.parent_task IS NOT NEW.parent_task AND NEW.status NOT IN ('done', 'dropped')
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.parent_task AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: ' || NEW.id || ' was filed under it as an open finding; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.parent_task;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.parent_task;
+END""",
+)
+TEST_STATE_TRIGGER_NAMES = (
+    "todo_test_claim",
+    "todo_test_claim_insert",
+    "todo_test_status_clears",
+    "todo_test_story_clears",
+    "todo_test_finding_added",
+    "todo_test_finding_reopened",
+    "todo_test_finding_attached",
+)
 
 
 def find_board(start):
@@ -296,6 +429,98 @@ def now():
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
 
 
+def task_columns():
+    return [row["name"] for row in db.execute("PRAGMA table_info(task)").fetchall()]
+
+
+def has_test_states():
+    """Whether this board records test states at all. One that never did prints what it always printed."""
+    present = task_columns()
+    return all(name in present for name, _kind in TEST_STATE_COLUMNS)
+
+
+def records_tests(task):
+    return all(name in task for name, _kind in TEST_STATE_COLUMNS)
+
+
+def is_tested(task):
+    return bool(task.get("tested") or task.get("e2e_tested"))
+
+
+def tested_task(task_id):
+    """Whether a task holds a test state now, read around a change that may clear it."""
+    row = db.execute("SELECT * FROM task WHERE id = ?", (task_id,)).fetchone() if task_id else None
+    return row is not None and is_tested(dict(row))
+
+
+def had(task):
+    """What a test state held, in the words the board's own guards use for it."""
+    text = f"tested: {task['tested_how'] or ''}" if task["tested"] == 1 else "not tested"
+    return text + (f"; e2e tested: {task['e2e_how'] or ''}" if task["e2e_tested"] == 1 else "")
+
+
+def test_word(task, flag, how):
+    return f"yes, {task[how]}" if task[flag] == 1 else "no"
+
+
+def start_test_states():
+    """Give this board whatever test-state columns and guards it lacks, inside the caller's transaction.
+
+    Only a `tested` that has passed every check calls this. Opening a board,
+    reading one or a refused claim never does, so an old board keeps its bytes
+    until something on it is actually tested. Returns whether columns were added.
+    """
+    present = task_columns()
+    missing = [(name, kind) for name, kind in TEST_STATE_COLUMNS if name not in present]
+    for name, kind in missing:
+        db.execute(f"ALTER TABLE task ADD COLUMN {name} {kind}")
+    for statement in TEST_STATE_TRIGGERS:
+        db.execute(statement)
+    return bool(missing)
+
+
+def give_up(message):
+    """Roll back what this command began, close the board, and fail in the tool's own words.
+
+    There may be nothing to roll back: a BEGIN IMMEDIATE that never went
+    through, or a transaction SQLite ended itself on an error (a full disk, an
+    I/O error, an interrupt, RAISE(ROLLBACK)). ROLLBACK then fails, and only
+    that one statement's error is set aside: `message` already holds the error
+    that stopped the command, which is the one to report, and the board is
+    closed once.
+    """
+    try:
+        db.execute("ROLLBACK")
+    except sqlite3.Error:
+        pass  # nothing left to roll back; the original error is reported below
+    db.close()
+    fail(message)
+
+
+def claim_problem(task_id, command):
+    """Why `task_id` cannot be claimed tested, or e2e tested, now; None when it can.
+
+    Asked once, inside the claim's own BEGIN IMMEDIATE, so nothing another
+    session writes can land between the check and the claim: a finding filed a
+    moment earlier is seen, and one filed a moment later waits for the claim.
+    """
+    row = db.execute("SELECT * FROM task WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        return f"No task {task_id}."
+    task = dict(row)
+    if task["status"] != "done":
+        return f"{task_id} is {task['status']}, not done. Nothing was recorded."
+    reason = block_of(task_id)
+    if reason is not None:
+        return f"{task_id} is blocked: {reason}. Nothing was recorded."
+    still_open = open_children(task_id)
+    if still_open:
+        return f"{task_id} has open findings: {', '.join(child['id'] for child in still_open)}. Nothing was recorded."
+    if command == "e2e" and task.get("tested") != 1:
+        return f"{task_id} is not tested yet, and e2e comes after it. Nothing was recorded."
+    return None
+
+
 def all_phases():
     return [dict(row) for row in db.execute("SELECT * FROM phase ORDER BY position, name").fetchall()]
 
@@ -409,20 +634,51 @@ def resolve_parent(wanted):
     return row["parent_task"]
 
 
+def trailing_digits(task_id):
+    """An id split into what comes before the ASCII digits it ends with, and those digits ("" when it ends otherwise)."""
+    text = str(task_id)
+    start = len(text)
+    while start > 0 and "0" <= text[start - 1] <= "9":
+        start -= 1
+    return text[:start], text[start:]
+
+
+def digit_order(digits):
+    """A digit string's place in integer order, without converting it: its length without leading zeros, then itself."""
+    significant = digits.lstrip("0")
+    return (len(significant), significant)
+
+
+def one_more(digits):
+    """A digit string plus one, in decimal, without its leading zeros."""
+    out, carry = [], 1
+    for character in reversed(digits.lstrip("0") or "0"):
+        value = ord(character) - ord("0") + carry
+        out.append(chr(ord("0") + value % 10))
+        carry = value // 10
+    if carry:
+        out.append("1")
+    return "".join(reversed(out))
+
+
 def next_id():
     """The id after the highest one, in the board's own prefix.
 
     It used to be one fixed prefix whatever the board was, so a plain `add` on a
     board with another prefix got the wrong one. An empty board has no prefix to keep, so it takes the capitals of the
     project folder's name, or its first two letters when it has fewer than two.
+
+    The number is the run of ASCII digits the id ends with, at its very end,
+    worked as a digit string and never converted: no length is too long, and
+    the Node half takes the same run and makes the same next id.
     """
     best = None
     for row in db.execute("SELECT id FROM task ORDER BY rowid").fetchall():
-        match = re.match(r"^(.*?)(\d+)$", row["id"])
-        if match and (best is None or int(match.group(2)) > best[1]):
-            best = (match.group(1), int(match.group(2)))
+        prefix, digits = trailing_digits(row["id"])
+        if digits and (best is None or digit_order(digits) > digit_order(best[1])):
+            best = (prefix, digits)
     if best is not None:
-        return f"{best[0]}{best[1] + 1:03d}"
+        return f"{best[0]}{one_more(best[1]).rjust(3, '0')}"
     project = os.path.basename(os.path.dirname(os.path.dirname(BOARD)))
     capitals = "".join(re.findall(r"[A-Z]", project))
     prefix = capitals if len(capitals) >= 2 else project[:2].upper()
@@ -523,6 +779,25 @@ def round_line(roast_round):
     return line
 
 
+def number_text(value):
+    """A stored number as both ports print it. An integral float (what a legacy REAL column returns,
+    2.0 for 2) is shown as the integer while it is at most 2**53, where every integer is exact in
+    both; other values are shown as Python prints them."""
+    if type(value) is float and value.is_integer() and abs(value) <= 2 ** 53:
+        return str(int(value))
+    return value
+
+
+def rank_field(value, kind):
+    """Keep stored ranking fields readable, with the same labels in both ports: NULL, a BLOB as
+    <non-text> (severity) or <non-number> (points), and a number as number_text shows it."""
+    if value is None:
+        return "NULL"
+    if isinstance(value, bytes):
+        return "<non-text>" if kind == "severity" else "<non-number>"
+    return number_text(value)
+
+
 def card(task):
     area = f"  {task['area']}" if task["area"] else ""
     label = None
@@ -532,7 +807,7 @@ def card(task):
     notes = notes_of(task["id"])
     rounds = roasts_of(task["id"])
     lines = [
-        f"{task['id']}  [{task['severity']}/{task['points']}pt]  {task['status']}{area}",
+        f"{task['id']}  [{rank_field(task['severity'], 'severity')}/{rank_field(task['points'], 'points')}pt]  {task['status']}{area}",
         f"  {task['title']}",
         "",
         f"  area : {task['area'] if task['area'] else 'unset'}",
@@ -564,6 +839,9 @@ def card(task):
         lines.append(f"  blocked: {reason}")
     if task.get("evidence"):
         lines.append(f"  evidence: {task['evidence']}")
+    if records_tests(task):
+        lines.append(f"  tested: {test_word(task, 'tested', 'tested_how')}")
+        lines.append(f"  e2e   : {test_word(task, 'e2e_tested', 'e2e_how')}")
     if task.get("reason"):
         lines.append(f"  dropped: {task['reason']}")
     if notes:
@@ -638,8 +916,50 @@ def id_number(task_id):
     # Ids sort numerically, not as text: SB-1000 before SB-999 is correct today
     # and wrong from the thousandth task, which is the worst kind of bug,
     # invisible until a boundary and then quietly reordering the work.
-    digits = "".join(character for character in str(task_id) if character.isdigit())
-    return int(digits) if digits else 0
+    #
+    # The number is every ASCII digit of the id, joined, compared as a digit
+    # string, never converted: (its length without leading zeros, the digits).
+    # That is the exact integer order at any length. Converting lost it: past
+    # 2**53 in the Node half, and past Python's own limit on long integer
+    # strings here. Other digits, Arabic-Indic or fullwidth, are not part of
+    # the number in either half, and a character `isdigit` accepts but `int`
+    # refuses, a superscript two, can no longer stop `next`.
+    digits = "".join(character for character in str(task_id) if "0" <= character <= "9").lstrip("0")
+    return (len(digits), digits)
+
+
+class UnrankableSeverity(ValueError):
+    """An actual ranking candidate has no supported severity."""
+
+
+class UnrankablePoints(ValueError):
+    """An actual ranking candidate has no supported points value."""
+
+
+def severity_problem(task):
+    value = task["severity"]
+    label = value if isinstance(value, str) else ("NULL" if value is None else "<non-text>")
+    return None if value in SEVERITIES else (
+        f"{task['id']}: its severity {label} is not one of {', '.join(SEVERITIES)}"
+    )
+
+
+def points_problem(task):
+    value = task["points"]
+    numeric = type(value) in (int, float)
+    label = value if isinstance(value, str) else (
+        "NULL" if value is None else "<unsupported number>" if numeric else "<non-number>"
+    )
+    return None if numeric and value in POINTS else (
+        f"{task['id']}: its points {label} is not one of {', '.join(str(point) for point in POINTS)}"
+    )
+
+
+def severity_rank(task):
+    problem = severity_problem(task)
+    if problem is not None:
+        raise UnrankableSeverity(problem)
+    return SEVERITIES.index(task["severity"])
 
 
 def by_rule(task):
@@ -658,25 +978,45 @@ def by_severity(task):
     return (SEVERITIES.index(task["severity"]), task["points"], id_number(task["id"]), task["id"])
 
 
+def ranked(tasks, key):
+    """Validate each filtered candidate in stored id order before sorting."""
+    for task in tasks:
+        severity_rank(task)
+        problem = points_problem(task)
+        if problem is not None:
+            raise UnrankablePoints(problem)
+    return sorted(tasks, key=key)
+
+
+def ranked_call(action):
+    try:
+        return action()
+    except (UnrankableSeverity, UnrankablePoints) as error:
+        fail(str(error))
+
+
 def choose(tasks, areas=None):
     """What `next` would pick, for `next` and for the rendered board alike.
 
     Work in flight is finished before anything new starts, and among several
-    started tasks the same rule decides which. A blocked task is neither.
+    started tasks the same rule decides which. A blocked task is neither, and
+    neither is a started task one of whose parents is unfinished: a parent added
+    after it started means it cannot go on until that parent is done.
     With `areas` only those areas' tasks are picked; a parent in another area
     still counts, so every task stays in `done`.
     """
     done = {task["id"] for task in tasks if task["status"] == "done"}
-    started = sorted(
+    started = ranked(
         [
             task
             for task in tasks
             if task["status"] in ("in_progress", "wait_for_roast") and not is_blocked(task)
             and in_areas(task, areas)
+            and all(parent in done for parent in task["parents"])
         ],
         key=by_rule,
     )
-    eligible = sorted(
+    eligible = ranked(
         [
             task
             for task in tasks
@@ -691,6 +1031,36 @@ def choose(tasks, areas=None):
     return started, pick
 
 
+def unfinished_parents(task, tasks):
+    """Each parent of a task that is not done, with its status, or saying it is not on the board."""
+    status = {other["id"]: other["status"] for other in tasks}
+    return [
+        f"{parent} ({status[parent]})" if parent in status else f"{parent}, which is not on this board"
+        for parent in sorted(task["parents"])
+        if status.get(parent) != "done"
+    ]
+
+
+def started_but_waiting(tasks, areas=None):
+    """The started, unblocked tasks `choose` passes over because a parent is unfinished, in its order."""
+    return ranked(
+        [
+            task
+            for task in tasks
+            if task["status"] in ("in_progress", "wait_for_roast") and not is_blocked(task)
+            and in_areas(task, areas) and unfinished_parents(task, tasks)
+        ],
+        key=by_rule,
+    )
+
+
+def say_held(held, tasks):
+    """What `next` says about started work it does not resume, and why: a parent dropped or gone never becomes done."""
+    for task in held:
+        waits = ", ".join(unfinished_parents(task, tasks))
+        print(f"  {task['id']} is {task['status']} and waits on {waits}; next does not resume it until every parent is done.")
+
+
 def escape_cell(text):
     return re.sub(r"\r?\n", " ", str(text if text is not None else "").replace("|", "\\|"))
 
@@ -700,20 +1070,23 @@ def render_board():
     tasks = all_tasks()
     project = os.path.basename(os.path.dirname(os.path.dirname(BOARD)))
     done = [task for task in tasks if task["status"] == "done"]
-    points = sum(task["points"] for task in tasks)
-    done_points = sum(task["points"] for task in done)
+    # An unranked old status may still be displayed. Never coerce its invalid
+    # points into a total. Numeric values remain summable independently of their
+    # ranking eligibility; actual ranked candidates refuse in their group order.
+    points = sum(task["points"] for task in tasks) if all(type(task["points"]) in (int, float) for task in tasks) else "unknown"
+    done_points = sum(task["points"] for task in done) if all(type(task["points"]) in (int, float) for task in done) else "unknown"
     out = [
         "# Board",
         "",
         "<!-- GENERATED by the todo skill from .claude/todo.db. Change the board through the skill, never this file. -->",
         "",
-        f"Project **{project}** · {len(done)} of {len(tasks)} tasks done · {done_points} of {points} points.",
+        f"Project **{project}** · {len(done)} of {len(tasks)} tasks done · {number_text(done_points)} of {number_text(points)} points.",
         "",
     ]
     _, pick = choose(tasks)
     if pick is not None:
         area = f", {pick['area']}" if pick["area"] else ""
-        out.append(f"**Next up: `{pick['id']}` {pick['title']}** ({pick['severity']}, {pick['points']} pt{area})")
+        out.append(f"**Next up: `{pick['id']}` {pick['title']}** ({pick['severity']}, {number_text(pick['points'])} pt{area})")
     else:
         out.append("**Nothing is pickable.**")
     out.append("")
@@ -750,7 +1123,7 @@ def render_board():
             column = [task for task in tasks if is_blocked(task)]
         else:
             column = [task for task in tasks if task["status"] == key and not is_blocked(task)]
-        column.sort(key=by_severity)
+        column = ranked(column, key=by_severity)
         if not column:
             continue
         out += [f"## {heading} ({len(column)})", ""]
@@ -758,7 +1131,7 @@ def render_board():
         out.append("| -- | ----- | --- | -- | ---- | ---------- | -------------- |")
         for task in column:
             out.append(
-                f"| `{task['id']}` | {escape_cell(task['title'])} | {task['severity']} | {task['points']} | "
+                f"| `{task['id']}` | {escape_cell(task['title'])} | {task['severity']} | {number_text(task['points'])} | "
                 f"{escape_cell(task['area'])} | {', '.join(task['parents']) or 'none'} | {escape_cell(task['exit_cond'])} |"
             )
         out.append("")
@@ -769,7 +1142,7 @@ def render_board():
         area = task["area"] if task["area"] is not None else "unset"
         objective = f" · **objective** {task['phase']}" if task.get("phase") else ""
         out.append(
-            f"- **status** {task['status']} · **severity** {task['severity']} · **points** {task['points']} · **area** {area}{objective}"
+            f"- **status** {task['status']} · **severity** {rank_field(task['severity'], 'severity')} · **points** {rank_field(task['points'], 'points')} · **area** {area}{objective}"
         )
         out.append(f"- **blocked by** {', '.join(task['parents']) or 'none'}")
         reason = block_of(task["id"])
@@ -780,6 +1153,9 @@ def render_board():
         out += ["", task["descr"], "", f"**Why.** {task['why']}", "", f"**Exit condition.** {task['exit_cond']}", ""]
         if task.get("evidence"):
             out += [f"**Evidence.** {task['evidence']}", ""]
+        if records_tests(task):
+            out += [f"**Tested.** {test_word(task, 'tested', 'tested_how')}", ""]
+            out += [f"**E2E tested.** {test_word(task, 'e2e_tested', 'e2e_how')}", ""]
         if task.get("reason"):
             out += [f"**Dropped because.** {task['reason']}", ""]
         notes = notes_of(task["id"])
@@ -925,13 +1301,13 @@ elif command == "list":
                 # the current phase on every line says nothing and hides the
                 # ones that are deferred.
                 later = f"  · {task['phase']}" if phase_rank(task) > 0 else ""
-                print(f"    {task['id']}  [{task['severity']}/{task['points']}pt]  {task['title']}{later}")
+                print(f"    {task['id']}  [{rank_field(task['severity'], 'severity')}/{rank_field(task['points'], 'points')}pt]  {task['title']}{later}")
     if not given.get("status") or given["status"] == "blocked":
         blocked = [task for task in tasks if is_blocked(task)]
         if blocked:
             print(f"\nBLOCKED ({len(blocked)})")
             for task in blocked:
-                print(f"    {task['id']}  [{task['severity']}/{task['points']}pt]  {task['title']}")
+                print(f"    {task['id']}  [{rank_field(task['severity'], 'severity')}/{rank_field(task['points'], 'points')}pt]  {task['title']}")
                 print(f"      {block_of(task['id'])}")
     print("")
 
@@ -942,10 +1318,18 @@ elif command == "next":
     areas = areas_for(value_of(args, "area"))
     scope = f" in area {', '.join(areas)}" if areas else ""
     tasks = all_tasks()
-    started, pick = choose(tasks, areas)
+    started, pick = ranked_call(lambda: choose(tasks, areas))
+    held = ranked_call(lambda: started_but_waiting(tasks, areas))
     if pick is None:
         mine = [task for task in tasks if in_areas(task, areas)]
-        waiting = len([task for task in mine if task["status"] == "backlog" and not is_blocked(task)])
+        # With no pick, every unblocked task still to do waits on a parent: a
+        # backlog one that was eligible, or a started one, would have been picked.
+        # A started task counts too, or "Nothing left", which ends a loop, would
+        # be said while it waits.
+        waiting = len([
+            task for task in mine
+            if task["status"] in ("backlog", "in_progress", "wait_for_roast") and not is_blocked(task)
+        ])
         blocked = [task for task in mine if task["status"] not in ("done", "dropped") and is_blocked(task)]
         if waiting:
             print(f"Nothing eligible{scope}. {waiting} task(s) waiting on unfinished parents.")
@@ -955,6 +1339,7 @@ elif command == "next":
             print(f"{len(blocked)} task(s) blocked:")
             for task in blocked:
                 print(f"  {task['id']}: {block_of(task['id'])}")
+        say_held(held, tasks)
         sys.exit(0)
 
     current = current_phase()
@@ -965,6 +1350,9 @@ elif command == "next":
         else f"NEXT{within}{scope}: highest severity, unblocked, fewest points\n"
     )
     print(card(pick))
+    if held:
+        print("")
+        say_held(held, tasks)
 
 elif command == "add":
     given = read_flags(args)
@@ -1016,6 +1404,7 @@ elif command == "add":
         phase = current["name"] if current else None
 
     task_id = given.get("id") or next_id()
+    parent_was_tested = tested_task(parent_task)
     db.execute(
         "INSERT INTO task (id, title, descr, why, severity, points, status, exit_cond, area, parent_task, phase)"
         " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
@@ -1042,11 +1431,13 @@ elif command == "add":
             f"  a child of {parent_task}, which now has {len(open_children(parent_task))}"
             " open child task(s)."
         )
+        if parent_was_tested and not tested_task(parent_task):
+            print(f"  {parent_task}'s test state is cleared: it has an open finding now. What it had is kept in a note.")
 
 elif command in ("edit", "set"):
     # `set` is the same command under the name some projects' rules use.
     task_id = args[0]
-    one(task_id)
+    before = one(task_id)
     given = read_flags(args[1:])
 
     if "okr" in given and "phase" not in given:
@@ -1087,8 +1478,11 @@ elif command in ("edit", "set"):
             fail(f"{task_id} cannot be its own parent.")
         else:
             resolved = resolve_parent(wanted)
+            parent_was_tested = tested_task(resolved)
             db.execute("UPDATE task SET parent_task = ? WHERE id = ?", (resolved, task_id))
             print(f"{task_id} is now a child of {resolved}.")
+            if parent_was_tested and not tested_task(resolved):
+                print(f"  {resolved}'s test state is cleared: it has an open finding now. What it had is kept in a note.")
         db.commit()
 
     if given.get("severity") and given["severity"] not in SEVERITIES:
@@ -1136,6 +1530,8 @@ elif command in ("edit", "set"):
     db.commit()
     changed = touched + (["parent"] if "parent" in given else []) + (["note"] if "note" in given else [])
     print(f"{task_id}: {', '.join(changed)} changed")
+    if is_tested(before) and not tested_task(task_id):
+        print(f"  {task_id}'s test state is cleared: what it proved has changed. What it had is kept in a note.")
     print(card(one(task_id)))
 
 elif command == "move":
@@ -1163,6 +1559,7 @@ elif command == "move":
         if mine is not None and not in_areas(task, mine):
             fail(f"{task_id} is in area {task['area'] or 'unset'}; this session works in {', '.join(mine)} (its loop file, {loop[1]}).")
     was_blocked = block_of(task_id)
+    parent_was_tested = tested_task(task.get("parent_task"))
     stamp = now()
     db.execute("UPDATE task SET status = ?, updated = ? WHERE id = ?", (status, stamp, task_id))
     if was_blocked is not None:
@@ -1177,6 +1574,10 @@ elif command == "move":
     print(f"{task_id}: {task['status']} -> {status}")
     if was_blocked is not None:
         print(f"  no longer blocked: {was_blocked}")
+    if is_tested(task) and not tested_task(task_id):
+        print(f"  {task_id}'s test state is cleared: it is {status} now. What it had is kept in a note.")
+    if parent_was_tested and not tested_task(task["parent_task"]):
+        print(f"  {task['parent_task']}'s test state is cleared: it has an open finding now. What it had is kept in a note.")
 
     # Said, not refused. A finding is a new card rather than a reopened one in
     # some projects' rules, but others may differ, so the tool names the
@@ -1296,6 +1697,12 @@ elif command == "validate":
     phase_names = {phase["name"] for phase in all_phases()}
     problems = []
     for task in tasks:
+        problem = severity_problem(task)
+        if problem is not None:
+            problems.append(problem)
+        points_error = points_problem(task)
+        if points_error is not None:
+            problems.append(points_error)
         for parent in task["parents"]:
             blocker = by_id.get(parent)
             if blocker is None:
@@ -1306,7 +1713,8 @@ elif command == "validate":
             if (
                 task["status"] not in ("done", "dropped")
                 and blocker["status"] != "done"
-                and SEVERITIES.index(blocker["severity"]) > SEVERITIES.index(task["severity"])
+                and severity_problem(blocker) is None and problem is None
+                and severity_rank(blocker) > severity_rank(task)
             ):
                 problems.append(
                     f"{task['id']} ({task['severity']}) waits on {parent} ({blocker['severity']}),"
@@ -1332,6 +1740,35 @@ elif command == "validate":
         reason = block_of(task["id"])
         if reason is not None and task["status"] in ("done", "dropped"):
             problems.append(f"{task['id']} is {task['status']} and still blocked: {reason}")
+        # A claim the guards would have refused, which only a board whose guards
+        # were dropped, or were never added, can hold.
+        if records_tests(task):
+            for flag in ("tested", "e2e_tested"):
+                if task[flag] not in (0, 1):
+                    problems.append(f"{task['id']}: {flag} holds {shown(task[flag])}, not 0 or 1")
+            if task["tested"] == 1 and task["status"] != "done":
+                problems.append(f"{task['id']} is tested but {task['status']}")
+            if task["tested"] == 1 and not (task["tested_how"] or "").strip(BLANK):
+                problems.append(f"{task['id']} is tested with nothing saying what proved it")
+            if task["e2e_tested"] == 1 and task["tested"] != 1:
+                problems.append(f"{task['id']} is e2e tested but not tested")
+            if task["e2e_tested"] == 1 and not (task["e2e_how"] or "").strip(BLANK):
+                problems.append(f"{task['id']} is e2e tested with nothing saying what proved it")
+            still_open = [child["id"] for child in open_children(task["id"])] if is_tested(task) else []
+            if still_open:
+                problems.append(f"{task['id']} is tested, but its finding(s) {', '.join(still_open)} are open")
+
+    present = task_columns()
+    if any(name in present for name, _kind in TEST_STATE_COLUMNS):
+        lacking = [name for name, _kind in TEST_STATE_COLUMNS if name not in present]
+        if lacking:
+            problems.append(f"the board records test states without the column(s) {', '.join(lacking)}")
+        guards = {row["name"] for row in db.execute("SELECT name FROM sqlite_master WHERE type = 'trigger'").fetchall()}
+        absent = [name for name in TEST_STATE_TRIGGER_NAMES if name not in guards]
+        if absent:
+            problems.append(
+                f"the board records test states without the guard(s) {', '.join(absent)}; the next todo tested adds them"
+            )
 
     # Depth-first cycle detection over the blocker edges.
     state = {}
@@ -1372,7 +1809,7 @@ elif command == "render":
     out_given = value_of(args, "out")
     out = os.path.abspath(out_given) if out_given else os.path.join(os.path.dirname(BOARD), "TODO_BOARD.md")
     label = out_given if out_given is not None else ".claude/TODO_BOARD.md"
-    text = render_board()
+    text = ranked_call(render_board)
     if "--check" in args:
         current_text = ""
         if os.path.exists(out):
@@ -1415,6 +1852,115 @@ elif command == "rm":
     db.execute("DELETE FROM task WHERE id = ?", (task_id,))
     db.commit()
     print(f"removed {task_id}: {reason}")
+
+elif command in ("tested", "e2e"):
+    # Done is not tested. A claim needs a done task that is not blocked, has no
+    # open finding, and says what proved it; e2e needs tested first. The board
+    # is checked inside the claim's own transaction and before anything is
+    # written, so a refused claim leaves the file as it was, a board that never
+    # records a test never gains the columns, and a finding filed by another
+    # session cannot land between the check and the claim.
+    task_id = args[0] if args else None
+    if not task_id or task_id.startswith("--"):
+        fail(f'{command} needs a task: todo {command} SB-003 --evidence "what was run and what it showed"')
+    evidence = (value_of(args[1:], "evidence") or "").strip(BLANK)
+    if not evidence:
+        fail(f'{command} {task_id} needs --evidence "...": what was run and what it showed. Nothing was recorded.')
+    stamp = now()
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        problem = claim_problem(task_id, command)
+        if problem is not None:
+            give_up(problem)
+        added = start_test_states() if command == "tested" else False
+        if command == "tested":
+            db.execute(
+                "UPDATE task SET tested = 1, tested_how = ?, tested_at = ?, updated = ? WHERE id = ?",
+                (evidence, stamp, stamp, task_id),
+            )
+        else:
+            db.execute(
+                "UPDATE task SET e2e_tested = 1, e2e_how = ?, e2e_at = ?, updated = ? WHERE id = ?",
+                (evidence, stamp, stamp, task_id),
+            )
+        db.commit()
+    except sqlite3.DatabaseError as error:
+        give_up(f"{task_id}: the board could not take the claim: {error}. Nothing was recorded.")
+    print(f"{task_id}: {'tested' if command == 'tested' else 'e2e tested'}, {evidence}")
+    if added:
+        print("  This board records test states from now on. Every other done task reads tested: no until it is tested.")
+
+elif command == "untest":
+    # Clearing a test state by hand, for a proof that no longer holds. What it
+    # had goes into a note first: a cleared claim is history, not nothing. The
+    # state is read inside the transaction that clears it, so two clears at once
+    # leave one note, and a failure leaves neither the note nor the change.
+    task_id = args[0] if args else None
+    if not task_id or task_id.startswith("--"):
+        fail('untest needs a task: todo untest SB-003 [e2e] --reason "why the proof no longer holds"')
+    only_e2e = args[1:2] == ["e2e"]
+    reason = (value_of(args[1:], "reason") or "").strip(BLANK)
+    if not reason:
+        fail(f'untest {task_id} needs --reason "...": a cleared test state says why. Nothing was changed.')
+    if not has_test_states():
+        one(task_id)
+        print(f"{task_id}: this board records no test states, so there is nothing to clear.")
+        sys.exit(0)
+    stamp = now()
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("SELECT * FROM task WHERE id = ?", (task_id,)).fetchone()
+        if row is None:
+            give_up(f"No task {task_id}.")
+        task = dict(row)
+        if not (task["e2e_tested"] == 1 if only_e2e else is_tested(task)):
+            db.rollback()
+            db.close()
+            print(f"{task_id} is not {'e2e tested' if only_e2e else 'tested'}, so there is nothing to clear.")
+            sys.exit(0)
+        if only_e2e:
+            cleared = f"e2e tested: {task['e2e_how'] or ''}"
+            sets = "e2e_tested = 0, e2e_how = NULL, e2e_at = NULL"
+        else:
+            cleared = had(task)
+            sets = "tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL"
+        db.execute(
+            "INSERT INTO note (task, at, text) VALUES (?,?,?)",
+            (task_id, stamp, f"test state cleared by hand: {reason}; it had {cleared}"),
+        )
+        db.execute(f"UPDATE task SET {sets}, updated = ? WHERE id = ?", (stamp, task_id))
+        db.commit()
+    except sqlite3.DatabaseError as error:
+        give_up(f"{task_id}: the board could not clear it: {error}. Nothing was changed.")
+    print(f"{task_id}: {'e2e test state' if only_e2e else 'test state'} cleared. What it had is kept in a note.")
+
+elif command == "tests":
+    # Read-only: which done tasks are tested, and which are not. A board that
+    # records no test states says so rather than calling every task untested.
+    areas = area_filter(value_of(args, "area"))
+    if not has_test_states():
+        print('This board records no test states yet. The first is: todo tested <id> --evidence "..."')
+        sys.exit(0)
+    scope = f" in area {', '.join(areas)}" if areas else ""
+    done = [task for task in all_tasks() if task["status"] == "done" and in_areas(task, areas)]
+    if not done:
+        print(f"Nothing is done{scope} yet.")
+    groups = [
+        ("DONE, NOT TESTED", [task for task in done if task["tested"] != 1]),
+        ("TESTED, NOT E2E TESTED", [task for task in done if task["tested"] == 1 and task["e2e_tested"] != 1]),
+        ("E2E TESTED", [task for task in done if task["tested"] == 1 and task["e2e_tested"] == 1]),
+    ]
+    for heading, group in groups:
+        if not group:
+            continue
+        print(f"\n{heading}{scope} ({len(group)})")
+        for task in group:
+            print(f"    {task['id']}  [{rank_field(task['severity'], 'severity')}/{rank_field(task['points'], 'points')}pt]  {task['title']}")
+            if task["tested"] == 1:
+                print(f"      tested: {task['tested_how']}")
+            if task["e2e_tested"] == 1:
+                print(f"      e2e   : {task['e2e_how']}")
+    print("")
 
 else:
     fail(f'Unknown command "{command}". Try: list, next, show, add, edit, set, move, phase, okr, roast, validate, render, rm.')

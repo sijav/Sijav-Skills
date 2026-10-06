@@ -22,20 +22,33 @@
 // Selection rule, the owner's: highest severity, then fewest story points, then
 // lowest id, and never a task whose parent is unfinished. Anything already in
 // progress or review comes first, so work in flight gets finished.
+//
+// Done is not tested, and tested is not tested by a real user. Each is recorded
+// on its own, with what proved it:
+//   todo tested SB-003 --evidence "..."        the area's tests ran and passed
+//   todo e2e SB-003 --evidence "..."           a real user's path was checked, after tested
+//   todo untest SB-003 [e2e] --reason "..."    clear it by hand; what it had stays in a note
+//   todo tests [--area back]                   which done tasks are tested, which are not
+// A board gains the columns and the guards that keep them honest on its first
+// `tested` that passes every check, and not before: until then it reads and
+// prints exactly what it did. A status change, a changed description or exit
+// condition, and an open finding each clear a test state, keeping what it had
+// in a note.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 // SQLite is inside Node, so this script has no dependencies and works in a
-// checkout with no node_modules. It is unflagged from Node 24; on 22 and 23 it
-// needs --experimental-sqlite, and before that it does not exist. Saying which
-// beats letting the import throw a stack trace at someone.
+// checkout with no node_modules. It needs no flag from Node 22.13 and 23.4;
+// from 22.5 to 22.12 and from 23.0 to 23.3 it needs --experimental-sqlite, and
+// before 22.5 it does not exist. Saying which beats letting the import throw a
+// stack trace at someone.
 let DatabaseSync
 try {
   ;({ DatabaseSync } = await import('node:sqlite'))
 } catch {
   console.error(`This board needs node:sqlite, and this is Node ${process.version}.`)
-  console.error('Node 24 or newer has it built in. On 22 or 23, run with --experimental-sqlite.')
+  console.error('Node 22.13 or newer, or 23.4 or newer, has it built in. From 22.5 to 22.12, or 23.0 to 23.3, run with --experimental-sqlite.')
   console.error('There is nothing to install: SQLite ships inside Node, and this script has no dependencies.')
   process.exit(1)
 }
@@ -161,12 +174,136 @@ if (!existsSync(BOARD)) {
 // a second session reads it. node:sqlite's busy timeout defaults to zero, so
 // the second writer failed at once with "database is locked", measured at 1 ms;
 // with a timeout it waits for the lock. Five seconds is Python's sqlite3
-// default, so both halves wait the same.
-const db = new DatabaseSync(BOARD, { timeout: 5000 })
+// default, so both halves wait the same. It is SQLite's own pragma, the
+// language bindings' documented way to set it, because the constructor's
+// `timeout` option is newer than the oldest Node this tool runs on.
+const db = new DatabaseSync(BOARD)
+db.exec('PRAGMA busy_timeout = 5000')
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['backlog', 'in_progress', 'wait_for_roast', 'done', 'dropped']
 const POINTS = [1, 2, 3, 5, 8, 13]
+
+// Test states, the owner's: done, tested and tested by a real user are three
+// separate facts. They are six columns on `task` that a board gains on its first
+// `tested`, never on opening, so a board that does not use them keeps its bytes.
+const TEST_STATE_COLUMNS = [
+  ['tested', 'INTEGER NOT NULL DEFAULT 0'],
+  ['tested_how', 'TEXT'],
+  ['tested_at', 'TEXT'],
+  ['e2e_tested', 'INTEGER NOT NULL DEFAULT 0'],
+  ['e2e_how', 'TEXT'],
+  ['e2e_at', 'TEXT'],
+]
+
+// What counts as blank in a test state's evidence or a reason for clearing one:
+// every character either runtime's own trimming treats as space, and the byte
+// order mark. Python's strip() and JavaScript's trim() each miss some of the
+// other's, so both halves and the board's guards use this one set instead.
+const BLANK = '\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0                　﻿'
+
+// The guards live in the board, not in either half, because every writer runs
+// them: this tool, the other half, and an older copy of either that has never
+// heard of test states. A claim without a done task and what proved it is
+// refused whoever writes it, and so is a claim newly made while a finding of
+// the task is open; one that already stood is not, so clearing e2e alone still
+// works. Whatever changes the story a test proved clears it, keeping what it had
+// in a note. None of them refuses a status change, so an older copy moving a
+// tested task still works and leaves no stale claim behind. The blank set in
+// the guards is BLANK's, by code point. The text is the same, character for
+// character, in todo.py.
+const TEST_STATE_TRIGGERS = [
+  `CREATE TRIGGER IF NOT EXISTS todo_test_claim BEFORE UPDATE OF tested, tested_how, e2e_tested, e2e_how ON task
+WHEN NEW.tested NOT IN (0, 1) OR NEW.e2e_tested NOT IN (0, 1)
+  OR (NEW.tested = 1 AND (NEW.status IS NOT 'done' OR trim(coalesce(NEW.tested_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR (NEW.e2e_tested = 1 AND (NEW.tested IS NOT 1 OR trim(coalesce(NEW.e2e_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR (((NEW.tested = 1 AND OLD.tested IS NOT 1) OR (NEW.e2e_tested = 1 AND OLD.e2e_tested IS NOT 1))
+    AND EXISTS (SELECT 1 FROM task WHERE parent_task = NEW.id AND status NOT IN ('done', 'dropped')))
+BEGIN
+  SELECT RAISE(ABORT, 'a test state needs a done task with no open finding and what proved it, and e2e needs tested first');
+END`,
+  `CREATE TRIGGER IF NOT EXISTS todo_test_claim_insert BEFORE INSERT ON task
+WHEN NEW.tested NOT IN (0, 1) OR NEW.e2e_tested NOT IN (0, 1)
+  OR (NEW.tested = 1 AND (NEW.status IS NOT 'done' OR trim(coalesce(NEW.tested_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR (NEW.e2e_tested = 1 AND (NEW.tested IS NOT 1 OR trim(coalesce(NEW.e2e_how, ''), char(9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) = ''))
+  OR ((NEW.tested = 1 OR NEW.e2e_tested = 1)
+    AND EXISTS (SELECT 1 FROM task WHERE parent_task = NEW.id AND status NOT IN ('done', 'dropped')))
+BEGIN
+  SELECT RAISE(ABORT, 'a test state needs a done task with no open finding and what proved it, and e2e needs tested first');
+END`,
+  `CREATE TRIGGER IF NOT EXISTS todo_test_status_clears AFTER UPDATE OF status ON task
+WHEN OLD.status IS NOT NEW.status
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.id AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: status ' || OLD.status || ' -> ' || NEW.status || '; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.id;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.id;
+END`,
+  `CREATE TRIGGER IF NOT EXISTS todo_test_story_clears AFTER UPDATE OF descr, exit_cond ON task
+WHEN (OLD.descr IS NOT NEW.descr OR OLD.exit_cond IS NOT NEW.exit_cond)
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.id AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: '
+      || CASE WHEN OLD.descr IS NOT NEW.descr AND OLD.exit_cond IS NOT NEW.exit_cond THEN 'its description and exit condition changed'
+        WHEN OLD.descr IS NOT NEW.descr THEN 'its description changed' ELSE 'its exit condition changed' END
+      || '; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.id;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.id;
+END`,
+  `CREATE TRIGGER IF NOT EXISTS todo_test_finding_added AFTER INSERT ON task
+WHEN NEW.parent_task IS NOT NULL AND NEW.status NOT IN ('done', 'dropped')
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.parent_task AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: ' || NEW.id || ' is an open finding of it; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.parent_task;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.parent_task;
+END`,
+  `CREATE TRIGGER IF NOT EXISTS todo_test_finding_reopened AFTER UPDATE OF status ON task
+WHEN NEW.parent_task IS NOT NULL AND OLD.status IN ('done', 'dropped') AND NEW.status NOT IN ('done', 'dropped')
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.parent_task AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: ' || NEW.id || ', a finding of it, is open again; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.parent_task;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.parent_task;
+END`,
+  `CREATE TRIGGER IF NOT EXISTS todo_test_finding_attached AFTER UPDATE OF parent_task ON task
+WHEN NEW.parent_task IS NOT NULL AND OLD.parent_task IS NOT NEW.parent_task AND NEW.status NOT IN ('done', 'dropped')
+  AND EXISTS (SELECT 1 FROM task WHERE id = NEW.parent_task AND (tested IS NOT 0 OR e2e_tested IS NOT 0))
+BEGIN
+  INSERT INTO note (task, at, text)
+    SELECT id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'test state cleared: ' || NEW.id || ' was filed under it as an open finding; it had '
+      || CASE WHEN tested = 1 THEN 'tested: ' || coalesce(tested_how, '') ELSE 'not tested' END
+      || CASE WHEN e2e_tested = 1 THEN '; e2e tested: ' || coalesce(e2e_how, '') ELSE '' END
+    FROM task WHERE id = NEW.parent_task;
+  UPDATE task SET tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL
+    WHERE id = NEW.parent_task;
+END`,
+]
+const TEST_STATE_TRIGGER_NAMES = [
+  'todo_test_claim',
+  'todo_test_claim_insert',
+  'todo_test_status_clears',
+  'todo_test_story_clears',
+  'todo_test_finding_added',
+  'todo_test_finding_reopened',
+  'todo_test_finding_attached',
+]
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS task (
@@ -309,6 +446,94 @@ const fail = (message) => {
 /** A moment, the way every new column records one. */
 const now = () => new Date().toISOString()
 
+const taskColumns = () => db.prepare('PRAGMA table_info(task)').all().map((column) => column.name)
+
+/** Whether this board records test states at all. One that never did prints what it always printed. */
+const hasTestStates = () => {
+  const present = taskColumns()
+  return TEST_STATE_COLUMNS.every(([name]) => present.includes(name))
+}
+
+const recordsTests = (task) => TEST_STATE_COLUMNS.every(([name]) => Object.hasOwn(task, name))
+
+const isTested = (task) => Boolean(task.tested || task.e2e_tested)
+
+/** Whether a task holds a test state now, read around a change that may clear it. */
+const testedTask = (id) => {
+  const row = id ? db.prepare('SELECT * FROM task WHERE id = ?').get(id) : undefined
+  return row !== undefined && isTested(row)
+}
+
+/** What a test state held, in the words the board's own guards use for it. */
+const had = (task) =>
+  (task.tested === 1 ? `tested: ${task.tested_how ?? ''}` : 'not tested') + (task.e2e_tested === 1 ? `; e2e tested: ${task.e2e_how ?? ''}` : '')
+
+const testWord = (task, flag, how) => (task[flag] === 1 ? `yes, ${task[how]}` : 'no')
+
+/**
+ * Give this board whatever test-state columns and guards it lacks, inside the
+ * caller's transaction. Only a `tested` that has passed every check calls this.
+ * Opening a board, reading one or a refused claim never does, so an old board
+ * keeps its bytes until something on it is actually tested. Returns whether
+ * columns were added.
+ */
+const startTestStates = () => {
+  const present = taskColumns()
+  const missing = TEST_STATE_COLUMNS.filter(([name]) => !present.includes(name))
+  for (const [name, kind] of missing) db.exec(`ALTER TABLE task ADD COLUMN ${name} ${kind}`)
+  for (const statement of TEST_STATE_TRIGGERS) db.exec(statement)
+  return missing.length > 0
+}
+
+/** Text without BLANK at either end, as Python's strip(BLANK) leaves it. */
+const stripBlank = (text) => {
+  let start = 0
+  let end = text.length
+  while (start < end && BLANK.includes(text[start])) start++
+  while (end > start && BLANK.includes(text[end - 1])) end--
+  return text.slice(start, end)
+}
+
+/**
+ * Roll back what this command began, close the board, and fail in the tool's own
+ * words. `open` is whether the command's own BEGIN IMMEDIATE went through: the
+ * command keeps track itself, as not every Node this tool runs on can ask.
+ *
+ * SQLite ends a transaction itself on some errors (a full disk, an I/O error, an
+ * interrupt, RAISE(ROLLBACK)), and then ROLLBACK fails for want of one. Only that
+ * one statement's error is set aside: `message` already holds the error that
+ * stopped the command, which is the one to report, and the board is closed once.
+ */
+const giveUp = (message, open) => {
+  if (open) {
+    try {
+      db.exec('ROLLBACK')
+    } catch {
+      // nothing left to roll back; the original error is reported below
+    }
+  }
+  db.close()
+  fail(message)
+}
+
+/**
+ * Why `id` cannot be claimed tested, or e2e tested, now; null when it can.
+ * Asked once, inside the claim's own BEGIN IMMEDIATE, so nothing another
+ * session writes can land between the check and the claim: a finding filed a
+ * moment earlier is seen, and one filed a moment later waits for the claim.
+ */
+const claimProblem = (id, command) => {
+  const task = db.prepare('SELECT * FROM task WHERE id = ?').get(id)
+  if (!task) return `No task ${id}.`
+  if (task.status !== 'done') return `${id} is ${task.status}, not done. Nothing was recorded.`
+  const reason = blockOf(id)
+  if (reason !== null) return `${id} is blocked: ${reason}. Nothing was recorded.`
+  const stillOpen = openChildren(id)
+  if (stillOpen.length) return `${id} has open findings: ${stillOpen.map((child) => child.id).join(', ')}. Nothing was recorded.`
+  if (command === 'e2e' && task.tested !== 1) return `${id} is not tested yet, and e2e comes after it. Nothing was recorded.`
+  return null
+}
+
 const allPhases = () => db.prepare('SELECT * FROM phase ORDER BY position, name').all()
 
 /** The first phase still open: what the board is working on now. */
@@ -377,29 +602,57 @@ const resolveParent = (wanted) => {
   return parent.parent_task
 }
 
+/** An id split into what comes before the ASCII digits it ends with, and those digits ('' when it ends otherwise). */
+const trailingDigits = (id) => {
+  const text = String(id)
+  let start = text.length
+  while (start > 0 && text[start - 1] >= '0' && text[start - 1] <= '9') start--
+  return { prefix: text.slice(0, start), digits: text.slice(start) }
+}
+
+/** A digit string plus one, in decimal, without its leading zeros. */
+const oneMore = (digits) => {
+  const out = []
+  let carry = 1
+  for (const character of [...(digits.replace(/^0+/, '') || '0')].reverse()) {
+    const value = character.charCodeAt(0) - 48 + carry
+    out.push(String.fromCharCode(48 + (value % 10)))
+    carry = Math.floor(value / 10)
+  }
+  if (carry) out.push('1')
+  return out.reverse().join('')
+}
+
 /**
  * The id after the highest one, in the board's own prefix.
  *
  * It used to be one fixed prefix whatever the board was, so a plain `add` on a
  * board with another prefix got the wrong one. An empty board has no prefix to keep, so it takes the capitals of the
  * project folder's name, or its first two letters when it has fewer than two.
+ *
+ * The number is the run of ASCII digits the id ends with, worked as a digit
+ * string and never converted: Number() rounded past 2**53, so the id after
+ * T-9007199254740993 was one that already existed.
  */
 const nextId = () => {
   let best = null
   for (const row of db.prepare('SELECT id FROM task ORDER BY rowid').all()) {
-    const match = /^(.*?)(\d+)$/.exec(row.id)
-    if (match && (best === null || Number(match[2]) > best.number)) best = { prefix: match[1], number: Number(match[2]) }
+    const { prefix, digits } = trailingDigits(row.id)
+    if (digits && (best === null || byIdNumber(digits, best.digits) > 0)) best = { prefix, digits }
   }
-  if (best) return `${best.prefix}${String(best.number + 1).padStart(3, '0')}`
-  const project = dirname(dirname(BOARD)).split(/[\\/]/).pop() ?? ''
+  if (best) return `${best.prefix}${oneMore(best.digits).padStart(3, '0')}`
+  const project = dirname(dirname(BOARD)).split(/[\\/]/).pop()
   const capitals = (project.match(/[A-Z]/g) ?? []).join('')
   const prefix = capitals.length >= 2 ? capitals : project.slice(0, 2).toUpperCase()
   return `${prefix}-001`
 }
 
+// Pairs only, as the Python half reads them: a flag at the end with no value is
+// passed over, so it can neither clear a field nor count as a change. Only an
+// explicit empty value, `--parent ""`, clears.
 const flags = (args) => {
   const out = {}
-  for (let i = 0; i < args.length; i += 2) out[args[i].replace(/^--/, '')] = args[i + 1]
+  for (let i = 0; i + 1 < args.length; i += 2) out[args[i].replace(/^--/, '')] = args[i + 1]
   return out
 }
 
@@ -454,13 +707,18 @@ const roundLine = (round) =>
   (round.filed === null ? ', not judged yet' : round.filed === '' ? ', filed none' : `, filed ${round.filed}`) +
   (round.dismissed ? `, dismissed: ${round.dismissed}` : '')
 
+// Keep stored ranking fields readable, with the same labels in both ports: NULL, a BLOB as
+// <non-text> (severity) or <non-number> (points), and a number as JavaScript prints it (an
+// integral legacy REAL as the integer, which the Python half matches up to 2**53).
+const rankField = (value, kind) =>
+  value === null ? 'NULL' : value instanceof Uint8Array ? (kind === 'severity' ? '<non-text>' : '<non-number>') : value
 const card = (task) => {
   const label = task.phase ? allPhases().find((phase) => phase.name === task.phase)?.label : null
   const reason = blockOf(task.id)
   const notes = notesOf(task.id)
   const rounds = roastsOf(task.id)
   return [
-    `${task.id}  [${task.severity}/${task.points}pt]  ${task.status}${task.area ? `  ${task.area}` : ''}`,
+    `${task.id}  [${rankField(task.severity, 'severity')}/${rankField(task.points, 'points')}pt]  ${task.status}${task.area ? `  ${task.area}` : ''}`,
     `  ${task.title}`,
     '',
     `  area : ${task.area ?? 'unset'}`,
@@ -486,6 +744,7 @@ const card = (task) => {
     })(),
     ...(reason === null ? [] : [`  blocked: ${reason}`]),
     ...(task.evidence ? [`  evidence: ${task.evidence}`] : []),
+    ...(recordsTests(task) ? [`  tested: ${testWord(task, 'tested', 'tested_how')}`, `  e2e   : ${testWord(task, 'e2e_tested', 'e2e_how')}`] : []),
     ...(task.reason ? [`  dropped: ${task.reason}`] : []),
     ...(notes.length ? ['  notes:', ...notes.map((text) => `    - ${text}`)] : []),
     ...(rounds.length ? ['  roasts:', ...rounds.map(roundLine)] : []),
@@ -538,10 +797,55 @@ const okrReport = () => {
   return lines
 }
 
-// Ids sort numerically, not as text. `localeCompare` puts SB-1000 before
-// SB-999, which is correct today and wrong from the thousandth task: the worst
-// kind of bug, invisible until a boundary and then quietly reordering the work.
-const idNumber = (id) => Number(String(id).replace(/^\D+/, '')) || 0
+// Ids sort numerically, not as text. A text order puts SB-1000 before SB-999,
+// which is correct today and wrong from the thousandth task: the worst kind of
+// bug, invisible until a boundary and then quietly reordering the work.
+//
+// The number is every ASCII digit of the id, joined, compared as a digit string
+// and never converted, so it is the exact integer order at any length, the
+// order the Python half gives. Converting with Number() rounded past 2**53, read
+// SB-1e3 as a thousand, and took only the digits after the leading letters.
+const idNumber = (id) => String(id).replace(/[^0-9]/g, '').replace(/^0+/, '')
+const byIdNumber = (a, b) => {
+  const x = idNumber(a), y = idNumber(b)
+  return x.length - y.length || (x < y ? -1 : x > y ? 1 : 0)
+}
+// The last tie is by code point, as Python compares strings: UTF-8 bytes sort in
+// code point order. localeCompare ordered case and accents by locale, and a plain
+// < compares UTF-16 units, which puts a character beyond U+FFFF too early.
+const byCodePoint = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b))
+
+class UnrankableSeverity extends Error {}
+class UnrankablePoints extends Error {}
+const severityProblem = (task) => SEVERITIES.includes(task.severity) ? null :
+  `${task.id}: its severity ${typeof task.severity === 'string' ? task.severity : task.severity == null ? 'NULL' : '<non-text>'} is not one of ${SEVERITIES.join(', ')}`
+const pointsProblem = (task) => {
+  const numeric = typeof task.points === 'number'
+  const label = typeof task.points === 'string' ? task.points : task.points === null ? 'NULL' : numeric ? '<unsupported number>' : '<non-number>'
+  return numeric && POINTS.includes(task.points) ? null :
+    `${task.id}: its points ${label} is not one of ${POINTS.join(', ')}`
+}
+const severityRank = (task) => {
+  const problem = severityProblem(task)
+  if (problem !== null) throw new UnrankableSeverity(problem)
+  return SEVERITIES.indexOf(task.severity)
+}
+// Validate in stored id order before sorting: even singleton collections and
+// phase ties that short-circuit the comparator must refuse unsupported fields.
+const ranked = (tasks, compare) => {
+  for (const task of tasks) {
+    severityRank(task)
+    const problem = pointsProblem(task)
+    if (problem !== null) throw new UnrankablePoints(problem)
+  }
+  return tasks.sort(compare)
+}
+const rankedCall = (action) => {
+  try { return action() } catch (error) {
+    if (!(error instanceof UnrankableSeverity) && !(error instanceof UnrankablePoints)) throw error
+    fail(error.message)
+  }
+}
 
 // The phase comes first: what the product needs to ship is picked before what
 // comes after it, however severe the later one is.
@@ -549,38 +853,69 @@ const byRule = (a, b) =>
   phaseRank(a) - phaseRank(b) ||
   SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) ||
   a.points - b.points ||
-  idNumber(a.id) - idNumber(b.id) ||
-  a.id.localeCompare(b.id)
+  byIdNumber(a.id, b.id) ||
+  byCodePoint(a.id, b.id)
+
+/** Whether every parent of a task is done: what eligibility, and resuming started work, both wait for. */
+const parentsDone = (task, done) => task.parents.every((parent) => done.has(parent))
 
 /**
  * What `next` would pick, for `next` and for the rendered board alike.
  *
  * Work in flight is finished before anything new starts, and among several
  * started tasks the same rule decides which. Taking the first by id meant a low
- * severity task begun earlier beat a critical one. A blocked task is neither.
+ * severity task begun earlier beat a critical one. A blocked task is neither,
+ * and neither is a started task one of whose parents is unfinished: a parent
+ * added after it started means it cannot go on until that parent is done.
  */
 const choose = (tasks, areas = null) => {
   const done = new Set(tasks.filter((task) => task.status === 'done').map((task) => task.id))
-  const started = tasks.filter((task) => (task.status === 'in_progress' || task.status === 'wait_for_roast') && !isBlocked(task) && inAreas(task, areas)).sort(byRule)
-  const eligible = tasks
+  const started = ranked(tasks
+    .filter((task) => (task.status === 'in_progress' || task.status === 'wait_for_roast') && !isBlocked(task) && inAreas(task, areas))
+    .filter((task) => parentsDone(task, done)), byRule)
+  const eligible = ranked(tasks
     .filter((task) => task.status === 'backlog' && inAreas(task, areas) && !isBlocked(task))
-    .filter((task) => task.parents.every((parent) => done.has(parent)))
-    .sort(byRule)
+    .filter((task) => parentsDone(task, done)), byRule)
   return { started, pick: started[0] ?? eligible[0] }
+}
+
+/** Each parent of a task that is not done, with its status, or saying it is not on the board. */
+const unfinishedParents = (task, tasks) => {
+  const status = new Map(tasks.map((other) => [other.id, other.status]))
+  return [...task.parents]
+    .sort(byCodePoint)
+    .filter((parent) => status.get(parent) !== 'done')
+    .map((parent) => (status.has(parent) ? `${parent} (${status.get(parent)})` : `${parent}, which is not on this board`))
+}
+
+/** The started, unblocked tasks `choose` passes over because a parent is unfinished, in its order. */
+const startedButWaiting = (tasks, areas = null) =>
+  ranked(tasks
+    .filter((task) => (task.status === 'in_progress' || task.status === 'wait_for_roast') && !isBlocked(task) && inAreas(task, areas))
+    .filter((task) => unfinishedParents(task, tasks).length), byRule)
+
+/** What `next` says about started work it does not resume, and why: a parent dropped or gone never becomes done. */
+const sayHeld = (held, tasks) => {
+  for (const task of held) {
+    console.log(`  ${task.id} is ${task.status} and waits on ${unfinishedParents(task, tasks).join(', ')}; next does not resume it until every parent is done.`)
+  }
 }
 
 const escapeCell = (text) => String(text ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
 
 const bySeverity = (a, b) =>
-  SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) || a.points - b.points || idNumber(a.id) - idNumber(b.id) || a.id.localeCompare(b.id)
+  SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) || a.points - b.points || byIdNumber(a.id, b.id) || byCodePoint(a.id, b.id)
 
 /** The board as Markdown, which is what a person reads and what a diff of it shows. */
 const renderBoard = () => {
   const tasks = all()
-  const project = dirname(dirname(BOARD)).split(/[\\/]/).pop() ?? ''
+  const project = dirname(dirname(BOARD)).split(/[\\/]/).pop()
   const done = tasks.filter((task) => task.status === 'done')
-  const points = tasks.reduce((sum, task) => sum + task.points, 0)
-  const donePoints = done.reduce((sum, task) => sum + task.points, 0)
+  // An unranked old status may still be displayed. Never coerce its invalid
+  // points into a total. Numeric values remain summable independently of their
+  // ranking eligibility; actual ranked candidates refuse in their group order.
+  const points = tasks.every((task) => typeof task.points === 'number') ? tasks.reduce((sum, task) => sum + task.points, 0) : 'unknown'
+  const donePoints = done.every((task) => typeof task.points === 'number') ? done.reduce((sum, task) => sum + task.points, 0) : 'unknown'
   const out = [
     '# Board',
     '',
@@ -618,7 +953,7 @@ const renderBoard = () => {
     ['dropped', 'Dropped'],
   ]
   for (const [key, heading] of columns) {
-    const column = tasks.filter((task) => (key === 'blocked' ? isBlocked(task) : task.status === key && !isBlocked(task))).sort(bySeverity)
+    const column = ranked(tasks.filter((task) => (key === 'blocked' ? isBlocked(task) : task.status === key && !isBlocked(task))), bySeverity)
     if (!column.length) continue
     out.push(`## ${heading} (${column.length})`, '')
     out.push('| id | title | sev | pt | area | blocked by | exit condition |')
@@ -635,7 +970,7 @@ const renderBoard = () => {
   for (const task of tasks) {
     out.push(`### \`${task.id}\` ${task.title}`, '')
     out.push(
-      `- **status** ${task.status} · **severity** ${task.severity} · **points** ${task.points} · **area** ${task.area ?? 'unset'}${task.phase ? ` · **objective** ${task.phase}` : ''}`,
+      `- **status** ${task.status} · **severity** ${rankField(task.severity, 'severity')} · **points** ${rankField(task.points, 'points')} · **area** ${task.area ?? 'unset'}${task.phase ? ` · **objective** ${task.phase}` : ''}`,
     )
     out.push(`- **blocked by** ${task.parents.join(', ') || 'none'}`)
     const reason = blockOf(task.id)
@@ -643,6 +978,10 @@ const renderBoard = () => {
     if (task.parent_task) out.push(`- **came out of** ${task.parent_task}`)
     out.push('', task.descr, '', `**Why.** ${task.why}`, '', `**Exit condition.** ${task.exit_cond}`, '')
     if (task.evidence) out.push(`**Evidence.** ${task.evidence}`, '')
+    if (recordsTests(task)) {
+      out.push(`**Tested.** ${testWord(task, 'tested', 'tested_how')}`, '')
+      out.push(`**E2E tested.** ${testWord(task, 'e2e_tested', 'e2e_how')}`, '')
+    }
     if (task.reason) out.push(`**Dropped because.** ${task.reason}`, '')
     const notes = notesOf(task.id)
     if (notes.length) out.push('**Notes.**', '', ...notes.map((text) => `- ${text}`), '')
@@ -702,9 +1041,7 @@ if (command === 'phase') {
   } else if (action === 'edit') {
     const id = args[1]
     if (!id || !phaseExists(id)) fail(`okr edit: ${id ?? '(no id)'} is not an objective this board holds.`)
-    // A trailing flag with no value would be a key holding undefined, and an
-    // edit of nothing would report itself done.
-    const given = Object.fromEntries(Object.entries(flags(args.slice(2))).filter(([, value]) => value !== undefined))
+    const given = flags(args.slice(2))
     const fields = { name: 'label', description: 'goal', position: 'position' }
     const unknown = Object.keys(given).filter((key) => !(key in fields))
     if (unknown.length) fail(`okr edit: ${unknown.join(', ')} is not a field of an objective. Pass --name, --description or --position.`)
@@ -743,7 +1080,7 @@ if (command === 'phase') {
         // current phase on every line says nothing and hides the ones that
         // are deferred.
         const later = phaseRank(task) > 0 ? `  · ${task.phase}` : ''
-        console.log(`    ${task.id}  [${task.severity}/${task.points}pt]  ${task.title}${later}`)
+        console.log(`    ${task.id}  [${rankField(task.severity, 'severity')}/${rankField(task.points, 'points')}pt]  ${task.title}${later}`)
       }
     }
   }
@@ -752,7 +1089,7 @@ if (command === 'phase') {
     if (blocked.length) {
       console.log(`\nBLOCKED (${blocked.length})`)
       for (const task of blocked) {
-        console.log(`    ${task.id}  [${task.severity}/${task.points}pt]  ${task.title}`)
+        console.log(`    ${task.id}  [${rankField(task.severity, 'severity')}/${rankField(task.points, 'points')}pt]  ${task.title}`)
         console.log(`      ${blockOf(task.id)}`)
       }
     }
@@ -764,10 +1101,15 @@ if (command === 'phase') {
   const areas = areasFor(valueOf(args, 'area'))
   const scope = areas ? ` in area ${areas.join(', ')}` : ''
   const tasks = all()
-  const { started, pick } = choose(tasks, areas)
+  const { started, pick } = rankedCall(() => choose(tasks, areas))
+  const held = rankedCall(() => startedButWaiting(tasks, areas))
   if (!pick) {
     const mine = tasks.filter((task) => inAreas(task, areas))
-    const waiting = mine.filter((task) => task.status === 'backlog' && !isBlocked(task)).length
+    // With no pick, every unblocked task still to do waits on a parent: a
+    // backlog one that was eligible, or a started one, would have been picked.
+    // A started task counts too, or "Nothing left", which ends a loop, would
+    // be said while it waits.
+    const waiting = mine.filter((task) => ['backlog', 'in_progress', 'wait_for_roast'].includes(task.status) && !isBlocked(task)).length
     const blocked = mine.filter((task) => !['done', 'dropped'].includes(task.status) && isBlocked(task))
     if (waiting) console.log(`Nothing eligible${scope}. ${waiting} task(s) waiting on unfinished parents.`)
     else if (!blocked.length) console.log(`Nothing left${scope}.`)
@@ -775,6 +1117,7 @@ if (command === 'phase') {
       console.log(`${blocked.length} task(s) blocked:`)
       for (const task of blocked) console.log(`  ${task.id}: ${blockOf(task.id)}`)
     }
+    sayHeld(held, tasks)
     process.exit(0)
   }
 
@@ -782,6 +1125,10 @@ if (command === 'phase') {
   const within = current ? ` in ${current.name}` : ''
   console.log(started[0] ? `ALREADY STARTED${scope}, finish this first\n` : `NEXT${within}${scope}: highest severity, unblocked, fewest points\n`)
   console.log(card(pick))
+  if (held.length) {
+    console.log('')
+    sayHeld(held, tasks)
+  }
 } else if (command === 'add') {
   const given = flags(args)
   const required = ['title', 'desc', 'why', 'severity', 'points', 'exit']
@@ -825,7 +1172,9 @@ if (command === 'phase') {
   }
   const phase = given.phase ?? currentPhase()?.name ?? null
 
-  const id = given.id ?? nextId()
+  // An empty --id is no id: the board picks the next one, as the Python half does.
+  const id = given.id || nextId()
+  const parentWasTested = testedTask(parentTask)
   db.prepare(
     'INSERT INTO task (id, title, descr, why, severity, points, status, exit_cond, area, parent_task, phase) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
   ).run(
@@ -848,6 +1197,9 @@ if (command === 'phase') {
   if (parentTask) {
     const open = openChildren(parentTask).length
     console.log(`  a child of ${parentTask}, which now has ${open} open child task(s).`)
+    if (parentWasTested && !testedTask(parentTask)) {
+      console.log(`  ${parentTask}'s test state is cleared: it has an open finding now. What it had is kept in a note.`)
+    }
   }
 } else if (command === 'edit' || command === 'set') {
   // `next` picks by severity, then points, then parents. When it picks wrong
@@ -889,7 +1241,7 @@ if (command === 'phase') {
   // same way `--parent ""` clears the blocker list, so a task filed against the
   // wrong parent can be moved without editing the database by hand.
   if ('parent-task' in given) {
-    const wanted = (given['parent-task'] ?? '').trim()
+    const wanted = given['parent-task'].trim()
     if (!wanted) {
       db.prepare('UPDATE task SET parent_task = NULL WHERE id = ?').run(id)
       console.log(`${id} is no longer a child of anything.`)
@@ -897,8 +1249,12 @@ if (command === 'phase') {
       fail(`${id} cannot be its own parent.`)
     } else {
       const resolved = resolveParent(wanted)
+      const parentWasTested = testedTask(resolved)
       db.prepare('UPDATE task SET parent_task = ? WHERE id = ?').run(resolved, id)
       console.log(`${id} is now a child of ${resolved}.`)
+      if (parentWasTested && !testedTask(resolved)) {
+        console.log(`  ${resolved}'s test state is cleared: it has an open finding now. What it had is kept in a note.`)
+      }
     }
   }
 
@@ -911,7 +1267,7 @@ if (command === 'phase') {
   }
 
   if ('parent' in given) {
-    const wanted = (given.parent ?? '')
+    const wanted = given.parent
       .split(',')
       .map((each) => each.trim())
       .filter(Boolean)
@@ -921,7 +1277,6 @@ if (command === 'phase') {
 
     // A cycle is worse than a wrong parent: every task in it waits forever and
     // `next` reports them as blocked rather than as broken.
-    const edges = (of) => (of === id ? wanted : parents(of))
     const seen = new Set()
     const stack = [...wanted]
     while (stack.length) {
@@ -929,7 +1284,7 @@ if (command === 'phase') {
       if (at === id) fail(`That parent makes a cycle: ${id} would wait on itself, through ${[...seen].join(' -> ') || at}.`)
       if (seen.has(at)) continue
       seen.add(at)
-      stack.push(...edges(at))
+      stack.push(...parents(at))
     }
 
     db.prepare('DELETE FROM blocked_by WHERE task = ?').run(id)
@@ -942,6 +1297,9 @@ if (command === 'phase') {
 
   const changed = [...touched, ...('parent' in given ? ['parent'] : []), ...('note' in given ? ['note'] : [])]
   console.log(`${id}: ${changed.join(', ')} changed`)
+  if (isTested(task) && !testedTask(id)) {
+    console.log(`  ${id}'s test state is cleared: what it proved has changed. What it had is kept in a note.`)
+  }
   console.log(card(one(id)))
 } else if (command === 'move') {
   const [id, status, ...rest] = args
@@ -963,6 +1321,7 @@ if (command === 'phase') {
     if (mine !== null && !inAreas(task, mine)) fail(`${id} is in area ${task.area || 'unset'}; this session works in ${mine.join(', ')} (its loop file, ${loop.file}).`)
   }
   const wasBlocked = blockOf(id)
+  const parentWasTested = testedTask(task.parent_task)
   const stamp = now()
   db.prepare('UPDATE task SET status = ?, updated = ? WHERE id = ?').run(status, stamp, id)
   if (wasBlocked !== null) db.prepare('DELETE FROM blocked WHERE task = ?').run(id)
@@ -973,6 +1332,10 @@ if (command === 'phase') {
   if (status === 'dropped' && given.reason) db.prepare('UPDATE task SET reason = ? WHERE id = ?').run(given.reason, id)
   console.log(`${id}: ${task.status} -> ${status}`)
   if (wasBlocked !== null) console.log(`  no longer blocked: ${wasBlocked}`)
+  if (isTested(task) && !testedTask(id)) console.log(`  ${id}'s test state is cleared: it is ${status} now. What it had is kept in a note.`)
+  if (parentWasTested && !testedTask(task.parent_task)) {
+    console.log(`  ${task.parent_task}'s test state is cleared: it has an open finding now. What it had is kept in a note.`)
+  }
 
   // Said, not refused. A finding is a new card rather than a reopened one in
   // some projects' rules, but others may differ, so the tool names the
@@ -1086,6 +1449,10 @@ if (command === 'phase') {
   const phaseNames = new Set(allPhases().map((phase) => phase.name))
   const problems = []
   for (const task of tasks) {
+    const problem = severityProblem(task)
+    if (problem !== null) problems.push(problem)
+    const pointsError = pointsProblem(task)
+    if (pointsError !== null) problems.push(pointsError)
     for (const parent of task.parents) {
       const blocker = byId.get(parent)
       if (!blocker) {
@@ -1094,7 +1461,7 @@ if (command === 'phase') {
       }
       // A blocker less severe than what it blocks is never picked ahead of it,
       // so the severe task starves behind one nobody selects.
-      if (!['done', 'dropped'].includes(task.status) && blocker.status !== 'done' && SEVERITIES.indexOf(blocker.severity) > SEVERITIES.indexOf(task.severity)) {
+      if (!['done', 'dropped'].includes(task.status) && blocker.status !== 'done' && severityProblem(blocker) === null && problem === null && severityRank(blocker) > severityRank(task)) {
         problems.push(`${task.id} (${task.severity}) waits on ${parent} (${blocker.severity}), which is less severe, so next would never pick it first`)
       }
       if (task.status === 'done' && blocker.status !== 'done') problems.push(`${task.id} is done, but its blocker ${parent} is ${blocker.status}`)
@@ -1110,6 +1477,28 @@ if (command === 'phase') {
     if (task.exit_cond.trim().length < 25) problems.push(`${task.id}: its exit condition is too short to check`)
     const reason = blockOf(task.id)
     if (reason !== null && ['done', 'dropped'].includes(task.status)) problems.push(`${task.id} is ${task.status} and still blocked: ${reason}`)
+    // A claim the guards would have refused, which only a board whose guards
+    // were dropped, or were never added, can hold.
+    if (recordsTests(task)) {
+      for (const flag of ['tested', 'e2e_tested']) {
+        if (task[flag] !== 0 && task[flag] !== 1) problems.push(`${task.id}: ${flag} holds ${task[flag]}, not 0 or 1`)
+      }
+      if (task.tested === 1 && task.status !== 'done') problems.push(`${task.id} is tested but ${task.status}`)
+      if (task.tested === 1 && !stripBlank(task.tested_how ?? '')) problems.push(`${task.id} is tested with nothing saying what proved it`)
+      if (task.e2e_tested === 1 && task.tested !== 1) problems.push(`${task.id} is e2e tested but not tested`)
+      if (task.e2e_tested === 1 && !stripBlank(task.e2e_how ?? '')) problems.push(`${task.id} is e2e tested with nothing saying what proved it`)
+      const stillOpen = isTested(task) ? openChildren(task.id).map((child) => child.id) : []
+      if (stillOpen.length) problems.push(`${task.id} is tested, but its finding(s) ${stillOpen.join(', ')} are open`)
+    }
+  }
+
+  const present = taskColumns()
+  if (TEST_STATE_COLUMNS.some(([name]) => present.includes(name))) {
+    const lacking = TEST_STATE_COLUMNS.filter(([name]) => !present.includes(name)).map(([name]) => name)
+    if (lacking.length) problems.push(`the board records test states without the column(s) ${lacking.join(', ')}`)
+    const guards = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'").all().map((row) => row.name))
+    const absent = TEST_STATE_TRIGGER_NAMES.filter((name) => !guards.has(name))
+    if (absent.length) problems.push(`the board records test states without the guard(s) ${absent.join(', ')}; the next todo tested adds them`)
   }
 
   // Depth-first cycle detection over the blocker edges.
@@ -1121,7 +1510,8 @@ if (command === 'phase') {
       return
     }
     state.set(id, 'open')
-    for (const parent of byId.get(id)?.parents ?? []) {
+    // Initial and recursive calls refer only to known tasks with normalized parents.
+    for (const parent of byId.get(id).parents) {
       if (byId.has(parent)) walk(parent, [...trail, id])
     }
     state.set(id, 'done')
@@ -1144,7 +1534,7 @@ if (command === 'phase') {
   const outGiven = valueOf(args, 'out')
   const out = outGiven ? resolve(outGiven) : join(dirname(BOARD), 'TODO_BOARD.md')
   const label = outGiven ?? '.claude/TODO_BOARD.md'
-  const text = renderBoard()
+  const text = rankedCall(renderBoard)
   if (args.includes('--check')) {
     const current = existsSync(out) ? readFileSync(out, 'utf8') : ''
     if (current !== text) fail(`${label} is stale: it differs from what the board renders. Run: todo render${outGiven ? ` --out ${outGiven}` : ''}`)
@@ -1172,6 +1562,102 @@ if (command === 'phase') {
   for (const table of ['blocked', 'note', 'roast']) db.prepare(`DELETE FROM ${table} WHERE task = ?`).run(id)
   db.prepare('DELETE FROM task WHERE id = ?').run(id)
   console.log(`removed ${id}: ${reason}`)
+} else if (command === 'tested' || command === 'e2e') {
+  // Done is not tested. A claim needs a done task that is not blocked, has no
+  // open finding, and says what proved it; e2e needs tested first. The board
+  // is checked inside the claim's own transaction and before anything is
+  // written, so a refused claim leaves the file as it was, a board that never
+  // records a test never gains the columns, and a finding filed by another
+  // session cannot land between the check and the claim.
+  const [id, ...rest] = args
+  if (!id || id.startsWith('--')) fail(`${command} needs a task: todo ${command} SB-003 --evidence "what was run and what it showed"`)
+  const evidence = stripBlank(valueOf(rest, 'evidence') ?? '')
+  if (!evidence) fail(`${command} ${id} needs --evidence "...": what was run and what it showed. Nothing was recorded.`)
+  const stamp = now()
+  let added = false
+  let open = false
+  try {
+    db.exec('BEGIN IMMEDIATE')
+    open = true
+    const problem = claimProblem(id, command)
+    if (problem !== null) giveUp(problem, open)
+    added = command === 'tested' ? startTestStates() : false
+    if (command === 'tested') {
+      db.prepare('UPDATE task SET tested = 1, tested_how = ?, tested_at = ?, updated = ? WHERE id = ?').run(evidence, stamp, stamp, id)
+    } else {
+      db.prepare('UPDATE task SET e2e_tested = 1, e2e_how = ?, e2e_at = ?, updated = ? WHERE id = ?').run(evidence, stamp, stamp, id)
+    }
+    db.exec('COMMIT')
+  } catch (error) {
+    giveUp(`${id}: the board could not take the claim: ${error.message}. Nothing was recorded.`, open)
+  }
+  console.log(`${id}: ${command === 'tested' ? 'tested' : 'e2e tested'}, ${evidence}`)
+  if (added) console.log('  This board records test states from now on. Every other done task reads tested: no until it is tested.')
+} else if (command === 'untest') {
+  // Clearing a test state by hand, for a proof that no longer holds. What it
+  // had goes into a note first: a cleared claim is history, not nothing. The
+  // state is read inside the transaction that clears it, so two clears at once
+  // leave one note, and a failure leaves neither the note nor the change.
+  const [id, ...rest] = args
+  if (!id || id.startsWith('--')) fail('untest needs a task: todo untest SB-003 [e2e] --reason "why the proof no longer holds"')
+  const onlyE2e = rest[0] === 'e2e'
+  const reason = stripBlank(valueOf(rest, 'reason') ?? '')
+  if (!reason) fail(`untest ${id} needs --reason "...": a cleared test state says why. Nothing was changed.`)
+  if (!hasTestStates()) {
+    one(id)
+    console.log(`${id}: this board records no test states, so there is nothing to clear.`)
+    process.exit(0)
+  }
+  const stamp = now()
+  let open = false
+  try {
+    db.exec('BEGIN IMMEDIATE')
+    open = true
+    const task = db.prepare('SELECT * FROM task WHERE id = ?').get(id)
+    if (!task) giveUp(`No task ${id}.`, open)
+    if (!(onlyE2e ? task.e2e_tested === 1 : isTested(task))) {
+      db.exec('ROLLBACK')
+      db.close()
+      console.log(`${id} is not ${onlyE2e ? 'e2e tested' : 'tested'}, so there is nothing to clear.`)
+      process.exit(0)
+    }
+    const cleared = onlyE2e ? `e2e tested: ${task.e2e_how ?? ''}` : had(task)
+    const sets = onlyE2e
+      ? 'e2e_tested = 0, e2e_how = NULL, e2e_at = NULL'
+      : 'tested = 0, tested_how = NULL, tested_at = NULL, e2e_tested = 0, e2e_how = NULL, e2e_at = NULL'
+    db.prepare('INSERT INTO note (task, at, text) VALUES (?,?,?)').run(id, stamp, `test state cleared by hand: ${reason}; it had ${cleared}`)
+    db.prepare(`UPDATE task SET ${sets}, updated = ? WHERE id = ?`).run(stamp, id)
+    db.exec('COMMIT')
+  } catch (error) {
+    giveUp(`${id}: the board could not clear it: ${error.message}. Nothing was changed.`, open)
+  }
+  console.log(`${id}: ${onlyE2e ? 'e2e test state' : 'test state'} cleared. What it had is kept in a note.`)
+} else if (command === 'tests') {
+  // Read-only: which done tasks are tested, and which are not. A board that
+  // records no test states says so rather than calling every task untested.
+  const areas = areaFilter(valueOf(args, 'area'))
+  if (!hasTestStates()) {
+    console.log('This board records no test states yet. The first is: todo tested <id> --evidence "..."')
+    process.exit(0)
+  }
+  const scope = areas ? ` in area ${areas.join(', ')}` : ''
+  const done = all().filter((task) => task.status === 'done' && inAreas(task, areas))
+  if (!done.length) console.log(`Nothing is done${scope} yet.`)
+  const groups = [
+    ['DONE, NOT TESTED', done.filter((task) => task.tested !== 1)],
+    ['TESTED, NOT E2E TESTED', done.filter((task) => task.tested === 1 && task.e2e_tested !== 1)],
+    ['E2E TESTED', done.filter((task) => task.tested === 1 && task.e2e_tested === 1)],
+  ]
+  for (const [heading, group] of groups) {
+    if (!group.length) continue
+    console.log(`\n${heading}${scope} (${group.length})`)
+    for (const task of group) {
+      console.log(`    ${task.id}  [${rankField(task.severity, 'severity')}/${rankField(task.points, 'points')}pt]  ${task.title}`)
+      if (task.tested === 1) console.log(`      tested: ${task.tested_how}`)
+      if (task.e2e_tested === 1) console.log(`      e2e   : ${task.e2e_how}`)
+    }
+  }
+  console.log('')
 } else {
   fail(`Unknown command "${command}". Try: list, next, show, add, edit, set, move, phase, okr, roast, validate, render, rm.`)
 }

@@ -15,8 +15,8 @@ Resolve `todo.py` or `todo.mjs` from this installed skill folder and pass an
 absolute path. Both are the source tool, on the same database and commands;
 Python needs 3.9+, Node needs 22.13+ for built-in SQLite. Neither needs a
 separate SQLite install, packages or a migration run. The source tools are
-bundled unchanged in this port; verify their installed paths before calling
-them and never claim that an absent command is implemented.
+bundled with this skill; verify their installed paths before calling them and
+never claim that an absent command is implemented.
 
 Before project work, check whether another session is already working that
 project using its full command line and session records. Concurrent loop and
@@ -32,6 +32,47 @@ points and lowest ID, excluding blocked tasks and unfinished dependencies.
 Do not choose a different task with an invented ordering. If the pick looks
 wrong, correct the recorded severity, points or parents within the owner's
 instructions, then run `next` again. Mark the selected task `in_progress`.
+
+The exclusion holds for started work too. A started task (`in_progress` or
+`wait_for_roast`) one of whose parents is not done, such as a parent added
+after it started, is not resumed: `next` offers other work and names it, with
+each parent's status (`dropped`, or not on the board, never becomes done), and
+resumes it once every parent is done. With nothing to pick, `next` counts such
+tasks among those waiting on unfinished parents and never reports `Nothing
+left` while any waits.
+
+The lowest ID is a number made of every ASCII digit in the ID, joined, and
+compared exactly at any length (`P2-010` is 2010, `SB-1e3` is 13); equal
+numbers fall back to the ID itself, compared character by character by
+Unicode code point (`X1` before `x1`). Digits outside ASCII, such as
+Arabic-Indic or fullwidth ones, are not part of the number. Both runtimes
+order the same way.
+
+`list` keeps the board's stored SQL ID order. `next` and rendered lanes use
+their ranking keys. Before sorting, each filtered candidate is checked in stored
+ID order: severity first, then points. An old row with an unknown severity or
+points outside 1, 2, 3, 5, 8, 13 refuses that ranking with native exit 1 and names
+the first offending task; text and NULL points are not coerced into a rank.
+Started, eligible and held groups are checked in that order. Render checks its
+next pick before every ranked status column: in progress, waiting for a roast,
+blocked, backlog, done and dropped. An unblocked row in another status stays
+outside those ranked columns. Blocked and other-status rows can stay outside
+`next` while `list` and `show` remain readable; NULL ranking fields use the same
+explicit `NULL` label in both ports, and a BLOB shows as `<non-text>` (severity)
+or `<non-number>` (points), the labels `validate` uses. An old REAL points column
+reads 2 back as 2.0: both ports show an integral number as the integer (up to
+2**53) and rank it as before; a non-integral one shows as stored (2.5). The two
+ports may still write a REAL outside 1e-4..1e16, or an integral REAL beyond
+2**53, differently. A stored INTEGER beyond 2**53 in any column the engine reads
+(points, or for example a legacy epoch `created`) is a different case: the Node
+half reads integers with node:sqlite's default number mapping, so that board is
+unreadable to it, while the Python half reads it exactly. node:sqlite's exact
+behaviour for such a value is not verified here; nothing the engine accepts is
+narrowed for it. Non-number points, including text or NULL,
+make aggregate totals unknown rather than inventing a number. Stored numeric
+points remain summable even when outside the supported ranking domain. `validate` reports every unknown
+severity and unsupported points value; starvation comparisons involving unknown
+severities are skipped. Modern board constraints are unchanged.
 
 A loop is per session, and its loop file sets its board and areas: the file
 `.claude/<name>loop<...>.local.md` names the session (`session:`) and, when the
@@ -53,20 +94,25 @@ Record every owner request, discovery and surviving roast finding while it is
 known. Supply a concrete title, description, who wants what and why,
 severity (`critical`, `high`, `medium`, `low`), story points
 (`1`, `2`, `3`, `5`, `8`, `13`), dependencies where needed, and a checkable exit.
-Leave ID assignment to the board so its established prefix survives. A vague
-"it works" is not an exit.
+Leave ID assignment to the board so its established prefix survives; an empty
+`--id ""` is the same as leaving it out. The next ID takes the ID whose
+trailing run of ASCII digits is the highest number, and adds one to that
+number exactly, however long, padded to at least three digits (`SB-0099`
+gives `SB-100`). An ID that does not end in an ASCII digit is passed over. A
+vague "it works" is not an exit.
 
-**The latest three-pass procedure supersedes the source skill's old claim
-that `done` requires running every test.** Under `$sijav-codex-dev-round`, build
-the area's tasks and findings with their tests, running none except a
+`done`, `tested` and `e2e_tested` are separate records. Test states default to
+false; completing a task or passing its close exit does not create test or
+real-user evidence. Use the test-state commands below to record observed proof.
+
+When the owner invokes the global development-round procedure, build the
+area's tasks and findings with their test source first, running none except a
 project-prescribed close exit. Mark completed work done with its observed
-evidence, then roast it in the background. In the test pass, mark successful
-tests `tested`; only the later real-user pass marks `e2e tested`. These start
-false and are separate from done. Never manufacture test evidence or E2E
-status from a successful exit check. Use the project's existing supported
-status commands/schema; if a board lacks that capability, record the limitation
-and route any compatible implementation to Claude rather than claiming it is
-already available.
+completion evidence, then roast it in the background. After the area's source
+work is built, run its full test suite and reach 100% passing before recording
+successful test proof. Only after all required work is tested does the later
+real-user pass record E2E proof. This cadence applies to that invoked procedure;
+outside it, follow the project's existing closure and verification rules.
 
 Claude Opus 5.5 alone writes implementation and tests and performs technical
 roast. Codex coordinates, records and does the other reasoning. A deferred
@@ -88,9 +134,28 @@ Claude call leaves its implementation/review unfinished.
 
 ## Existing commands and records
 
-The unchanged tool supports `list`, `show`, `add`, `edit`/`set`, `move`,
+The tool supports `list`, `show`, `add`, `edit`/`set`, `move`,
 `validate`, `render`, `rm`, `phase` and `okr`, in addition to `next` and `roast`.
 Read its usage for exact switches instead of guessing extensions.
+
+Test state is additive on the same `.claude/todo.db`; it does not create a
+second board. Use these commands through either installed runtime:
+
+    tested <id> --evidence <text>
+    e2e <id> --evidence <text>
+    untest <id> --reason <text>
+    untest <id> e2e --reason <text>
+    tests [--area <area>]
+
+`tests` is read-only. Claims require real evidence; E2E proof requires prior
+`tested` proof and an eligible completed task. On an old board, the first valid
+test-state claim opts it into the additive state. Legacy reads and invalid
+claims do not migrate it or change its old output.
+
+Meaningful status, description, exit or open-finding changes invalidate the
+affected proof and record a note. Title edits, appended notes, roast records
+and no-op changes preserve proof; none creates it. Parent and child proof are
+independent: proof on one does not prove the other.
 
 - `move <id> blocked --reason <text>` requires a reason; a block is recorded
   beside the original status and removes the item from `next`. Any other move
@@ -98,6 +163,8 @@ Read its usage for exact switches instead of guessing extensions.
   preserve what was observed or why the work was dropped.
 - `edit --note <text>` appends a note. Dependency edits replace the list and
   reject missing IDs or cycles; an empty parent value clears dependencies.
+  Flags are read in pairs: a flag at the end with no value is ignored and
+  changes nothing, so only an explicit empty value (`--parent ""`) clears.
 - `validate` is read-only and reports dangling references, cycles, inconsistent
   priorities/phases/closures, missing finding parents, unjudged rounds and
   inadequate exits. A failing validation is evidence to address, not a reason
