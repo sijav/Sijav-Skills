@@ -134,13 +134,19 @@ In the sijav-clauder:dev-round skill (moved there on 2026-09-28). Use it for eve
 
 Work area by area: the front in general, or the back in general (a project may name its areas). Each area goes through three passes in order, and goes back to the first whenever work turns up. Done is not tested: when the project keeps its to-dos on a board, each to-do has two statuses that start false, tested and e2e tested.
 
+#### Responsibility and documentation
+
+The assigned implementation agent executes tests only for its work area, never another stream's or an unrelated project's work. The orchestrator coordinates and records results; it does not execute tests or repeat tests the implementer already ran. Start an area's full suite only after every source to-do and finding in that area is complete.
+
+Every change includes its documentation update. Keep the affected technical documents and the application's Markdown/HTML How It Works descriptions and process diagrams aligned with actual inputs, processing, storage, decisions, actions and human intervention. Preserve the distinction between changed source and behavior actually verified.
+
 #### 1. Build
 
 - Take the area's to-dos, and every follow-up or finding that becomes a to-do on the way, until none is left.
 - Build each one and write its tests with it. Test code only; don't write tests for rules, prompts or prose.
 - Tests follow written scenarios from the user's point of view: real-world, logical, and many of them. Together they cover 100% of the area's code.
 - Run no tests while building: not the tests you just wrote, not the ones near the code you changed, not coverage, not end-to-end runs, not planted faults, not the full suite. The worry that a change broke something else is what the test pass is for.
-- The one exception: when the project closes a to-do by running its exit check (a loop's close command, for example), that one command runs, and nothing else.
+- The one exception: when the project closes a to-do by running its exit check (a loop's close command, for example), that one command runs, and nothing else. A close exit that runs the area's full suite is deferred to the test pass; it cannot override the requirement to finish every source to-do and finding first. Source-built closure records deferred runtime checks explicitly and creates no tested or E2E evidence.
 
 #### 2. Test
 
@@ -438,8 +444,9 @@ On Codex, Claude's code and code reviews go through one helper, `claude_session.
 - **One model:** always `claude-opus-5-5`, at the effort asked for. No other model, no fallback, no retry.
 - **Locked down:** safe mode (no project CLAUDE.md, hooks, skills or MCP), restricted mode (no project settings can widen it), no slash commands, and no permission prompts: anything that would ask is refused.
 - **Two modes:** `code` reads and edits inside the project and runs only the commands you name, such as `Bash(python -m unittest *)`; `technical` only reads and fetches web pages. Both refuse to read keys, `.env` files and other secrets.
-- **Checked before it acts:** Claude's first event must show the exact model, only the tools offered, its own sign-in and the project as its folder. Anything else stops it there.
+- **Checked before it acts:** nothing Claude does may come before its start-up report, and every such report must show the exact model, only the tools offered, its own sign-in and the project as its folder. Only a few bounded bookkeeping events may come first: a resumed conversation's notices about its own background tasks, the acknowledgment of the helper's own message, and the queued and started marks of that message. Anything else stops it there.
 - **The law goes along:** safe mode loads no CLAUDE.md, so a purpose's first call carries the project's law.
+- **Finite commands:** the helper configures a foreground default and ceiling (by default the smaller of ten minutes and half the whole call's limit) and sends that allowance before the unchanged prompt suffix. An omitted tool timeout uses the default; a smaller explicit request stops earlier. The whole-call deadline starts at launch, and its remaining lifetime is unknown to this guidance. Actual offered limits and model compliance remain unproved. Background work is disabled; an offered duration refusal is reported before starting, without a hidden runner. A background task still makes the call incomplete. Managed follow-ups receive no repeat and are read when the actual command ends.
 - **Recorded:** each call keeps its prompt, the command, the raw output and the result in the project.
 
 ## The board's dashboard
@@ -453,9 +460,23 @@ flowchart LR
   B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py or the loop's tool, on a copy"]
   P -->|the next order| D
   D -->|kept| H["Change history<br/>your user cache folder"]
+  S["Startup<br/>resolve boards and acquire monitors"] -->|listen succeeds| D
+  S -->|later setup fails| C["Close acquired resources<br/>preserve original error"]
 ```
 
 *Where the dashboard's data comes from. The board is only ever read; the next order is the board tool's own, worked out on a copy; the change history stays in your user folder.*
+
+### How it works
+
+Area, type, topics and labels come only from fields stored on the board, including recorded lists and numbers. Task wording adds no labels. A missing field is distinguished from an empty one. **Doing** is the tool's interpretation of a recorded status; it does not establish that a worker is active. A started task the board tool holds back because a parent is not done is shown as Doing and waiting on its parents, exactly as the tool's own result says. **Done**, **Tested** and **E2E tested** remain separate recorded states.
+
+Python 3.9 or newer is required for the tool's order and status meaning, including when either picker is called directly. The tool runs on a throwaway board copy, and its probe results must reproduce its pick. A changed or unreadable policy is shown as unknown with its reason; the dashboard does not fill in a guessed order.
+
+Native file notifications drive updates. A watch that cannot start or reports a native error is shown as inactive with its actual reason. Some runtimes report a removed watched directory as a rename instead: the dashboard detects its disappearance before filtering child filenames, closes that watch and shows it as inactive. The service remains read-only. Restart the dashboard to restore a lost watch.
+
+During startup, each acquired monitor remains owned until the dashboard starts or cleanup completes. A later monitor or server setup failure closes the acquired resources, attempting every cleanup while preserving the original error. Startup cleanup does not write a board.
+
+SQLite SELECT columns arrive through the native column-type boundary: NULL remains NULL, infinities keep their explicit representation and wide integers keep their precision.
 
 ### How to work with it
 
@@ -546,9 +567,8 @@ From `Sijav-Clauder/skills`:
 
 From `Sijav-Codex` (all offline, in temporary folders):
 
-- `python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke tests.test_run_all tests.test_loop tests.test_native_proof`
+- `python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke tests.test_loop tests.test_native_proof`
 - `npm test` in `skills/todo/dashboard`
-- `python -B validation/run_all.py` runs the package's suites and keeps each one's full output in `validation/`
 
 ## The website and this README
 
@@ -562,7 +582,7 @@ words.
 
 - No project names, paths or project rules go into the skills; they belong to the project.
 - The Codex plugin's board tools are the Claude plugin's, byte for byte: change them in
-  `Sijav-Clauder/skills/todo` and copy them over; `Sijav-Codex/validation/run_all.py` compares them.
+  `Sijav-Clauder/skills/todo` and copy them over.
 
 - Change a rule the way `rules/SKILL.md` says, and log it in `rules/log.md`. That log is the
   history of each rule, so it keeps the evidence it was written from.

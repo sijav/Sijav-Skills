@@ -17,17 +17,22 @@ site/private-words.txt
 # coverage runs
 .coverage
 
+# Local work records: test logs, TEMP folders and live-proof fixtures of this checkout, and the
+# orchestrator's private coordination records (briefs, Claude session state and runs)
+/.local/
+/.codex/
+
 # Logs and run records stay local, out of git (the owner, 2026-10-06).
-/Sijav-Codex/validation/*
-!/Sijav-Codex/validation/*.py
+/Sijav-Codex/validation/
 /Sijav-Codex/IMPLEMENTATION.md
 /Sijav-Codex/implementation-test-results.txt
 /Sijav-Codex/skills/todo/dashboard/test-output.txt
 /Sijav-Codex/skills/todo/dashboard/review-disposition.md
 /docs/tooling-failure-review-owner-approval-*.md
 
-# Development-only coverage tools, kept local (the owner, 2026-10-06).
+# Development-only coverage and test-checking tools, kept local (the owner, 2026-10-06).
 /dev/
 /.github/workflows/native-todo-coverage.yml
 /.gitattributes
 /Sijav-Codex/tests/test_planted_faults.py
+/Sijav-Codex/tests/test_run_all.py

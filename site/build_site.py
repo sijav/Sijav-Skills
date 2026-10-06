@@ -778,8 +778,9 @@ a { color: var(--accent); }
     <li><strong>One model:</strong> always <code>claude-opus-5-5</code>, at the effort asked for. No other model, no fallback, no retry.</li>
     <li><strong>Locked down:</strong> safe mode (no project CLAUDE.md, hooks, skills or MCP), restricted mode (no project settings can widen it), no slash commands, and no permission prompts: anything that would ask is refused.</li>
     <li><strong>Two modes:</strong> <code>code</code> reads and edits inside the project and runs only the commands you name, such as <code>Bash(python -m unittest *)</code>; <code>technical</code> only reads and fetches web pages. Both refuse to read keys, <code>.env</code> files and other secrets.</li>
-    <li><strong>Checked before it acts:</strong> Claude's first event must show the exact model, only the tools offered, its own sign-in and the project as its folder. Anything else stops it there.</li>
+    <li><strong>Checked before it acts:</strong> nothing Claude does may come before its start-up report, and every such report must show the exact model, only the tools offered, its own sign-in and the project as its folder. Only a few bounded bookkeeping events may come first: a resumed conversation's notices about its own background tasks, the acknowledgment of the helper's own message, and the queued and started marks of that message. Anything else stops it there.</li>
     <li><strong>The law goes along:</strong> safe mode loads no CLAUDE.md, so a purpose's first call carries the project's law.</li>
+    <li><strong>Finite commands:</strong> the helper configures a foreground default and ceiling (by default the smaller of ten minutes and half the whole call's limit) and sends that allowance before the unchanged prompt suffix. An omitted tool timeout uses the default; a smaller explicit request stops earlier. The whole-call deadline starts at launch, and its remaining lifetime is unknown to this guidance. Actual offered limits and model compliance remain unproved. Background work is disabled; an offered duration refusal is reported before starting, without a hidden runner. A background task still makes the call incomplete. Managed follow-ups receive no repeat and are read when the actual command ends.</li>
     <li><strong>Recorded:</strong> each call keeps its prompt, the command, the raw output and the result in the project.</li>
   </ul>
 </section>
@@ -823,6 +824,12 @@ a { color: var(--accent); }
     </div>
     <figcaption>Where the dashboard's data comes from. The board is only ever read; the next order is the board tool's own, worked out on a copy; the change history stays in your user folder.</figcaption>
   </figure>
+  <h3>How it works</h3>
+  <p>Area, type, topics and labels come only from fields stored on the board, including recorded lists and numbers. Task wording adds no labels. A missing field is distinguished from an empty one. <strong>Doing</strong> is the tool's interpretation of a recorded status; it does not establish that a worker is active. A started task the board tool holds back because a parent is not done is shown as Doing and waiting on its parents, exactly as the tool's own result says. <strong>Done</strong>, <strong>Tested</strong> and <strong>E2E tested</strong> remain separate recorded states.</p>
+  <p>Python 3.9 or newer is required for the tool's order and status meaning, including when either picker is called directly. The tool runs on a throwaway board copy, and its probe results must reproduce its pick. A changed or unreadable policy is shown as unknown with its reason; the dashboard does not fill in a guessed order.</p>
+  <p>Native file notifications drive updates. A watch that cannot start or reports a native error is shown as inactive with its actual reason. Some runtimes report a removed watched directory as a rename instead: the dashboard detects its disappearance before filtering child filenames, closes that watch and shows it as inactive. The service remains read-only. Restart the dashboard to restore a lost watch.</p>
+  <p>During startup, each acquired monitor remains owned until the dashboard starts or cleanup completes. A later monitor or server setup failure closes the acquired resources, attempting every cleanup while preserving the original error. Startup cleanup does not write a board.</p>
+  <p>SQLite SELECT columns arrive through the native column-type boundary: NULL remains NULL, infinities keep their explicit representation and wide integers keep their precision.</p>
   <h3>How to work with it</h3>
   <ol>
     <li>It needs Node 22.16 or newer on the 22 line, or Node 24 or newer, and Python 3.9 or newer for the board tool's order.</li>
@@ -1024,6 +1031,8 @@ flowchart LR
   B -->|a throwaway copy| P["The board tool's own picker<br/>todo.py or the loop's tool, on a copy"]
   P -->|the next order| D
   D -->|kept| H["Change history<br/>your user cache folder"]
+  S["Startup<br/>resolve boards and acquire monitors"] -->|listen succeeds| D
+  S -->|later setup fails| C["Close acquired resources<br/>preserve original error"]
 """,
 }
 
@@ -1076,9 +1085,8 @@ From `Sijav-Clauder/skills`:
 
 From `Sijav-Codex` (all offline, in temporary folders):
 
-- `python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke tests.test_run_all tests.test_loop tests.test_native_proof`
+- `python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke tests.test_loop tests.test_native_proof`
 - `npm test` in `skills/todo/dashboard`
-- `python -B validation/run_all.py` runs the package's suites and keeps each one's full output in `validation/`
 
 ## The website and this README
 
@@ -1092,7 +1100,7 @@ words.
 
 - No project names, paths or project rules go into the skills; they belong to the project.
 - The Codex plugin's board tools are the Claude plugin's, byte for byte: change them in
-  `Sijav-Clauder/skills/todo` and copy them over; `Sijav-Codex/validation/run_all.py` compares them.
+  `Sijav-Clauder/skills/todo` and copy them over.
 
 - Change a rule the way `rules/SKILL.md` says, and log it in `rules/log.md`. That log is the
   history of each rule, so it keeps the evidence it was written from.

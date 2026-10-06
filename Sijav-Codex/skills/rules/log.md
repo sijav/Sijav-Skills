@@ -512,3 +512,10 @@ SDK and fixture pages pass; the exact commands and outputs are in the
 package's `validation/` folder. No live Claude call, Jev call or page fetch
 through these helpers is recorded, and no plugin was installed or hook
 trusted by this change.
+## 2026-10-03 - D4 global testing cadence reconciliation
+
+Canonical D4/development-round text remains unchanged. The installed standalone loop skill still held the superseded 2026-09-10 parent/child full-suite cadence and required tests to pass before a build to-do could close. Replaced those paragraphs with a reference to the current global development-round rule and separate built/tested/real-user evidence. No implementation code or test code changed.
+
+Owner words: "Remember full suit only when you finish to-do in that area"; "Project instruction? That should be a global laws of the loop already".
+
+Evidence: both the authoritative source and installed plugin already say to build the area's to-dos and findings before the test pass, with only the project-prescribed close exit during build. The old standalone instruction conflicted with that rule. A dated .bak copy is retained outside discoverable rule/skill folders in the owning repository's ignored local records. The project note is only a mirror, not a new local cadence.

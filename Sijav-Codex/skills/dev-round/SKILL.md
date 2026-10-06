@@ -17,6 +17,19 @@ the first whenever work turns up. Done is not tested: when the project keeps its
 to-dos on a board, each to-do has two statuses that start false, tested and e2e
 tested.
 
+## Responsibility and documentation
+
+The assigned implementation agent executes tests only for its work area, never another stream's
+or an unrelated project's work. The orchestrator coordinates and records
+results; it does not execute tests or repeat tests the implementer already ran. Start
+an area's full suite only after every source to-do and finding in that area
+is complete.
+
+Every change includes its documentation update. Keep the affected technical
+documents and the application's Markdown/HTML How It Works descriptions and
+process diagrams aligned with actual inputs, processing, storage, decisions,
+actions and human intervention. Preserve the distinction between changed
+source and behavior actually verified.
 ## 1. Build
 
 - Take the area's to-dos, and every follow-up or finding that becomes a to-do
@@ -31,7 +44,10 @@ tested.
   test pass is for.
 - The one exception: when the project closes a to-do by running its exit check
   (a loop's close command, for example), that one command runs, and nothing
-  else.
+  else. A close exit that runs the area's full suite is deferred to the
+  test pass; it cannot override the requirement to finish every source
+  to-do and finding first. Source-built closure records deferred runtime
+  checks explicitly and creates no tested or E2E evidence.
 
 ## 2. Test
 

@@ -6,30 +6,18 @@ Claude Opus 5.5 alone writes implementation and test code and performs technical
 code review. Installing the package starts nothing: no loop, no dashboard and
 no model call.
 
-## Status
+## What is in it
 
-| Part | State |
+| Part | What it is |
 | --- | --- |
 | Skill prose (8 skills) | ported; rules, dev-round and loop are invoked only explicitly |
-| `skills/claude/claude_session.py` | Five live technical calls on `claude-opus-5-5` kept one conversation in TEMP; the latest (`051503Z`) exercised Read with safe/restricted/disable-slash settings and normal permissions. A separate code-permission fixture at 06:03 UTC passed 18 assertions: inside Write succeeded; outside Write and planted `.env`/`dummy.key` reads were denied; no shell was offered; project provider/hook settings were ignored. A full 126-unit run and the final 46 focused checks passed; the current 128 helper cases are covered across runs, not one full 128-case execution |
-| `skills/roast/jev.py` | Tested offline against the real typesafe-sdk 0.7.1 through an injected local transport, and with a fake SDK for every failure path. No live Jev call has been made, and no key was used |
-| `skills/research/verify.py` | Tested offline with fixture pages, a loopback server and a simulated DNS answer. No live report checked yet |
+| `skills/claude/claude_session.py` | runs Claude Code for code, tests and technical review: one conversation per purpose, its model, tools, sign-in and folder checked before it acts, commands in the foreground with time limits, and follow-ups while a call runs; tested offline with a stand-in Claude |
+| `skills/roast/jev.py` | asks jev through the TypeSafe SDK; tested offline, with an injected local transport and a fake SDK |
+| `skills/research/verify.py` | checks a report's citations; tested offline with fixture pages, a loopback server and a simulated DNS answer |
 | `skills/todo/todo.py`, `todo.mjs` | the source board tools, copied byte for byte |
 | `skills/todo/dashboard/` | the read-only board dashboard; see its own README |
-| Loop helpers and hooks | 111 offline checks passed. Project hooks and installed native plugin A/B/C proofs passed on Codex 0.159.3 in TEMP. Installed run `20261001T060506Z-run` continued three times to the promise, counted identical answers to cap two, and delivered the full law before the first response after manual compaction. All cases used no tools; final state was complete. Both hooks were approved and normally trusted/enabled. Automatic mid-turn compaction remains empirically untested |
-| `tools/sijav_codex_setup.py` | validation and native install commands; offline tests pass |
-
-Results with exact outputs are in `validation/`, including
-`final-focused-unittest.txt` and `final-fault-plantability.txt`. All 58 final
-fault cases plant; coverage combines the earlier 57 caught across documented
-runs and three new or repointed mutants caught after the atomic publication
-fix. No single full 58-case execution is claimed. The final source package
-was copied to this repository's `Sijav-Codex` folder: 111 files, zero hash
-mismatches. Its native setup installed/refreshed the same plugin ID from that
-source; version `0.1.0` is installed and enabled. Locked dashboard dependency
-installation passed with zero audit findings. Final discovery, retained hook
-trust, cache dependency and hash checks are reported separately; no new model
-proof is implied by the refresh.
+| Loop helpers and hooks | the loop adapter and its native Codex hooks; tested offline |
+| `tools/sijav_codex_setup.py` | validation and native install commands; tested offline |
 
 ## Requirements
 
@@ -166,6 +154,26 @@ First call of a new purpose:
 python "<package>/skills/claude/claude_session.py" call --purpose impl-board --mode code --scope "board implementation" --rules-file "<project>/<law file>" --prompt-file "<brief.md>" --allow-command "Bash(python -m unittest *)"
 ```
 
+Commands run in the foreground only. The helper sets
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, and `--command-timeout SECONDS`
+configures both `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS`; the default
+is the smaller of 600 s and half of `--timeout`. Omitting the tool's timeout
+uses that configured default; a smaller explicit request can stop earlier.
+A command-capable call sends this allowance as separate guidance before the
+unchanged prompt suffix, and records one `command_guidance_sha256`. It grants
+no additional command permission and is not repeated in managed follow-ups.
+The whole-call deadline starts at launch: it is not a new duration for each
+command, and the guidance cannot know the remaining lifetime. The actual
+offered tool schema/maximum and model compliance have not been proved by this
+configuration. An offered duration refusal must be reported before work starts,
+without a background or hidden runner. The CLI's temporary files are configured
+to the purpose's project-local `cli-tmp`; reading overflow there remains unproved
+live. A run that still starts a background task ends `incomplete` (exit 1).
+So does a run that would be `ok` but whose output had not ended 10 s after the
+CLI exited (kind `output not settled`; the cause is not determined); a failed
+run gets that note appended. Any reply is kept in the run's `reply.md`, a
+delivered turn keeps the session, and nothing is retried.
+
 Later call of the existing purpose:
 
 ```
@@ -176,6 +184,18 @@ A technical review in its own purpose, first call:
 
 ```
 python "<package>/skills/claude/claude_session.py" call --purpose roast-technical --mode technical --scope "technical roast" --rules-file "<project>/<law file>" --prompt-file "<review-brief.md>"
+```
+
+A managed call that accepts follow-ups while it runs, and one follow-up. The
+message is read at Claude's next tool or turn boundary; it does not interrupt.
+After the call ends a follow-up exits 5, and its last stdout line says
+`follow-up outcome: not_running (exit 5, sent no)`. Read that line under
+`powershell -Command`, which reports 1 for exit 5. The next message is a
+normal call:
+
+```
+python "<package>/skills/claude/claude_session.py" call --purpose impl-board --mode code --prompt-file "<brief.md>" --accept-follow-ups
+python "<package>/skills/claude/claude_session.py" follow-up --purpose impl-board --prompt-file "<steer.md>"
 ```
 
 Inspect without launching Claude:
@@ -300,17 +320,11 @@ All tests are offline and use temporary folders only. Run them from the package
 folder:
 
 ```
-python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke tests.test_run_all
-python -B validation/planted_faults.py --check-only
-python -B validation/planted_faults.py
+python -B -m unittest -v tests.test_claude_session tests.test_jev tests.test_jev_sdk tests.test_verify tests.test_setup tests.test_permission_smoke
 python -B -m unittest -v tests.test_loop tests.test_native_proof
 python "skills/todo/test-parity.py"
 node "skills/todo/test-subtasks.mjs"
-python -B validation/run_all.py
 ```
-
-`validation/run_all.py` runs all of these and writes each one's complete output
-to `validation/`.
 
 `tests.test_jev_sdk` runs only on a Python that has typesafe-sdk 0.7.x, and is
 skipped elsewhere. It drives the real SDK through an in-process
