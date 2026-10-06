@@ -417,10 +417,10 @@ const transitionOf = c => (c.isTask ?? c.table === 'task') && c.itemId != null &
 // ---------------------------------------------------------------- picker
 
 /** Run the board kind's picker once from a neutral directory. Resolves with its JSON or rejects with its structured error. */
-export function runPicker({ python, todo, dbPath, settings = defaults.picker, kind = 'todo' }) {
+export function runPicker({ python, todo, dbPath, settings = defaults.picker, kind = 'todo', areas = null }) {
   const spec = KINDS[kind] || KINDS.todo;
   return new Promise((resolveResult, reject) => {
-    const child = execFile(python.command, [...python.args, '-B', join(ROOT, spec.picker), '--db', dbPath, spec.toolFlag, todo], {
+    const child = execFile(python.command, [...python.args, '-B', join(ROOT, spec.picker), '--db', dbPath, spec.toolFlag, todo, ...(areas ? ['--areas', areas.join(',')] : [])], {
       cwd: tmpdir(), shell: false, windowsHide: true, timeout: settings.timeoutMs, maxBuffer: settings.maxBufferBytes,
       env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
     }, (error, stdout) => {
@@ -440,7 +440,7 @@ const fileSha = path => { try { return createHash('sha256').update(readFileSync(
 
 // ---------------------------------------------------------------- monitor
 
-export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null, kind = 'todo', sourceId = 'board' }) {
+export function createMonitor({ dbPath, dataDir, projectRoot, python = null, todo = null, pickerReason = null, settings = defaults, name = null, kind = 'todo', sourceId = 'board', areas = null }) {
   const tool = todo ? basename(todo) : (KINDS[kind] || KINDS.todo).tool || "the board's tool"; // the board's own tool, named in every message
   mkdirSync(dataDir, { recursive: true });
   const statePath = join(dataDir, 'baseline.json'), journalPath = join(dataDir, 'changes.jsonl');
@@ -469,7 +469,7 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
   const currentPolicy = () => policyReason() == null ? queue.result.policy : null;
   const publicQueue = () => {
     const r = queue.result, out = { state: queue.state, error: queue.error, stale: queue.state !== 'ready' && !!(r || queue.previous) };
-    if (queue.state === 'ready' && r) return { ...out, checkedAt: r.checkedAt, headId: r.headId, headKind: r.headKind, startedIds: r.startedIds, eligibleIds: r.eligibleIds,
+    if (queue.state === 'ready' && r) return { ...out, checkedAt: r.checkedAt, areas: r.areas ?? null, headId: r.headId, headKind: r.headKind, startedIds: r.startedIds, eligibleIds: r.eligibleIds,
       startableIds: r.startableIds, rankedIds: r.rankedIds, deferred: r.deferred, rankKeys: r.rankKeys, rankErrors: r.rankErrors, children: r.children,
       nextText: r.nextText, nextExitCode: r.nextExitCode, currentPhase: r.currentPhase, phases: r.phases, boardHadTaskTable: r.boardHadTaskTable,
       schemaAddedOnCopy: r.schemaAddedOnCopy, tool: r.tool };
@@ -570,7 +570,7 @@ export function createMonitor({ dbPath, dataDir, projectRoot, python = null, tod
           if (!board?.available) { queue.processed = generation; queue.previous = null; queue.state = 'unavailable'; queue.error = 'The board could not be read, so its next pick is unknown. ' + (board?.error || ''); continue; }
           try {
             const sha = todo ? fileSha(todo) : null;
-            const result = await runPicker({ python, todo, dbPath, settings: settings.picker, kind });
+            const result = await runPicker({ python, todo, dbPath, settings: settings.picker, kind, areas });
             if (closed) return;
             if (generation !== queue.requested) continue;
             if (result.tool.sha256 !== sha || sha !== fileSha(todo)) { // todo.py changed mid-run

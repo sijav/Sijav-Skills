@@ -23,6 +23,10 @@ export const USAGE = `Read-only live dashboard for a project's to-do board: the 
                      must exist; nothing is ever created. Any other file is refused.
                      Give --db more than once to show several boards on one page,
                      each read with its own tool and keeping its own history.
+  --areas <a,b,...>  For the loop board of the --db before it: offer as next only its
+                     items in these areas, as its tool's next --area does for the
+                     sessions working them; "-" stands for items with no area. The
+                     rest are listed after them, each with its area as the reason.
   --port <n>         Port to listen on. Default 0: a free port chosen by the OS,
                      which changes on every start. Pass a port for a stable address.
   --host <addr>      Loopback address to bind: 127.0.0.1 (default), localhost or ::1.
@@ -42,7 +46,7 @@ export const USAGE = `Read-only live dashboard for a project's to-do board: the 
 
 export function parseArgs(argv) {
   const options = { project: null, db: null, port: 0, host: '127.0.0.1', dataDir: null, python: null, todoPy: null, tool: null, publish: null, publishTokenFile: null, help: false };
-  const names = { '--project': 'project', '--db': 'db', '--port': 'port', '--host': 'host', '--data-dir': 'dataDir', '--python': 'python', '--todo-py': 'todoPy', '--tool': 'tool', '--publish': 'publish', '--publish-token-file': 'publishTokenFile' };
+  const names = { '--project': 'project', '--db': 'db', '--areas': 'areas', '--port': 'port', '--host': 'host', '--data-dir': 'dataDir', '--python': 'python', '--todo-py': 'todoPy', '--tool': 'tool', '--publish': 'publish', '--publish-token-file': 'publishTokenFile' };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--help' || arg === '-h') { options.help = true; continue; }
@@ -50,6 +54,12 @@ export function parseArgs(argv) {
     if (!names[flag]) throw new BoardError(`Unknown option ${arg}.\n\n${USAGE}`);
     const value = inline ?? argv[++i];
     if (value == null || value === '') throw new BoardError(`${flag} needs a value.`);
+    if (flag === '--areas') { // the areas of the board whose --db came last (the only board when none did)
+      const board = Math.max(0, (options.dbs?.length ?? 1) - 1), areas = value.split(',').map(a => a.trim()).filter(Boolean);
+      if (!areas.length) throw new BoardError('--areas needs at least one area name.');
+      if (options.areas?.[board]) throw new BoardError('--areas is given twice for one board; give it once, after that board\'s --db.');
+      (options.areas ??= {})[board] = areas; continue;
+    }
     if (flag === '--db') (options.dbs ??= []).push(value);
     if (flag === '--db' && options.db != null) continue; // the first --db stays the main board
     options[names[flag]] = value;
@@ -200,8 +210,9 @@ async function loadWs() {
 export async function startDashboard(options = {}, { cwd = process.cwd(), env = process.env } = {}) {
   const asked = options.dbs?.length > 1 ? options.dbs : [options.db ?? null];
   const boards = [];
-  for (const db of asked) {
-    const board = resolveBoard({ cwd, project: options.project ?? null, db });
+  for (const [index, db] of asked.entries()) {
+    const board = { ...resolveBoard({ cwd, project: options.project ?? null, db }), areas: options.areas?.[index] ?? null };
+    if (board.areas && board.kind !== 'loop') throw new BoardError(`--areas is for a loop board; ${board.dbPath} is not one.`);
     if (!boards.some(b => samePath(b.dbPath, board.dbPath))) boards.push(board);
   }
   const loops = boards.filter(b => b.kind === 'loop').length;
@@ -216,7 +227,7 @@ export async function startDashboard(options = {}, { cwd = process.cwd(), env = 
     const python = todo.path ? discoverPython(options.python ?? null, env) : { command: null, reason: null };
     const pickerReason = todo.reason || python.reason || null;
     const name = boards.length === 1 ? null : `${basename(board.projectRoot)} · ${board.kind === 'loop' ? basename(board.dbPath).replace(/\.[^.]*$/, '') : 'to-do'}`;
-    const monitor = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason, kind: board.kind, sourceId, name });
+    const monitor = createMonitor({ dbPath: board.dbPath, dataDir, projectRoot: board.projectRoot, python: python.command ? python : null, todo: todo.path, pickerReason, kind: board.kind, sourceId, name, areas: board.areas });
     return { board, sourceId, dataDir, todo, python, pickerReason, monitor };
   });
   const monitor = combineMonitors(pieces.map(p => p.monitor));
@@ -253,6 +264,7 @@ export function describe(started) {
     const shown = s.boards.find(b => b.id === piece.sourceId), w = shown?.watchState ?? s.watchState, queue = shown?.queue;
     return [
       `Board:      ${piece.board.dbPath}  (${KINDS[piece.board.kind].label}; ${piece.board.how})`,
+      ...(piece.board.areas ? [`Areas:      ${piece.board.areas.join(', ')} (only these are offered next)`] : []),
       `Watching:   ${w.board.active ? w.board.directory + ' for ' + w.board.files.join(', ') : 'NOT ACTIVE: ' + w.board.error}` +
         (piece.todo.path ? `; ${w.tool.active ? 'tool ' + piece.todo.path : 'tool watch NOT ACTIVE: ' + w.tool.error}` : ''),
       `Picker:     ${piece.pickerReason ? 'unavailable · ' + piece.pickerReason : `${basename(piece.todo.path)} ${piece.todo.path} via ${piece.python.command}` + (queue?.state ? ` · ${queue.state}` : '')}`,
@@ -276,6 +288,7 @@ export function describe(started) {
     `URL:        ${started.url}${started.fixedPort ? '' : '  (port chosen by the OS; it changes on restart, pass --port for a stable address)'}`,
     `Project:    ${started.board.projectRoot}`,
     `Board:      ${started.board.dbPath}  (${KINDS[started.board.kind].label}; ${started.board.how})`,
+    ...(started.board.areas ? [`Areas:      ${started.board.areas.join(', ')} (only these are offered next)`] : []),
     `Read-only:  yes · SQLite read-only/query-only connections · no mutation API · board never written`,
     `Watching:   ${s.watchState.board.active ? s.watchState.board.directory + ' for ' + s.watchState.board.files.join(', ') : 'NOT ACTIVE: ' + s.watchState.board.error}` +
       (started.todo.path ? `; ${s.watchState.tool.active ? 'tool ' + started.todo.path : 'tool watch NOT ACTIVE: ' + s.watchState.tool.error}` : ''),

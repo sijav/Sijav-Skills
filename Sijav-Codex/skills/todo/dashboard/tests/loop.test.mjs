@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { BoardError, discoverTool, findBoard, kindOf, readBoard, resolveBoard } from '../lib/board.mjs';
-import { describe, startDashboard } from '../server.mjs';
+import { describe, parseArgs, startDashboard } from '../server.mjs';
 import { PYTHON, STAGE, TODO_PY, cleanEnv, cleanup, listing, loopProject, richProject, sha, tempDir, testEnv, todo, until } from './helpers.mjs';
 
 test.after(cleanup);
@@ -205,4 +205,53 @@ test('two boards on one page: each read with its own tool and history, one numbe
 test('--tool is refused when several loop boards are shown, each of which uses its own', async () => {
   const a = loopProject('loop a'), b = loopProject('loop b');
   await assert.rejects(startDashboard({ db: a.db, dbs: [a.db, b.db], tool: a.tool }, { cwd: a.root, env: testEnv() }), /several loop boards were given/);
+});
+
+test('with --areas, loop_picker.py offers only the items in those areas and lists the rest after them, each with its area', () => {
+  const p = loopProject();
+  const before = sha(p.db);
+  const run = areas => spawnSync(PYTHON, ['-B', join(STAGE, 'loop_picker.py'), '--db', p.db, '--tool', p.tool, '--areas', areas],
+    { cwd: tempDir(), encoding: 'utf8', env: cleanEnv({ PYTHONDONTWRITEBYTECODE: '1' }) });
+  const out = JSON.parse(run('back').stdout);
+  assert.equal(out.error, undefined, out.error);
+  assert.deepEqual(out.areas, ['back']);
+  assert.equal(out.headId, '1');
+  assert.deepEqual(out.startableIds, ['1', '6'], 'the started front item is not offered');
+  assert.deepEqual(out.rankedIds, ['1', '6', '2', '3', '4'], 'the offered items, then the rest in the tool’s order');
+  const reasons = id => out.deferred[id].map(r => r.message);
+  assert.deepEqual(reasons('4'), ['Area front: not one of the areas worked here (back).']);
+  assert.deepEqual(reasons('3'), ['Parked: Owner decides the wording', 'Checked with the tool: removing the reasons above makes it startable.',
+    'No area: not one of the areas worked here (back).']);
+  assert.match(out.nextText, /^-> 4 /m, 'the order panel is still the tool’s own');
+  assert.match(out.nextText, /^In the areas worked here \(back\): 2 startable\.$/m);
+  const withNone = JSON.parse(run('back, -').stdout);
+  assert.deepEqual(withNone.areas, ['-', 'back']);
+  assert.deepEqual(withNone.deferred['3'].map(r => r.kind), ['blocked', 'check'], 'the dash takes in the items with no area');
+  const refused = run(' , ');
+  assert.equal(refused.status, 1);
+  assert.match(JSON.parse(refused.stdout).error, /--areas names no area/);
+  assert.equal(sha(p.db), before, 'the board is never written');
+});
+
+test('--areas belongs to the --db before it, needs a name, comes once per board, and only a loop board takes it', async () => {
+  assert.deepEqual(parseArgs(['--db', 'a.db', '--areas', ' x, y ', '--db', 'b.db']).areas, { 0: ['x', 'y'] });
+  assert.deepEqual(parseArgs(['--db', 'a.db', '--db', 'b.db', '--areas=z']).areas, { 1: ['z'] });
+  assert.deepEqual(parseArgs(['--areas', 'z']).areas, { 0: ['z'] }, 'with no --db, the board found from the project');
+  assert.throws(() => parseArgs(['--db', 'a.db', '--areas', ',']), /--areas needs at least one area name/);
+  assert.throws(() => parseArgs(['--db', 'a.db', '--areas', 'x', '--areas', 'y']), /given twice for one board/);
+  const board = richProject('areas project');
+  await assert.rejects(startDashboard({ db: board.db, areas: { 0: ['x'] }, todoPy: TODO_PY }, { cwd: tempDir(), env: testEnv() }), /--areas is for a loop board/);
+});
+
+test('a loop board shown with --areas: the server’s pick and order are those areas’, and its start-up text names them', { timeout: 120000 }, async () => {
+  const p = loopProject();
+  const started = await startDashboard({ db: p.db, areas: { 0: ['back'] } }, { cwd: p.root, env: testEnv() });
+  try {
+    const board = await until(() => { const b = started.monitor.snapshot().boards[0]; return b.queue?.state === 'ready' && b; }, 'the loop picker');
+    assert.deepEqual(board.queue.areas, ['back']);
+    assert.equal(board.queue.headId, '1');
+    assert.deepEqual(board.queue.startableIds, ['1', '6']);
+    assert.match(board.queue.deferred['4'][0].message, /^Area front: /);
+    assert.match(describe(started), /^Areas: +back \(only these are offered next\)$/m);
+  } finally { await started.close(); }
 });

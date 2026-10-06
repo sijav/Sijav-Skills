@@ -29,6 +29,11 @@ What the tool's `next` adds on top of that order -- measurements of the
 machine, such as whether a database it needs is ready -- is not run here: it
 runs commands and reads files, which a read-only view must not do.
 
+With --areas, only the items stored in those areas are offered, as a tool's
+`next --area` offers them to the sessions that work those areas: an item it
+could start in another area (or with no area, unless the areas hold "-") is
+listed after the offered ones, with its area as the reason.
+
 Output is one JSON object on stdout, the shape picker.py prints. Failures are
 {"error": "..."}, exit 1.
 """
@@ -191,11 +196,27 @@ def derive_policy(order, conn, statuses, fresh, severities):
     }
 
 
-def evaluate(module, imported, sha, tool_path, conn):
+def areas_given(text):
+    """--areas as a set of area names, None standing for the dash (an item with no area)."""
+    if text is None:
+        return None
+    names = {part.strip() for part in text.split(",") if part.strip()}
+    if not names:
+        raise ValueError("--areas names no area.")
+    return {None if name == "-" else name for name in names}
+
+
+def areas_shown(areas):
+    return ", ".join(sorted(name or "-" for name in areas))
+
+
+def evaluate(module, imported, sha, tool_path, conn, areas=None):
     rows = table_rows(conn)  # the board as stored, before any probe
     stored = schema_of(conn)
     if "item" not in stored or "dep" not in stored:
         raise ToolChanged("this file has no item and dep tables, so it is not a loop board.")
+    if areas is not None and "area" not in stored["item"]:
+        raise ToolChanged(f"--areas {areas_shown(areas)} was given, but this board's items have no area column.")
     order = Order(module, imported)
     conn.isolation_level = None  # probes manage their own savepoints
     fresh = default_status(conn)
@@ -215,28 +236,40 @@ def evaluate(module, imported, sha, tool_path, conn):
     for item, blocker in conn.execute("SELECT item, blocker FROM dep"):
         blockers.setdefault(item, []).append(blocker)
     startable = [row[0] for row, ok in pairs if ok]
-    waiting = [row[0] for row, ok in pairs if not ok]
+    outside = set()
+    if areas is not None:
+        area_of = dict(conn.execute("SELECT id, area FROM item"))
+        outside = {row[0] for row, _ok in pairs if area_of.get(row[0]) not in areas}
+        startable = [item_id for item_id in startable if item_id not in outside]
+    offered = set(startable)
+    waiting = [row[0] for row, _ok in pairs if row[0] not in offered]
     rank_keys = {}
     if order.sort_key is not None:
         for row, _ok in pairs:
             with contextlib.suppress(Exception):
                 rank_keys[str(row[0])] = plain(list(order.sort_key(row)))
 
+    unstartable = {row[0] for row, ok in pairs if not ok}
     deferred = {}
     for item_id in waiting:
         item = items.get(item_id, {"title": "", "parked": None})
         reasons, unmet = [], []
-        if item.get("parked") is not None:
-            reasons.append({"kind": "blocked", "message": f"Parked: {item['parked']}"})
-        for blocker in blockers.get(item_id, []):
-            other = items.get(blocker)
-            if other is None:
-                reasons.append({"kind": "parent", "message": f"Waits on {blocker}, which is not on this board."})
-                unmet.append(blocker)
-            elif other["status"] not in satisfying:
-                reasons.append({"kind": "parent", "message": f"Waits on {blocker} ({other['status']}): {other['title']}"})
-                unmet.append(blocker)
-        reasons.append(confirm(order, conn, item_id, unmet, items, satisfying, has_parked))
+        if item_id in unstartable:
+            if item.get("parked") is not None:
+                reasons.append({"kind": "blocked", "message": f"Parked: {item['parked']}"})
+            for blocker in blockers.get(item_id, []):
+                other = items.get(blocker)
+                if other is None:
+                    reasons.append({"kind": "parent", "message": f"Waits on {blocker}, which is not on this board."})
+                    unmet.append(blocker)
+                elif other["status"] not in satisfying:
+                    reasons.append({"kind": "parent", "message": f"Waits on {blocker} ({other['status']}): {other['title']}"})
+                    unmet.append(blocker)
+            reasons.append(confirm(order, conn, item_id, unmet, items, satisfying, has_parked))
+        if item_id in outside:
+            area = area_of.get(item_id)
+            reasons.append({"kind": "area", "message": f"{'Area ' + str(area) if area else 'No area'}: not one of the"
+                            f" areas worked here ({areas_shown(areas)})."})
         deferred[str(item_id)] = reasons
 
     text = io.StringIO()
@@ -244,7 +277,9 @@ def evaluate(module, imported, sha, tool_path, conn):
         severity = row[2] if len(row) > 2 else ""
         priority = row[3] if len(row) > 3 else ""
         text.write(f"{'->' if ok else '  '} {row[0]:<6} [{severity} p{priority}] {str(row[1])[:70]}\n")
-    text.write(f"\n{len(pairs)} open, {len(startable)} startable.\n")
+    text.write(f"\n{len(pairs)} open, {sum(ok for _row, ok in pairs)} startable.\n")
+    if areas is not None:
+        text.write(f"In the areas worked here ({areas_shown(areas)}): {len(startable)} startable.\n")
 
     docs = {}
     for name in ("board_order", "open_items", "blocked_ids", "parked_ids", "sort_key"):
@@ -262,6 +297,7 @@ def evaluate(module, imported, sha, tool_path, conn):
         "policy": {**policy, "rankLabels": ["severity rank", "priority", "repeats (negative)", "created"], "docs": docs},
         "currentPhase": None,
         "phases": [],
+        "areas": None if areas is None else sorted(name or "-" for name in areas),
         "headId": None if head is None else str(head),
         "headKind": None if head is None else "eligible",
         "startedIds": [],
@@ -303,7 +339,7 @@ def confirm(order, conn, item_id, unmet, items, satisfying, has_parked):
             "message": "The tool still does not offer it after those reasons are removed; something else in its rules applies."}
 
 
-def read_picker(db_path, tool_path):
+def read_picker(db_path, tool_path, areas=None):
     module, imported, sha = load_tool(tool_path)
     isolated = tempfile.mkdtemp(prefix="sijav-loop-picker-")
     home = os.getcwd()
@@ -313,7 +349,7 @@ def read_picker(db_path, tool_path):
         conn = sqlite3.connect(board)
         try:
             os.chdir(isolated)
-            return evaluate(module, imported, sha, tool_path, conn)
+            return evaluate(module, imported, sha, tool_path, conn, areas)
         finally:
             os.chdir(home)
             conn.close()
@@ -325,11 +361,12 @@ def main():
     parser = JsonArguments(description=__doc__)
     parser.add_argument("--db", required=True)
     parser.add_argument("--tool", required=True)
+    parser.add_argument("--areas")
     try:
         args = parser.parse_args()
         if sys.version_info < (3, 9):
             raise RuntimeError("Python 3.9 or newer is needed.")
-        result = read_picker(args.db, args.tool)
+        result = read_picker(args.db, args.tool, areas_given(args.areas))
         exit_code = 0
     except Exception as error:  # every failure is reported as data, never as a guessed order
         result = {"error": f"{type(error).__name__}: {error}"}

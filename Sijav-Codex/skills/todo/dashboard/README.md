@@ -82,6 +82,7 @@ directory junction or `subst` drive.
 | --- | --- |
 | `--project <dir>` | Start the board lookup here instead of the current directory. The nearest **existing** `<dir or ancestor>/.claude/todo.db` is used, the same walk as `todo.py`. A loop board is never looked for: `--db` names it. |
 | `--db <file>` | Use this board file, relative to the current directory. It must exist; nothing is ever created. A loop board is always opened this way. Give `--db` more than once to show several boards on one page (see [Several boards](#several-boards)). |
+| `--areas <a,b,...>` | For the loop board of the `--db` before it: only its items in these areas are offered as next, as the tool's `next --area` offers them to the sessions working those areas; `-` stands for items with no area. The others are listed after them, each with its area as the reason. A to-do board refuses it. |
 | `--port <n>` | Default `0`: the OS picks a free port. **That port changes on every start**, so an open tab cannot reconnect after a restart. Pass a fixed `--port` for a stable address. A port in use is reported (exit 2). |
 | `--host <addr>` | `127.0.0.1` (default), `localhost` or `::1`. Non-loopback addresses are refused. |
 | `--data-dir <dir>` | Where change history is kept. Default: a per-user cache folder keyed by the board (below). A folder inside the installed skill is refused. |
