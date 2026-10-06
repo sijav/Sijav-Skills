@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 STAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(STAGE / "tests"))
@@ -29,13 +30,20 @@ class Prepare(unittest.TestCase):
         (board / ".claude").mkdir(parents=True)
         (board / ".claude" / "todo.db").write_bytes(b"")
         for target, words in ((full, "not an empty folder"), (repo / "fixture", ".git"),
-                              (board / "fixture", ".claude/todo.db"), (STAGE / "fixture", "not a new folder under"),
+                              (board / "fixture", ".claude/todo.db"),
                               (Path(tempfile.gettempdir()), "not a new folder under")):
             with self.subTest(str(target)):
                 with self.assertRaisesRegex(ps.Refused, words):
                     ps.prepare(target)
         self.assertFalse((repo / "fixture").exists())
         self.assertFalse((board / "fixture").exists())
+        # A package under TEMP, wherever the real one is: only the overlap rule can refuse this folder.
+        package = self.base / "package"
+        package.mkdir()
+        with self.subTest("inside the package"), mock.patch.object(ps, "STAGE", package):
+            with self.assertRaisesRegex(ps.Refused, "overlaps"):
+                ps.prepare(package / "fixture")
+        self.assertFalse((package / "fixture").exists())
 
     def test_the_fixture_holds_only_synthetic_files(self):
         target = self.base / "fixture"

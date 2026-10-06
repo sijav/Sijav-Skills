@@ -61,11 +61,22 @@ python "<skills>/claude/claude_session.py" call --purpose roast-technical --mode
 
 Technical mode offers Claude only Read, Glob, Grep and WebFetch: it cannot write
 or run commands, reads outside the project or of common secret files are
-denied, and no argument adds tools or picks another model. Later calls resume
+denied, and no argument adds tools or picks another model. Background tasks are
+switched off, the task tools are denied, and `--command-timeout` is refused
+here because there is no command to bound. Later calls resume
 the exact recorded conversation. Exit 4 means the purpose is busy in another
 call: wait, or give a concurrent manual review its own purpose. Exit 5 means the
 purpose needs the owner's resolution (for example an unconfirmed first call).
-The reply goes to stdout; the full record is under
+A call started with `--accept-follow-ups` can be steered while it runs with
+`follow-up --purpose roast-technical --prompt-file "<steer.md>"`: the message
+is read at Claude's next tool or turn boundary and does not interrupt. The CLI
+acknowledges it only at that boundary, so a `--wait` shorter than Claude's
+current step reports "not acknowledged within N s" while the message is still
+submitted (exit 0). Once
+that call has ended, a follow-up is refused (exit 5, outcome line
+`follow-up outcome: not_running`; under `powershell -Command` read that line,
+since the host reports 1) and the next question is a normal call. A resumed review interrupted mid-task no longer refuses every
+later call. The reply goes to stdout; the full record is under
 `<project>/.codex/claude-sessions/<purpose>/runs/`. See `$sijav-codex-agents` for
 the helper's full contract.
 
@@ -185,7 +196,8 @@ On October 1, 2026 five real technical-mode calls through `claude/claude_session
 conversation: the CLI reported `claude-opus-5-5`, only Glob, Grep, Read and
 WebFetch, the normal permission mode and its own sign-in. A live code-mode check
 passed too (see `$sijav-codex-agents`). Failure, unconfirmed and interrupted
-paths are tested offline with a fake CLI pinned to that version's help and init. `jev.py` is tested against the real
+paths are tested offline with a fake CLI pinned to that version's help and init. Code calls run commands in the foreground only, with a bound.
+Technical mode has no command tool, so it is unaffected. `jev.py` is tested against the real
 typesafe-sdk 0.7.1 through a local, in-process transport and with a fake SDK
 for every failure path. No live Jev call has been made. The service, the key
 and model access are confirmed only when a real call runs.

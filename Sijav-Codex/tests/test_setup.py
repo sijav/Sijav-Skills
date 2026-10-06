@@ -32,7 +32,7 @@ class Base(unittest.TestCase):
             shutil.copy2(FAKE, self.bin / f"{tool}.py")
         self.log = self.tmp / "tools.jsonl"
 
-    def setup(self, *args, mode="ok", tools=True, **more_env):
+    def setup(self, *args, mode="ok", tools=True, timeout=120, **more_env):
         extra = []
         if tools:
             for tool in ("codex", "npm", "node", "claude"):
@@ -42,7 +42,7 @@ class Base(unittest.TestCase):
                    FAKE_TOOL_INSTALLED=str(self.tmp / "installed plugin"), **more_env)
         (self.tmp / "installed plugin").mkdir(exist_ok=True)
         r = subprocess.run([sys.executable, str(self.pkg / "tools" / "sijav_codex_setup.py"), *extra, *args],
-                           cwd=str(self.tmp), capture_output=True, env=env, timeout=120)
+                           cwd=str(self.tmp), capture_output=True, env=env, timeout=timeout)
         return (r.returncode, r.stdout.decode("utf-8").replace("\r\n", "\n"),
                 r.stderr.decode("utf-8").replace("\r\n", "\n"))
 
@@ -248,8 +248,11 @@ class Install(Base):
 
         self.addCleanup(kill_escaped)
         started = time.monotonic()
-        code, out, err = self.setup("--install", "--command-timeout", "3", mode="hang_escaped",
-                                    FAKE_TOOL_CHILD_PID=str(pid_file))
+        try:  # ending within 60 s is the property under test, so only this call's timeout is a failure
+            code, out, err = self.setup("--install", "--command-timeout", "3", mode="hang_escaped",
+                                        FAKE_TOOL_CHILD_PID=str(pid_file), timeout=60)
+        except subprocess.TimeoutExpired:
+            self.fail("setup was still waiting after 60 s on a pipe the escaped descendant holds")
         self.assertLess(time.monotonic() - started, 60, "not the 120 s the escaped process sleeps")
         self.assertEqual(code, 1)
         self.assertIn("partial output before the hang", out, "output read before the timeout is kept")

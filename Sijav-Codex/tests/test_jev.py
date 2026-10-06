@@ -215,7 +215,7 @@ class Ask(Base):
         c, out, err = self.ask(run, framing(state=state))
         self.assertEqual(c, 0, err)
         [call] = self.calls()
-        self.assertEqual(call["questions"]["anything_critical"], jev.CRITICAL_QUESTION)
+        self.assertEqual(call["questions"].get(jev.CRITICAL), jev.CRITICAL_QUESTION, "the question is sent, word for word")
         self.assertIn("Given what_was_asked_for and the_plan's logic, is anything critical", out)
 
     def test_framing_may_not_supply_what_the_helper_sets(self):
@@ -396,7 +396,9 @@ class CallSafety(Base):
         run = self.open()
         c, _o, err = self.ask(run, framing(), FAKE_TS_MODE="interrupt")
         self.assertNotEqual(c, 0)
+        self.assertTrue((run / "error-1.json").is_file(), "the interrupt is recorded")
         self.assertEqual(self.j(run / "error-1.json")["outcome"], "unknown")
+        self.assertTrue((run / "jev.json").is_file(), "the run is closed with an outcome")
         self.assertIn("interrupted (KeyboardInterrupt)", self.j(run / "jev.json")["cause"])
         self.assertEqual(self.ask(run, framing())[0], 1, "the run is closed; Jev is not asked again")
         self.assertEqual(len(self.calls()), 1)
@@ -462,6 +464,7 @@ class CallSafety(Base):
                     self.assertIn("stays calling", str(caught.exception))
                 self.assertFalse((run / "jev.json").exists(), "no partial canonical record")
                 self.assertEqual(list(run.glob(".jev-*.tmp")), [], "the temporary file is removed")
+            (run / "jev.json").unlink(missing_ok=True)  # each case starts, as the first did, with no record
         self.assertEqual(self.j(run / "state.json")["status"], "calling")
         self.assertTrue((run / "request-1.json").exists())
         (run / "jev.json").write_text(json.dumps({"status": "unjudged", "cause": "other", "request": 2}),
